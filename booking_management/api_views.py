@@ -6137,6 +6137,44 @@ def api_job_quotation_detail(request, quotation_id):
 
 
 @csrf_exempt
+def api_job_quotation_delete(request, quotation_id):
+    from django.db import transaction
+    from .models import JobQuotation, JobQuotationItem, JobQuotationExtra, JobQuotationIssue, JobQuotationIssuePhoto, JobCard
+
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Only POST allowed'}, status=405)
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+    company, branch = _job_pipeline_scope(user)
+    if not company:
+        return JsonResponse({'success': False, 'message': 'Company not found'}, status=400)
+
+    with transaction.atomic():
+        quotation = JobQuotation.objects.select_for_update().filter(
+            id=quotation_id, customer__company=company, is_deleted=False
+        ).first()
+        if not quotation or (branch and quotation.branch_id != branch.id):
+            return JsonResponse({'success': False, 'message': 'Quotation not found'}, status=404)
+        if quotation.is_accepted:
+            return JsonResponse({'success': False, 'message': 'Accepted quotations cannot be deleted'}, status=409)
+        if JobCard.objects.filter(job_quotation=quotation, is_deleted=False).exists():
+            return JsonResponse({'success': False, 'message': 'A quotation linked to a Job Card cannot be deleted'}, status=409)
+
+        reports = quotation.reported_issues.filter(is_deleted=False)
+        report_ids = list(reports.values_list('id', flat=True))
+        JobQuotationIssuePhoto.objects.filter(reported_issue_id__in=report_ids, is_deleted=False).update(is_deleted=True, updater=user)
+        reports.update(is_deleted=True, updater=user)
+        JobQuotationItem.objects.filter(quotation=quotation, is_deleted=False).update(is_deleted=True, updater=user)
+        JobQuotationExtra.objects.filter(quotation=quotation, is_deleted=False).update(is_deleted=True, updater=user)
+        quotation.is_deleted = True
+        quotation.updater = user
+        quotation.save(update_fields=['is_deleted', 'updater', 'date_updated'])
+
+    return JsonResponse({'success': True, 'quotation_id': str(quotation.id)})
+
+
+@csrf_exempt
 def api_job_quotation_update(request, quotation_id):
     from decimal import Decimal
     from django.db import transaction
