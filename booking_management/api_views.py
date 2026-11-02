@@ -5112,12 +5112,13 @@ def api_job_card_accessories_search(request):
     if not user:
         return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
 
-    company = getattr(getattr(user, 'profile', None), 'company', None)
+    company, _branch = _job_pipeline_scope(user)
+    if not company:
+        return JsonResponse({'success': False, 'message': 'Company not found'}, status=400)
     q = request.GET.get('q', '').strip()
 
     stocks_qs = Stock.objects.filter(is_deleted=False)
-    if company:
-        stocks_qs = stocks_qs.filter(company=company)
+    stocks_qs = stocks_qs.filter(company=company)
 
     if q:
         stocks_qs = stocks_qs.filter(
@@ -5592,6 +5593,8 @@ def api_job_lead_delete(request, lead_id):
 def api_job_lead_follow_up(request, lead_id):
     from datetime import date
     from decimal import Decimal
+    from django.db import transaction
+    from client_management.models import Staff
     from core.functions import get_auto_id
     from .models import JobLead, JobLeadFollowUp
     user = get_user_from_token(request)
@@ -5614,13 +5617,32 @@ def api_job_lead_follow_up(request, lead_id):
         if followup_date:
             date.fromisoformat(followup_date)
         chance = data.get('success_chance')
-        followup = JobLeadFollowUp.objects.create(
-            lead=lead, remarks=remarks, next_follow_up_date=followup_date, status=status,
-            success_chance=Decimal(str(chance)) if chance not in (None, '') else None,
-            lost_reason=lost_reason, auto_id=get_auto_id(JobLeadFollowUp), creator=user,
-        )
-        lead.status, lead.next_follow_up_date, lead.success_chance, lead.lost_reason = status, followup_date, followup.success_chance, lost_reason
-        lead.save(update_fields=['status', 'next_follow_up_date', 'success_chance', 'lost_reason', 'date_updated'])
+        parsed_chance = Decimal(str(chance)) if chance not in (None, '') else None
+        if parsed_chance is not None and not Decimal('0') <= parsed_chance <= Decimal('100'):
+            return JsonResponse({'success': False, 'message': 'Success chance must be between 0 and 100'}, status=400)
+        transfer_id = data.get('transfer_staff_id')
+        transfer_staff = None
+        if transfer_id:
+            staff_qs = Staff.objects.filter(id=transfer_id, company=company, is_deleted=False)
+            if lead.branch_id:
+                staff_qs = staff_qs.filter(branch_id=lead.branch_id)
+            transfer_staff = staff_qs.first()
+            if not transfer_staff:
+                return JsonResponse({'success': False, 'message': 'Selected staff member is not available for this lead'}, status=400)
+            if transfer_staff.id != lead.staff_id:
+                remarks = f'{remarks}\nLead transferred to {transfer_staff.name}.'.strip()
+        with transaction.atomic():
+            followup = JobLeadFollowUp.objects.create(
+                lead=lead, remarks=remarks, next_follow_up_date=followup_date, status=status,
+                success_chance=parsed_chance, lost_reason=lost_reason,
+                auto_id=get_auto_id(JobLeadFollowUp), creator=user,
+            )
+            lead.status, lead.next_follow_up_date, lead.success_chance, lead.lost_reason = status, followup_date, parsed_chance, lost_reason
+            update_fields = ['status', 'next_follow_up_date', 'success_chance', 'lost_reason', 'date_updated']
+            if transfer_staff and transfer_staff.id != lead.staff_id:
+                lead.staff, lead.staff_name = transfer_staff, transfer_staff.name
+                update_fields.extend(['staff', 'staff_name'])
+            lead.save(update_fields=update_fields)
         return JsonResponse({'success': True, 'follow_up_id': str(followup.id)})
     except JobLead.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Lead not found'}, status=404)
@@ -5657,7 +5679,10 @@ def api_job_lead_form_data(request):
     country = getattr(company, 'country', None)
     if country:
         states = states.filter(country=country)
+    seal = getattr(company, 'company_seal', None)
+    seal_url = request.build_absolute_uri(seal.url) if seal else ''
     return JsonResponse({'success': True,
+        'company_seal_url': seal_url,
         'states': [{'id': str(s.id), 'name': s.name} for s in states.order_by('name')],
         'staff': [{'id': str(s.id), 'name': s.name} for s in staff.order_by('name')],
         'customer_types': [{'id': str(c.id), 'name': c.name} for c in CustomerType.objects.filter(is_deleted=False).exclude(name__icontains='Workshop').order_by('name')],
@@ -5749,6 +5774,11 @@ def api_job_card_issue_create(request):
         return JsonResponse({'success': False, 'message': str(exc)}, status=400)
 
 
+def _job_quotation_item_total(item):
+    from decimal import Decimal
+    return max(Decimal('0'), item.rate * item.quantity - item.discount)
+
+
 @csrf_exempt
 @transaction.atomic
 def api_job_quotation_create(request):
@@ -5795,8 +5825,15 @@ def api_job_quotation_create(request):
                     photo.seek(0)
                 except Exception:
                     return JsonResponse({'success': False, 'message': 'An uploaded issue photo is not a valid JPEG, PNG, or WebP image'}, status=400)
-            prepared_issues.append((category, service, issue, issue_text, photos))
+            rate = Decimal(str(row.get('rate') or 0))
+            quantity = Decimal(str(row.get('quantity', 1) or 1))
+            discount = Decimal(str(row.get('discount') or 0))
+            if rate < 0 or quantity <= 0 or discount < 0:
+                return JsonResponse({'success': False, 'message': f'Issue row {index + 1} has an invalid rate, quantity, or discount'}, status=400)
+            prepared_issues.append((category, service, issue, issue_text, photos, rate, quantity, discount))
         company, branch = _job_pipeline_scope(user)
+        if not company:
+            return JsonResponse({'success': False, 'message': 'Company not found'}, status=400)
         lead = None
         if data.get('lead_id'):
             lead = JobLead.objects.get(id=data['lead_id'], company=company, is_deleted=False)
@@ -5901,10 +5938,23 @@ def api_job_quotation_create(request):
                 return JsonResponse({'success': False, 'message': 'Forbidden'}, status=403)
             lead = lead or revised_from.lead
         with transaction.atomic():
+            from client_management.models import Staff
+            from django.utils.dateparse import parse_datetime
+            prepared_by = Staff.objects.filter(
+                id=data.get('prepared_by_id'), company=company, is_deleted=False
+            ).first() if data.get('prepared_by_id') else None
+            if prepared_by and branch and prepared_by.branch_id != branch.id:
+                prepared_by = None
+            if data.get('prepared_by_id') and not prepared_by:
+                return JsonResponse({'success': False, 'message': 'Prepared-by staff is not available'}, status=400)
             quotation = JobQuotation.objects.create(
                 quotation_number=f'JQT-{get_auto_id(JobQuotation):04d}', lead=lead, revised_from=revised_from,
                 customer=customer, vehicle=vehicle, branch=branch or customer.branch,
                 customer_comments=data.get('customer_comments') or '',
+                internal_notes=data.get('internal_notes') or '',
+                inspection_at=parse_datetime(data['inspection_at']) if data.get('inspection_at') else None,
+                tentative_delivery_at=parse_datetime(data['tentative_delivery_at']) if data.get('tentative_delivery_at') else None,
+                prepared_by=prepared_by,
                 additional_services=data.get('additional_services') or '', additional_days_needed=int(data.get('additional_days_needed') or 0),
                 subtotal=Decimal(str(data.get('subtotal') or 0)), tax_percentage=Decimal(str(data.get('tax_percentage') or 0)),
                 tax_amount=Decimal(str(data.get('tax_amount') or 0)), discount=Decimal(str(data.get('discount') or 0)),
@@ -5914,11 +5964,20 @@ def api_job_quotation_create(request):
             )
             for row in data.get('items', []):
                 service = Service.objects.filter(id=row.get('service_id')).first() if row.get('service_id') else None
-                stock = Stock.objects.filter(id=row.get('stock_item_id')).first() if row.get('stock_item_id') else None
+                stock = Stock.objects.filter(id=row.get('stock_item_id'), company=company, is_deleted=False).first() if row.get('stock_item_id') else None
+                if row.get('line_type') == 'accessory' and not stock:
+                    raise ValueError('One of the selected accessories is not available for this company')
+                rate = Decimal(str(row.get('rate') or 0))
+                quantity = Decimal(str(row.get('quantity', row.get('qty', 1)) or 1))
+                item_discount = Decimal(str(row.get('discount') or 0))
+                if rate < 0 or quantity <= 0 or item_discount < 0:
+                    raise ValueError('Accessory rate, quantity, and discount must be valid non-negative values')
                 JobQuotationItem.objects.create(
                     quotation=quotation, service=service, service_name=row.get('service_name') or (service.name if service else ''),
                     stock_item=stock, stock_item_name=row.get('stock_item_name') or (stock.item_name if stock else ''),
-                    warranty_years=Decimal(str(row.get('warranty_years') or 0)), rate=Decimal(str(row.get('rate') or 0)),
+                    line_type='accessory' if row.get('line_type') == 'accessory' else 'legacy',
+                    remarks=row.get('remarks') or '',
+                    warranty_years=Decimal(str(row.get('warranty_years') or 0)), rate=rate, discount=item_discount,
                     free_topup=row.get('free_topup') or '', quantity=Decimal(str(row.get('quantity', row.get('qty', 1)) or 1)),
                     auto_id=get_auto_id(JobQuotationItem), creator=user,
                 )
@@ -5927,16 +5986,24 @@ def api_job_quotation_create(request):
                 discount = Decimal(str(row.get('discount') or 0))
                 if row.get('discount_type') == 'percentage':
                     discount = price * quantity * Decimal(str(row.get('discount_percentage') or 0)) / Decimal('100')
-                total = Decimal(str(row['total'])) if row.get('total') is not None else max(Decimal('0'), price * quantity - discount)
+                total = max(Decimal('0'), price * quantity - discount)
+                if price < 0 or quantity <= 0 or discount < 0:
+                    raise ValueError('Extra rate, quantity, and discount must be valid non-negative values')
                 JobQuotationExtra.objects.create(
                     quotation=quotation, name=row.get('name') or '', price=price, quantity=quantity, discount=discount,
+                    line_type='quote_form',
                     discount_type=row.get('discount_type') or 'amount', discount_percentage=Decimal(str(row.get('discount_percentage') or 0)),
                     total=total, remarks=row.get('remarks') or '', auto_id=get_auto_id(JobQuotationExtra), creator=user,
                 )
-            for index, (category, issue_service, issue, issue_text, photos) in enumerate(prepared_issues):
+            for index, (category, issue_service, issue, issue_text, photos, rate, quantity, discount) in enumerate(prepared_issues):
                 reported_issue = JobQuotationIssue.objects.create(
                     quotation=quotation, category=category, service=issue_service, issue=issue,
                     issue_text=issue_text, sort_order=index, auto_id=get_auto_id(JobQuotationIssue), creator=user,
+                )
+                JobQuotationItem.objects.create(
+                    quotation=quotation, reported_issue=reported_issue,
+                    line_type='issue', service_name=issue_service.name, rate=rate, quantity=quantity, discount=discount,
+                    auto_id=get_auto_id(JobQuotationItem), creator=user,
                 )
                 for photo_index, photo in enumerate(photos):
                     photo_record = JobQuotationIssuePhoto(
@@ -5946,6 +6013,21 @@ def api_job_quotation_create(request):
                     photo_record.image.save(photo.name, photo, save=False)
                     stored_image_names.append(photo_record.image.name)
                     photo_record.save()
+            row_subtotal = sum(
+                (_job_quotation_item_total(item)
+                 for item in quotation.items.filter(is_deleted=False)),
+                Decimal('0'),
+            ) + sum(
+                (extra.total for extra in quotation.extras.filter(is_deleted=False)),
+                Decimal('0'),
+            )
+            quotation.subtotal = row_subtotal
+            quotation.tax_percentage = Decimal('0')
+            quotation.tax_amount = Decimal('0')
+            quotation.discount = Decimal('0')
+            quotation.discount_percentage = Decimal('0')
+            quotation.grand_total = row_subtotal
+            quotation.save(update_fields=['subtotal', 'tax_percentage', 'tax_amount', 'discount', 'discount_percentage', 'grand_total', 'date_updated'])
             if lead:
                 lead.status = JobLead.STATUS_QUOTED
                 lead.save(update_fields=['status', 'date_updated'])
@@ -5967,6 +6049,9 @@ def _job_quotation_data(quotation, include_lines=False, request=None):
         linked_job_id = str(linked_job.id)
     except Exception:
         linked_job_id = ''
+    company = getattr(quotation.branch, 'company', None) if quotation.branch_id else getattr(quotation.customer, 'company', None)
+    seal = getattr(company, 'company_seal', None) if company else None
+    seal_url = request.build_absolute_uri(seal.url) if request and seal else (seal.url if seal else '')
     data = {
         'id': str(quotation.id), 'quotation_number': quotation.quotation_number,
         'customer_name': quotation.customer.name, 'customer_phone': quotation.customer.phone or '',
@@ -5991,6 +6076,12 @@ def _job_quotation_data(quotation, include_lines=False, request=None):
         'created_at': quotation.date_added.isoformat() if quotation.date_added else '',
         'date': quotation.date_added.date().isoformat() if quotation.date_added else '',
         'customer_comments': quotation.customer_comments or '',
+        'inspection_at': quotation.inspection_at.isoformat() if quotation.inspection_at else '',
+        'tentative_delivery_at': quotation.tentative_delivery_at.isoformat() if quotation.tentative_delivery_at else '',
+        'internal_notes': quotation.internal_notes or '',
+        'prepared_by_id': str(quotation.prepared_by_id or ''),
+        'prepared_by_name': quotation.prepared_by.name if quotation.prepared_by_id else '',
+        'company_seal_url': seal_url,
         'reported_issues': [{
             'category_name': item.category.name,
             'service_name': item.service.name,
@@ -6005,12 +6096,13 @@ def _job_quotation_data(quotation, include_lines=False, request=None):
             'subtotal': float(quotation.subtotal), 'tax_percentage': float(quotation.tax_percentage), 'tax_amount': float(quotation.tax_amount),
             'discount': float(quotation.discount), 'discount_type': quotation.discount_type,
             'discount_percentage': float(quotation.discount_percentage), 'is_grand_total': quotation.is_grand_total,
-            'items': [{'service_id': str(i.service_id) if i.service_id else '', 'service_name': i.service_name, 'stock_item_id': str(i.stock_item_id) if i.stock_item_id else '', 'stock_item_name': i.stock_item_name or '', 'warranty_years': float(i.warranty_years), 'rate': float(i.rate), 'quantity': float(i.quantity), 'free_topup': i.free_topup or ''} for i in quotation.items.filter(is_deleted=False)],
-            'extras': [{'name': e.name, 'price': float(e.price), 'quantity': float(e.quantity), 'discount': float(e.discount), 'discount_type': e.discount_type, 'discount_percentage': float(e.discount_percentage), 'total': float(e.total), 'remarks': e.remarks or ''} for e in quotation.extras.filter(is_deleted=False)],
+            'items': [{'id': str(i.id), 'line_type': i.line_type, 'reported_issue_id': str(i.reported_issue_id or ''), 'service_id': str(i.service_id) if i.service_id else '', 'service_name': i.service_name, 'stock_item_id': str(i.stock_item_id) if i.stock_item_id else '', 'stock_item_name': i.stock_item_name or '', 'warranty_years': float(i.warranty_years), 'rate': float(i.rate), 'quantity': float(i.quantity), 'discount': float(i.discount), 'total': float(_job_quotation_item_total(i)), 'free_topup': i.free_topup or '', 'remarks': i.remarks or ''} for i in quotation.items.filter(is_deleted=False)],
+            'extras': [{'id': str(e.id), 'line_type': e.line_type, 'name': e.name, 'price': float(e.price), 'quantity': float(e.quantity), 'discount': float(e.discount), 'discount_type': e.discount_type, 'discount_percentage': float(e.discount_percentage), 'total': float(e.total), 'remarks': e.remarks or ''} for e in quotation.extras.filter(is_deleted=False)],
             'reported_issues': [{
                 'id': str(item.id), 'category_id': str(item.category_id), 'category_name': item.category.name,
                 'service_id': str(item.service_id), 'service_name': item.service.name,
                 'issue_id': str(item.issue_id or ''), 'issue_text': item.issue_text,
+                'pricing': ({'rate': float(item.priced_item.rate), 'quantity': float(item.priced_item.quantity), 'discount': float(item.priced_item.discount), 'total': float(_job_quotation_item_total(item.priced_item))} if hasattr(item, 'priced_item') and not item.priced_item.is_deleted else {'rate': 0, 'quantity': 1, 'discount': 0, 'total': 0}),
                 'photos': [request.build_absolute_uri(photo.image.url) if request else photo.image.url for photo in item.photos.filter(is_deleted=False).order_by('sort_order')],
                 'photo_records': [{'id': str(photo.id), 'url': request.build_absolute_uri(photo.image.url) if request else photo.image.url} for photo in item.photos.filter(is_deleted=False).order_by('sort_order')],
             } for item in quotation.reported_issues.filter(is_deleted=False).select_related('category', 'service', 'issue').prefetch_related('photos')],
@@ -6028,7 +6120,7 @@ def api_job_quotations(request):
     qs = JobQuotation.objects.filter(is_deleted=False, customer__company=company).select_related('customer', 'vehicle', 'branch', 'lead').order_by('-date_added')
     if branch:
         qs = qs.filter(branch=branch)
-    return JsonResponse({'success': True, 'quotations': [_job_quotation_data(q) for q in qs]})
+    return JsonResponse({'success': True, 'quotations': [_job_quotation_data(q, request=request) for q in qs]})
 
 
 @csrf_exempt
@@ -6053,6 +6145,8 @@ def api_job_quotation_update(request, quotation_id):
     from client_management.models import CustomerType
     from master.models import VehicleTypeModel, VehicleMake, VehicleBrandModel, VehicleColor, EmissionStandard
     from core.functions import get_auto_id
+    from django.utils.dateparse import parse_datetime
+    from client_management.models import Staff
     from .models import JobQuotation, JobQuotationItem, JobQuotationExtra, JobQuotationIssue, JobQuotationIssuePhoto
     from service_management.models import JobCardCategory, JobCardService, JobCardIssue
     user = get_user_from_token(request)
@@ -6121,33 +6215,80 @@ def api_job_quotation_update(request, quotation_id):
                 quotation.customer.save()
             if 'customer_comments' in data:
                 quotation.customer_comments = data.get('customer_comments') or ''
+            if 'internal_notes' in data:
+                quotation.internal_notes = data.get('internal_notes') or ''
+            if 'inspection_at' in data:
+                quotation.inspection_at = parse_datetime(data['inspection_at']) if data.get('inspection_at') else None
+            if 'tentative_delivery_at' in data:
+                quotation.tentative_delivery_at = parse_datetime(data['tentative_delivery_at']) if data.get('tentative_delivery_at') else None
+            if 'prepared_by_id' in data:
+                quotation.prepared_by = Staff.objects.filter(id=data.get('prepared_by_id'), company=company, is_deleted=False).first() if data.get('prepared_by_id') else None
+                if quotation.prepared_by and branch and quotation.prepared_by.branch_id != branch.id:
+                    quotation.prepared_by = None
+                if data.get('prepared_by_id') and not quotation.prepared_by:
+                    transaction.set_rollback(True)
+                    return JsonResponse({'success': False, 'message': 'Prepared-by staff is not available'}, status=400)
             for field in ('additional_services', 'additional_days_needed', 'subtotal', 'tax_percentage', 'tax_amount', 'discount', 'discount_type', 'discount_percentage', 'grand_total', 'is_grand_total'):
                 if field in data:
                     setattr(quotation, field, data[field])
             quotation.save()
             if 'items' in data:
-                quotation.items.all().delete()
+                keep_accessory_ids = []
                 for row in data.get('items', []):
-                    service = Service.objects.filter(id=row.get('service_id')).first() if row.get('service_id') else None
-                    stock = Stock.objects.filter(id=row.get('stock_item_id')).first() if row.get('stock_item_id') else None
-                    JobQuotationItem.objects.create(quotation=quotation, service=service,
-                        service_name=row.get('service_name') or (service.name if service else ''), stock_item=stock,
-                        stock_item_name=row.get('stock_item_name') or (stock.item_name if stock else ''),
-                        warranty_years=Decimal(str(row.get('warranty_years') or 0)), rate=Decimal(str(row.get('rate') or 0)),
-                        free_topup=row.get('free_topup') or '', quantity=Decimal(str(row.get('quantity', row.get('qty', 1)) or 1)),
-                        auto_id=get_auto_id(JobQuotationItem), creator=user)
+                    if row.get('line_type') != 'accessory':
+                        continue
+                    stock = Stock.objects.filter(id=row.get('stock_item_id'), company=company, is_deleted=False).first() if row.get('stock_item_id') else None
+                    if not stock:
+                        transaction.set_rollback(True)
+                        return JsonResponse({'success': False, 'message': 'One of the selected accessories is not available for this company'}, status=400)
+                    rate = Decimal(str(row.get('rate') or 0))
+                    quantity = Decimal(str(row.get('quantity', row.get('qty', 1)) or 1))
+                    discount = Decimal(str(row.get('discount') or 0))
+                    if rate < 0 or quantity <= 0 or discount < 0:
+                        transaction.set_rollback(True)
+                        return JsonResponse({'success': False, 'message': 'Accessory rate, quantity, and discount must be valid non-negative values'}, status=400)
+                    item = JobQuotationItem.objects.filter(id=row.get('id'), quotation=quotation, line_type='accessory', is_deleted=False).first() if row.get('id') else None
+                    if item is None:
+                        item = JobQuotationItem(quotation=quotation, line_type='accessory', auto_id=get_auto_id(JobQuotationItem), creator=user)
+                    item.stock_item = stock
+                    item.stock_item_name = row.get('stock_item_name') or stock.item_name
+                    item.service = None
+                    item.service_name = item.stock_item_name
+                    item.warranty_years = Decimal(str(row.get('warranty_years') or 0))
+                    item.remarks = row.get('remarks') or ''
+                    item.rate = rate
+                    item.quantity = quantity
+                    item.discount = discount
+                    item.updater = user if item.pk else None
+                    item.save()
+                    keep_accessory_ids.append(item.id)
+                quotation.items.filter(line_type='accessory', is_deleted=False).exclude(id__in=keep_accessory_ids).update(is_deleted=True, updater=user)
             if 'extras' in data:
-                quotation.extras.all().delete()
+                keep_extra_ids = []
                 for row in data.get('extras', []):
                     price, quantity = Decimal(str(row.get('price') or 0)), Decimal(str(row.get('quantity', row.get('qty', 1)) or 1))
                     discount = Decimal(str(row.get('discount') or 0))
                     if row.get('discount_type') == 'percentage':
                         discount = price * quantity * Decimal(str(row.get('discount_percentage') or 0)) / Decimal('100')
-                    total = Decimal(str(row['total'])) if row.get('total') is not None else max(Decimal('0'), price * quantity - discount)
-                    JobQuotationExtra.objects.create(quotation=quotation, name=row.get('name') or '', price=price,
-                        quantity=quantity, discount=discount, discount_type=row.get('discount_type') or 'amount',
-                        discount_percentage=Decimal(str(row.get('discount_percentage') or 0)), total=total,
-                        remarks=row.get('remarks') or '', auto_id=get_auto_id(JobQuotationExtra), creator=user)
+                    total = max(Decimal('0'), price * quantity - discount)
+                    if price < 0 or quantity <= 0 or discount < 0:
+                        transaction.set_rollback(True)
+                        return JsonResponse({'success': False, 'message': 'Extra rate, quantity, and discount must be valid non-negative values'}, status=400)
+                    extra = JobQuotationExtra.objects.filter(id=row.get('id'), quotation=quotation, line_type='quote_form', is_deleted=False).first() if row.get('id') else None
+                    if extra is None:
+                        extra = JobQuotationExtra(quotation=quotation, line_type='quote_form', auto_id=get_auto_id(JobQuotationExtra), creator=user)
+                    extra.name = row.get('name') or ''
+                    extra.price = price
+                    extra.quantity = quantity
+                    extra.discount = discount
+                    extra.discount_type = row.get('discount_type') or 'amount'
+                    extra.discount_percentage = Decimal(str(row.get('discount_percentage') or 0))
+                    extra.total = total
+                    extra.remarks = row.get('remarks') or ''
+                    extra.updater = user if extra.pk else None
+                    extra.save()
+                    keep_extra_ids.append(extra.id)
+                quotation.extras.filter(line_type='quote_form', is_deleted=False).exclude(id__in=keep_extra_ids).update(is_deleted=True, updater=user)
             if 'reported_issues' in data:
                 retained_reports = []
                 for index, row in enumerate(data.get('reported_issues') or []):
@@ -6177,6 +6318,31 @@ def api_job_quotation_update(request, quotation_id):
                     report.updater = user if report.pk else None
                     report.save()
                     retained_reports.append(report.id)
+
+                    try:
+                        line_item = report.priced_item
+                    except JobQuotationItem.DoesNotExist:
+                        line_item = None
+                    rate = Decimal(str(row.get('rate', line_item.rate if line_item else 0) or 0))
+                    quantity = Decimal(str(row.get('quantity', line_item.quantity if line_item else 1) or 1))
+                    discount = Decimal(str(row.get('discount', line_item.discount if line_item else 0) or 0))
+                    if rate < 0 or quantity <= 0 or discount < 0:
+                        transaction.set_rollback(True)
+                        return JsonResponse({'success': False, 'message': f'Issue row {index + 1} has an invalid rate, quantity, or discount'}, status=400)
+                    if line_item is None:
+                        line_item = JobQuotationItem(
+                            quotation=quotation, reported_issue=report,
+                            auto_id=get_auto_id(JobQuotationItem), creator=user,
+                        )
+                    line_item.service = None
+                    line_item.stock_item = None
+                    line_item.line_type = 'issue'
+                    line_item.service_name = service.name
+                    line_item.rate = rate
+                    line_item.quantity = quantity
+                    line_item.discount = discount
+                    line_item.updater = user if line_item.pk else None
+                    line_item.save()
 
                     keep_photo_ids = [str(photo_id) for photo_id in row.get('keep_photo_ids', [])]
                     active_photos = report.photos.filter(is_deleted=False)
@@ -6211,8 +6377,21 @@ def api_job_quotation_update(request, quotation_id):
                         photo_record.save()
                 removed_reports = quotation.reported_issues.filter(is_deleted=False).exclude(id__in=retained_reports)
                 removed_report_ids = list(removed_reports.values_list('id', flat=True))
+                JobQuotationItem.objects.filter(reported_issue_id__in=removed_report_ids, is_deleted=False).update(is_deleted=True, updater=user)
                 JobQuotationIssuePhoto.objects.filter(reported_issue_id__in=removed_report_ids, is_deleted=False).update(is_deleted=True, updater=user)
                 removed_reports.update(is_deleted=True, updater=user)
+            if any(key in data for key in ('items', 'extras', 'reported_issues')):
+                row_subtotal = sum(
+                    (_job_quotation_item_total(item) for item in quotation.items.filter(is_deleted=False)),
+                    Decimal('0'),
+                ) + sum((extra.total for extra in quotation.extras.filter(is_deleted=False)), Decimal('0'))
+                quotation.subtotal = row_subtotal
+                quotation.tax_percentage = Decimal('0')
+                quotation.tax_amount = Decimal('0')
+                quotation.discount = Decimal('0')
+                quotation.discount_percentage = Decimal('0')
+                quotation.grand_total = row_subtotal
+                quotation.save(update_fields=['subtotal', 'tax_percentage', 'tax_amount', 'discount', 'discount_percentage', 'grand_total', 'date_updated'])
         return JsonResponse({'success': True, 'quotation_id': str(quotation.id)})
     except Exception as exc:
         return JsonResponse({'success': False, 'message': str(exc)}, status=400)
@@ -6220,6 +6399,7 @@ def api_job_quotation_update(request, quotation_id):
 
 @csrf_exempt
 def api_accept_job_quotation(request, quotation_id):
+    from decimal import Decimal
     from django.utils import timezone
     from .models import JobQuotation, JobLead, JobLeadFollowUp
     from core.functions import get_auto_id
@@ -6230,7 +6410,10 @@ def api_accept_job_quotation(request, quotation_id):
     quotation = JobQuotation.objects.filter(id=quotation_id, customer__company=company, is_deleted=False).select_related('lead').first()
     if not quotation or (branch and quotation.branch_id != branch.id):
         return JsonResponse({'success': False, 'message': 'Quotation not found'}, status=404)
-    has_priced_items = quotation.items.filter(is_deleted=False, rate__gt=0).exists() or quotation.extras.filter(is_deleted=False, total__gt=0).exists()
+    has_priced_items = any(
+        _job_quotation_item_total(item) > 0
+        for item in quotation.items.filter(is_deleted=False)
+    ) or quotation.extras.filter(is_deleted=False, total__gt=0).exists()
     if not has_priced_items:
         return JsonResponse({'success': False, 'message': 'A quotation needs at least one priced item before acceptance'}, status=409)
     if not quotation.is_accepted:
@@ -6264,7 +6447,10 @@ def api_job_card_from_job_quotation(request, quotation_id):
                 return JsonResponse({'success': False, 'message': 'Forbidden'}, status=403)
             if not quote.is_accepted:
                 return JsonResponse({'success': False, 'message': 'Accept the quotation before conversion'}, status=409)
-            has_priced_items = quote.items.filter(is_deleted=False, rate__gt=0).exists() or quote.extras.filter(is_deleted=False, total__gt=0).exists()
+            has_priced_items = any(
+                _job_quotation_item_total(item) > 0
+                for item in quote.items.filter(is_deleted=False)
+            ) or quote.extras.filter(is_deleted=False, total__gt=0).exists()
             if not has_priced_items:
                 return JsonResponse({'success': False, 'message': 'A quotation needs at least one priced item before conversion'}, status=409)
             existing = JobCard.objects.filter(job_quotation=quote).first()
@@ -6278,13 +6464,18 @@ def api_job_card_from_job_quotation(request, quotation_id):
                 company=company, branch=branch, customer=quote.customer, vehicle=quote.vehicle,
                 job_quotation=quote, current_section='General Inspection',
                 current_service=items[0].service_name if items else '',
-                additional_remarks=quote.additional_services or None, creator=user,
+                additional_remarks=quote.additional_services or None,
+                expected_delivery_date=quote.tentative_delivery_at, creator=user,
             )
             for item in items:
                 qty = item.quantity or Decimal('1')
-                total = item.rate * qty
+                discount = item.discount or Decimal('0')
+                total = _job_quotation_item_total(item)
                 if item.stock_item_id:
                     stock = item.stock_item
+                    part_remarks = item.remarks or ''
+                    if item.warranty_years:
+                        part_remarks = '\n'.join(filter(None, [f'Warranty: {item.warranty_years} years', part_remarks]))
                     JobCardPartItem.objects.create(
                         job_card=job, stock_item=stock,
                         part_number=stock.part_number if stock else None,
@@ -6292,13 +6483,13 @@ def api_job_card_from_job_quotation(request, quotation_id):
                         product_code=stock.barcode if stock else None,
                         product_name=item.stock_item_name or (stock.item_name if stock else 'Part'),
                         current_stock=stock.quantity if stock else 0, unit=stock.unit if stock else 'Pcs',
-                        rate=item.rate, rate_with_tax=item.rate, quantity=qty, total_amount=total, creator=user,
+                        rate=item.rate, rate_with_tax=item.rate, quantity=qty, discount=discount, total_amount=total, remarks=part_remarks, creator=user,
                     )
                 else:
                     JobCardServiceItem.objects.create(
                         job_card=job, service=item.service,
                         service_name=item.service_name or (item.service.name if item.service else 'Service'),
-                        quantity=qty, unit='Unit', rate=item.rate, total_amount=total,
+                        quantity=qty, unit='Unit', rate=item.rate, discount=discount, total_amount=total,
                         warranty=str(item.warranty_years or ''), warranty_period='years' if item.warranty_years else '',
                         remarks=f'Free top-up: {item.free_topup}' if item.free_topup else '', creator=user,
                     )

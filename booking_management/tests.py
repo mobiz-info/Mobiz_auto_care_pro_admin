@@ -1,4 +1,6 @@
 import json
+from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
@@ -43,3 +45,13 @@ class JobCardIssueApiTests(TestCase):
         response = self._call_create(self.category, self.other_service, 'Wrong pairing')
         self.assertEqual(response.status_code, 400)
         self.assertFalse(JobCardIssue.objects.exists())
+
+
+class JobQuotationPricingTests(TestCase):
+    def test_net_total_subtracts_fixed_discount(self):
+        item = SimpleNamespace(rate=Decimal('120'), quantity=Decimal('2'), discount=Decimal('15'))
+        self.assertEqual(api_views._job_quotation_item_total(item), Decimal('225'))
+
+    def test_net_total_never_goes_below_zero(self):
+        item = SimpleNamespace(rate=Decimal('50'), quantity=Decimal('1'), discount=Decimal('75'))
+        self.assertEqual(api_views._job_quotation_item_total(item), Decimal('0'))

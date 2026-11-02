@@ -445,6 +445,10 @@ class JobQuotation(BaseModel):
     accepted_at = models.DateTimeField(null=True, blank=True)
     accepted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='accepted_job_quotations')
     customer_comments = models.TextField(blank=True, null=True)
+    internal_notes = models.TextField(blank=True, null=True)
+    inspection_at = models.DateTimeField(null=True, blank=True)
+    tentative_delivery_at = models.DateTimeField(null=True, blank=True)
+    prepared_by = models.ForeignKey('client_management.Staff', on_delete=models.SET_NULL, null=True, blank=True, related_name='prepared_job_quotations')
     additional_services = models.TextField(blank=True, null=True)
     additional_days_needed = models.PositiveIntegerField(default=0)
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -459,18 +463,23 @@ class JobQuotation(BaseModel):
 
 class JobQuotationItem(BaseModel):
     quotation = models.ForeignKey(JobQuotation, on_delete=models.CASCADE, related_name='items')
+    reported_issue = models.OneToOneField('JobQuotationIssue', on_delete=models.SET_NULL, null=True, blank=True, related_name='priced_item')
+    line_type = models.CharField(max_length=30, default='legacy')
     service = models.ForeignKey('service_management.Service', on_delete=models.SET_NULL, null=True, blank=True)
     service_name = models.CharField(max_length=200)
     stock_item = models.ForeignKey('client_management.Stock', on_delete=models.SET_NULL, null=True, blank=True)
     stock_item_name = models.CharField(max_length=200, blank=True, null=True)
     warranty_years = models.DecimalField(max_digits=4, decimal_places=1, default=0)
     rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     free_topup = models.CharField(max_length=100, blank=True, null=True)
+    remarks = models.TextField(blank=True, null=True)
     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
 
 
 class JobQuotationExtra(BaseModel):
     quotation = models.ForeignKey(JobQuotation, on_delete=models.CASCADE, related_name='extras')
+    line_type = models.CharField(max_length=30, default='legacy')
     name = models.CharField(max_length=200)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
