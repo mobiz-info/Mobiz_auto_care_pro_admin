@@ -230,6 +230,56 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                 ]
             else:
                 context['stats'] = []
+
+        if role_name in ('COMPANY_ADMIN', 'BRANCH_ADMIN'):
+            from decimal import Decimal
+            from master.models import ExpenseEntry, SupplierPayment
+            from django.db.models import Sum
+
+            cash_receipts = Receipt.objects.filter(
+                is_deleted=False,
+                payment_mode='cash',
+                invoice__is_deleted=False,
+            )
+            cash_expenses = ExpenseEntry.objects.filter(is_deleted=False).exclude(
+                expense__expense_head__name__iexact='Purchase'
+            )
+            cash_supplier_payments = SupplierPayment.objects.filter(
+                is_deleted=False,
+                payment_mode='CASH',
+            )
+
+            branch = getattr(user, 'managed_branch', None) if role_name == 'BRANCH_ADMIN' else None
+            company = getattr(getattr(user, 'profile', None), 'company', None)
+            if branch:
+                cash_receipts = cash_receipts.filter(invoice__branch=branch)
+                cash_expenses = cash_expenses.filter(branch=branch)
+                cash_supplier_payments = cash_supplier_payments.filter(branch=branch)
+            elif company:
+                cash_receipts = cash_receipts.filter(invoice__branch__company=company)
+                cash_expenses = cash_expenses.filter(company=company)
+                cash_supplier_payments = cash_supplier_payments.filter(company=company)
+            else:
+                cash_receipts = cash_receipts.none()
+                cash_expenses = cash_expenses.none()
+                cash_supplier_payments = cash_supplier_payments.none()
+
+            cash_sales_total = cash_receipts.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            cash_expense_total = cash_expenses.aggregate(total=Sum('paid_amount'))['total'] or Decimal('0.00')
+            cash_supplier_total = cash_supplier_payments.aggregate(total=Sum('amount_paid'))['total'] or Decimal('0.00')
+            cash_in_hand = cash_sales_total - cash_expense_total - cash_supplier_total
+            currency_symbol = getattr(
+                getattr(company, 'country', None), 'currency_symbol', ''
+            ) or '₹'
+
+            context.setdefault('stats', []).append({
+                'label': 'Cash in Hand',
+                'value': f"{currency_symbol}{cash_in_hand:,.2f}",
+                'icon': 'ph-fill ph-currency-circle-dollar',
+                'color': '#0f766e',
+                'subtext': 'Cash collections less paid expenses and supplier payments',
+            })
+
         # App users who opened/used app today
         today_date = timezone.now().date()
         today_app_users = UserProfile.objects.filter(

@@ -293,7 +293,8 @@ def api_dashboard_stats(request):
     today_collected = today_invoices.aggregate(c=Sum('amount_collected'))['c'] or Decimal('0')
 
     # Today Net Profit (Revenue - Expense)
-    from master.models import ExpenseEntry
+    from master.models import ExpenseEntry, SupplierPayment
+    from finance_management.models import Receipt
     today_expenses_qs = ExpenseEntry.objects.filter(expense_date=today, is_deleted=False)
     if role == 'BRANCH_ADMIN' and hasattr(user, 'managed_branch'):
         today_expenses_qs = today_expenses_qs.filter(branch=user.managed_branch)
@@ -305,6 +306,41 @@ def api_dashboard_stats(request):
     
     today_expense = today_expenses_qs.aggregate(e=Sum('amount'))['e'] or Decimal('0')
     today_net_profit = today_revenue - today_expense
+
+    cash_receipts_qs = Receipt.objects.filter(
+        invoice__in=all_invoices,
+        invoice__is_deleted=False,
+        is_deleted=False,
+        payment_mode='cash',
+    )
+    cash_expenses_qs = ExpenseEntry.objects.filter(is_deleted=False).exclude(
+        expense__expense_head__name__iexact='Purchase'
+    )
+    cash_supplier_payments_qs = SupplierPayment.objects.filter(
+        is_deleted=False,
+        payment_mode='CASH',
+    )
+    if role == 'BRANCH_ADMIN' and hasattr(user, 'managed_branch'):
+        cash_receipts_qs = cash_receipts_qs.filter(invoice__branch=user.managed_branch)
+        cash_expenses_qs = cash_expenses_qs.filter(branch=user.managed_branch)
+        cash_supplier_payments_qs = cash_supplier_payments_qs.filter(branch=user.managed_branch)
+    elif role == 'COMPANY_ADMIN' and user.profile.company:
+        if selected_branch:
+            cash_receipts_qs = cash_receipts_qs.filter(invoice__branch=selected_branch)
+            cash_expenses_qs = cash_expenses_qs.filter(branch=selected_branch)
+            cash_supplier_payments_qs = cash_supplier_payments_qs.filter(branch=selected_branch)
+        else:
+            cash_receipts_qs = cash_receipts_qs.filter(invoice__branch__company=user.profile.company)
+            cash_expenses_qs = cash_expenses_qs.filter(company=user.profile.company)
+            cash_supplier_payments_qs = cash_supplier_payments_qs.filter(company=user.profile.company)
+    elif role not in ('SUPER_ADMIN',):
+        cash_receipts_qs = cash_receipts_qs.none()
+        cash_expenses_qs = cash_expenses_qs.none()
+        cash_supplier_payments_qs = cash_supplier_payments_qs.none()
+    cash_sales_total = cash_receipts_qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+    cash_expense_total = cash_expenses_qs.aggregate(total=Sum('paid_amount'))['total'] or Decimal('0')
+    cash_supplier_total = cash_supplier_payments_qs.aggregate(total=Sum('amount_paid'))['total'] or Decimal('0')
+    cash_in_hand = cash_sales_total - cash_expense_total - cash_supplier_total
 
     # Total outstanding (all time)
     outstanding_qs = all_invoices.annotate(
@@ -379,6 +415,7 @@ def api_dashboard_stats(request):
         'today_collected': str(today_collected),
         'today_expense': str(today_expense),
         'today_net_profit': str(today_net_profit),
+        'cash_in_hand': str(cash_in_hand),
         'total_outstanding': str(total_outstanding),
         'outstanding_count': outstanding_count,
         'total_customers': customers_qs.count(),

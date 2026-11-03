@@ -861,17 +861,19 @@
                     <div class="app-card-header">
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
                             <input type="checkbox" id="apply_tax_checkbox" style="width: 18px; height: 18px;"
+                                {% if company_taxes %}checked{% endif %}
                                 onchange="toggleTaxSection(this)">
                             <span class="app-card-title" style="margin: 0;"><i class="ph ph-percent"></i> TAX</span>
                         </label>
                     </div>
-                    <div id="tax_sub_section" style="display: none;">
+                    <div id="tax_sub_section" style="{% if company_taxes %}display: block;{% else %}display: none;{% endif %}">
                         <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 4px;" id="tax_checkboxes_list">
                             {% for tax in company_taxes %}
                             <label
                                 style="display: flex; align-items: center; gap: 8px; font-size: 0.88rem; cursor: pointer;">
                                 <input type="checkbox" class="tax-checkbox" value="{{ tax.tax.id }}"
                                     data-percent="{{ tax.tax.percent }}" data-name="{{ tax.tax.name }}"
+                                    checked
                                     onchange="calculateTotals()">
                                 <span>{{ tax.tax.name }} ({{ tax.tax.percent }}%)</span>
                             </label>
@@ -1527,11 +1529,16 @@
                                         <label style="display: flex; align-items: center; gap: 8px; font-size: 0.88rem; cursor: pointer;">
                                             <input type="checkbox" class="tax-checkbox" value="${t.id}"
                                                 data-percent="${t.percent}" data-name="${t.name}"
+                                                checked
                                                 onchange="calculateTotals()">
                                             <span>${t.name} (${t.percent}%)</span>
                                         </label>
                                     `;
                                 });
+                                const applyTaxCb = document.getElementById('apply_tax_checkbox');
+                                if (applyTaxCb) applyTaxCb.checked = true;
+                                const taxSub = document.getElementById('tax_sub_section');
+                                if (taxSub) taxSub.style.display = 'block';
                             }
                         }
                     } else {
