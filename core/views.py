@@ -234,7 +234,6 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         if role_name in ('COMPANY_ADMIN', 'BRANCH_ADMIN'):
             from decimal import Decimal
             from master.models import ExpenseEntry, SupplierPayment
-            from django.db.models import Sum
 
             cash_receipts = Receipt.objects.filter(
                 is_deleted=False,
