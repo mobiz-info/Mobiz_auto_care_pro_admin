@@ -823,6 +823,14 @@ def api_get_services(request):
                 })
 
         eff_es = getattr(vehicle, 'emission_standard', None) or (vehicle.vehicle_type_model.emission_standard if (vehicle and vehicle.vehicle_type_model) else None)
+        from .models import WhatsAppSetting
+        whatsapp_setting = WhatsAppSetting.objects.filter(company=company).first() if company else None
+        whatsapp_invoice_enabled = bool(
+            whatsapp_setting
+            and whatsapp_setting.is_official_api
+            and whatsapp_setting.username
+            and whatsapp_setting.password
+        )
         return JsonResponse({
             'success': True,
             'services': services_data,
@@ -832,6 +840,7 @@ def api_get_services(request):
             'current_odometer_km': getattr(vehicle, 'current_odometer_km', None) or 0 if vehicle else 0,
             'emission_standard': eff_es.name if eff_es else '',
             'enabled_categories': enabled_category_slugs,  # ← branch-level category filter
+            'whatsapp_invoice_enabled': whatsapp_invoice_enabled,
         })
         
     except (Customer.DoesNotExist, CustomerVehicle.DoesNotExist) as e:
@@ -1737,15 +1746,27 @@ def api_create_invoice(request):
             except Booking.DoesNotExist:
                 pass
             
-        # Trigger async WhatsApp send (non-daemon so thread survives Gunicorn worker recycling)
-        import threading
-        base_url = request.build_absolute_uri('/')
-        _wa_thread = threading.Thread(
-            target=send_invoice_whatsapp_background,
-            args=(invoice.id, base_url),
-            daemon=False
-        )
-        _wa_thread.start()
+        # Web invoice creation passes an explicit checkbox value. Older app callers
+        # omit it and retain their existing automatic-send behavior.
+        whatsapp_triggered = False
+        should_send_whatsapp = data.get('send_whatsapp', True)
+        from client_management.models import WhatsAppSetting
+        whatsapp_company = invoice.branch.company if invoice.branch_id else invoice.customer.company
+        whatsapp_setting_enabled = WhatsAppSetting.objects.filter(
+            company=whatsapp_company,
+            is_deleted=False,
+            is_official_api=True,
+        ).exclude(username='').exclude(password='').exists() if whatsapp_company else False
+        if should_send_whatsapp and whatsapp_setting_enabled:
+            import threading
+            base_url = request.build_absolute_uri('/')
+            _wa_thread = threading.Thread(
+                target=send_invoice_whatsapp_background,
+                args=(invoice.id, base_url),
+                daemon=False
+            )
+            _wa_thread.start()
+            whatsapp_triggered = True
             
         company_logo = request.build_absolute_uri(invoice.branch.company.logo_color.url) if invoice.branch and invoice.branch.company and invoice.branch.company.logo_color else ''
         company_seal = request.build_absolute_uri(invoice.branch.company.company_seal.url) if invoice.branch and invoice.branch.company and getattr(invoice.branch.company, 'company_seal', None) else ''
@@ -1775,6 +1796,7 @@ def api_create_invoice(request):
             'branch_gst': invoice.branch.gst_number if invoice.branch and hasattr(invoice.branch, 'gst_number') else '',
             'company_trn': company_trn,
             'payment_mode': payment_mode,
+            'whatsapp_triggered': whatsapp_triggered,
         })
         
     except Exception as e:

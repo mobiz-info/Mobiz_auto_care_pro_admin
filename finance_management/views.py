@@ -2939,6 +2939,13 @@ def invoice_create(request):
     if company:
         company_taxes = CompanyTax.objects.filter(company=company, is_deleted=False, is_enabled=True).select_related('tax')
 
+    from client_management.models import WhatsAppSetting
+    whatsapp_invoice_enabled = WhatsAppSetting.objects.filter(
+        company=company,
+        is_deleted=False,
+        is_official_api=True,
+    ).exclude(username='').exclude(password='').exists() if company else False
+
     currency_symbol = '₹'
     if company and getattr(company, 'country', None) and getattr(company.country, 'currency_symbol', None):
         currency_symbol = company.country.currency_symbol
@@ -2970,6 +2977,7 @@ def invoice_create(request):
         'invoice_vehicle_colors': VehicleColor.objects.filter(is_deleted=False).order_by('name'),
         'invoice_emission_standards': EmissionStandard.objects.filter(is_deleted=False).order_by('name'),
         'company_taxes': company_taxes,
+        'whatsapp_invoice_enabled': whatsapp_invoice_enabled,
         'phone_countries': Country.objects.filter(is_deleted=False).exclude(phone_dial_code__isnull=True).exclude(phone_dial_code='').order_by('name'),
         'phone_country_iso': (company.country.phone_iso_code if company and company.country and company.country.phone_iso_code else 'IN'),
         'title': 'Create Invoice',
