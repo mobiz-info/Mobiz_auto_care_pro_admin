@@ -274,10 +274,10 @@ class DashboardView(LoginRequiredMixin, TemplateView):
 
             context.setdefault('stats', []).append({
                 'label': 'Cash in Hand',
-                'value': f"{currency_symbol}{cash_in_hand:,.2f}",
+                'value': f"{currency_symbol} {cash_in_hand:,.2f}",
                 'icon': 'ph-fill ph-currency-circle-dollar',
                 'color': '#0f766e',
-                'subtext': 'Cash collections less paid expenses and supplier payments',
+                'subtext': '',
             })
 
         # App users who opened/used app today
