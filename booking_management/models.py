@@ -513,3 +513,21 @@ class JobQuotationIssuePhoto(BaseModel):
     reported_issue = models.ForeignKey(JobQuotationIssue, on_delete=models.CASCADE, related_name='photos')
     image = models.ImageField(upload_to='job_quotation_issues/%Y/%m/')
     sort_order = models.PositiveSmallIntegerField(default=0)
+
+
+class JobCardReportedIssue(BaseModel):
+    job_card = models.ForeignKey(JobCard, on_delete=models.CASCADE, related_name='reported_issues')
+    category = models.ForeignKey('service_management.JobCardCategory', on_delete=models.PROTECT, related_name='job_card_reports')
+    service = models.ForeignKey('service_management.JobCardService', on_delete=models.PROTECT, related_name='job_card_reports')
+    issue = models.ForeignKey('service_management.JobCardIssue', on_delete=models.SET_NULL, null=True, blank=True, related_name='job_card_reports')
+    issue_text = models.CharField(max_length=200)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['sort_order', 'date_added']
+
+
+class JobCardReportedIssuePhoto(BaseModel):
+    reported_issue = models.ForeignKey(JobCardReportedIssue, on_delete=models.CASCADE, related_name='photos')
+    image = models.ImageField(upload_to='job_card_issues/%Y/%m/')
+    sort_order = models.PositiveSmallIntegerField(default=0)

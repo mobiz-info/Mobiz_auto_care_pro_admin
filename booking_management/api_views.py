@@ -4567,6 +4567,29 @@ def api_job_card_detail(request, job_card_id):
             'remarks': e.remarks or '',
         })
 
+    reported_issues = []
+    for report in jc.reported_issues.filter(is_deleted=False).select_related(
+        'category', 'service', 'issue'
+    ).prefetch_related('photos'):
+        photos = []
+        for photo in report.photos.filter(is_deleted=False):
+            try:
+                url = request.build_absolute_uri(photo.image.url)
+            except Exception:
+                url = photo.image.url if photo.image else ''
+            photos.append({'id': str(photo.id), 'url': url})
+        reported_issues.append({
+            'report_id': str(report.id),
+            'category': {'id': str(report.category_id), 'name': report.category.name},
+            'service': {'id': str(report.service_id), 'name': report.service.name},
+            'issue': {
+                'id': str(report.issue_id or ''),
+                'name': report.issue.name if report.issue else report.issue_text,
+            },
+            'issue_text': report.issue_text,
+            'photos': photos,
+        })
+
     eff_es = v.emission_standard or (v.vehicle_type_model.emission_standard if (v and v.vehicle_type_model) else None)
 
     company = jc.company or (jc.branch.company if jc.branch else None)
@@ -4647,6 +4670,7 @@ def api_job_card_detail(request, job_card_id):
             'parts': parts_list,
             'labour': labour_list,
             'extras': extras_list,
+            'reported_issues': reported_issues,
             'quotation_id': str(jc.quotation_id or jc.job_quotation_id or ''),
             'quotation_number': jc.quotation.quotation_number if jc.quotation_id else (jc.job_quotation.quotation_number if jc.job_quotation_id else ''),
             'job_quotation_id': str(jc.job_quotation_id or ''),
@@ -4764,6 +4788,94 @@ def _job_card_records_from_lead(lead, profile, vehicle_data, company, branch, us
     return customer, vehicle
 
 
+def _save_job_card_reported_issues(job_card, rows, uploaded_files, user):
+    from PIL import Image
+    from core.functions import get_auto_id
+    from service_management.models import JobCardCategory, JobCardService, JobCardIssue
+    from .models import JobCardReportedIssue, JobCardReportedIssuePhoto
+
+    retained_report_ids = []
+    for index, row in enumerate(rows or []):
+        category = JobCardCategory.objects.filter(
+            id=row.get('category_id'), is_deleted=False
+        ).first()
+        service = JobCardService.objects.filter(
+            id=row.get('service_id'), category=category, is_deleted=False
+        ).first() if category else None
+        issue = JobCardIssue.objects.filter(
+            id=row.get('issue_id'), category=category, service=service, is_deleted=False
+        ).first() if service else None
+        issue_text = (row.get('issue_text') or (issue.name if issue else '')).strip()
+        if not category or not service or not issue or not issue_text or len(issue_text) > 200:
+            raise ValueError(f'Issue row {index + 1} has invalid category, service, or issue')
+
+        report = None
+        report_id = row.get('report_id')
+        if report_id:
+            report = JobCardReportedIssue.objects.filter(
+                id=report_id, job_card=job_card, is_deleted=False
+            ).first()
+            if not report or report_id in retained_report_ids:
+                raise ValueError(f'Issue row {index + 1} is not valid for this Job Card')
+        retained_report_ids.append(str(report.id) if report else str(report_id or ''))
+
+        photo_ids = [str(value) for value in (row.get('existing_photo_ids') or [])]
+        existing_photos = JobCardReportedIssuePhoto.objects.filter(
+            reported_issue=report, is_deleted=False
+        ) if report else JobCardReportedIssuePhoto.objects.none()
+        valid_photo_ids = {str(photo_id) for photo_id in existing_photos.values_list('id', flat=True)}
+        if len(photo_ids) != len(set(photo_ids)) or set(photo_ids) - valid_photo_ids:
+            raise ValueError(f'Issue row {index + 1} contains an invalid photo reference')
+        new_photos = uploaded_files.getlist(f'issue_{index}_photos') if uploaded_files else []
+        if len(photo_ids) + len(new_photos) > 3:
+            raise ValueError(f'Issue row {index + 1} can have at most 3 photos')
+        for photo in new_photos:
+            if photo.size > 10 * 1024 * 1024:
+                raise ValueError('Each issue photo must be 10 MB or smaller')
+            try:
+                photo.seek(0)
+                image = Image.open(photo)
+                image.verify()
+                if image.format not in ('JPEG', 'PNG', 'WEBP'):
+                    raise ValueError('Only JPEG, PNG, and WebP photos are supported')
+                photo.seek(0)
+            except ValueError:
+                raise
+            except Exception:
+                raise ValueError('An uploaded issue photo is not a valid JPEG, PNG, or WebP image')
+
+        if report is None:
+            report = JobCardReportedIssue(
+                job_card=job_card,
+                auto_id=get_auto_id(JobCardReportedIssue),
+                creator=user,
+            )
+        report.category = category
+        report.service = service
+        report.issue = issue
+        report.issue_text = issue_text
+        report.sort_order = index
+        report.updater = user
+        report.save()
+        retained_report_ids[-1] = str(report.id)
+
+        existing_photos.filter(is_deleted=False).exclude(id__in=photo_ids).update(
+            is_deleted=True, updater=user
+        )
+        for photo_index, uploaded in enumerate(new_photos):
+            JobCardReportedIssuePhoto.objects.create(
+                reported_issue=report,
+                image=uploaded,
+                sort_order=len(photo_ids) + photo_index,
+                auto_id=get_auto_id(JobCardReportedIssuePhoto),
+                creator=user,
+            )
+
+    JobCardReportedIssue.objects.filter(
+        job_card=job_card, is_deleted=False
+    ).exclude(id__in=retained_report_ids).update(is_deleted=True, updater=user)
+
+
 @csrf_exempt
 def api_job_card_create(request):
     """Creates a new job card with services, parts, labour, extras."""
@@ -4775,7 +4887,10 @@ def api_job_card_create(request):
         return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
 
     try:
-        data = json.loads(request.body)
+        if request.content_type and request.content_type.startswith('multipart/form-data'):
+            data = json.loads(request.POST.get('payload') or '{}')
+        else:
+            data = json.loads(request.body)
         lead = None
         company, managed_branch = _job_pipeline_scope(user)
         if data.get('lead_id'):
@@ -4920,6 +5035,8 @@ def api_job_card_create(request):
                     remarks=e.get('remarks', '').strip() or None,
                     creator=user,
                 )
+
+            _save_job_card_reported_issues(jc, data.get('reported_issues', []), request.FILES, user)
 
             jc.calculate_estimated_cost()
             jc.save()
@@ -5078,7 +5195,10 @@ def api_job_card_update(request, job_card_id):
         jc = JobCard.objects.get(id=job_card_id, company=company, is_deleted=False)
         if branch and jc.branch_id != branch.id:
             return JsonResponse({'success': False, 'message': 'Job Card not found'}, status=404)
-        data = json.loads(request.body)
+        if request.content_type and request.content_type.startswith('multipart/form-data'):
+            data = json.loads(request.POST.get('payload') or '{}')
+        else:
+            data = json.loads(request.body)
 
         profile = data.get('customer_profile')
         vehicle_data = data.get('vehicle_details')
@@ -5230,6 +5350,9 @@ def api_job_card_update(request, job_card_id):
                         remarks=e.get('remarks', '').strip() or None,
                         creator=user,
                     )
+
+            if 'reported_issues' in data:
+                _save_job_card_reported_issues(jc, data['reported_issues'], request.FILES, user)
 
             jc.calculate_estimated_cost()
             jc.updater = user
@@ -6706,7 +6829,11 @@ def api_accept_job_quotation(request, quotation_id):
 def api_job_card_from_job_quotation(request, quotation_id):
     from decimal import Decimal
     from django.db import transaction
-    from .models import JobQuotation, JobCard, JobCardServiceItem, JobCardPartItem, JobCardExtraItem
+    from core.functions import get_auto_id
+    from .models import (
+        JobQuotation, JobCard, JobCardServiceItem, JobCardPartItem,
+        JobCardExtraItem, JobCardReportedIssue, JobCardReportedIssuePhoto,
+    )
     user = get_user_from_token(request)
     if not user:
         return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
@@ -6782,6 +6909,27 @@ def api_job_card_from_job_quotation(request, quotation_id):
                     discount_percentage=extra.discount_percentage, total_amount=extra.total,
                     remarks=extra.remarks or '', creator=user,
                 )
+            for report in quote.reported_issues.filter(is_deleted=False).select_related(
+                'category', 'service', 'issue'
+            ).prefetch_related('photos'):
+                job_report = JobCardReportedIssue.objects.create(
+                    job_card=job,
+                    category=report.category,
+                    service=report.service,
+                    issue=report.issue,
+                    issue_text=report.issue_text,
+                    sort_order=report.sort_order,
+                    auto_id=get_auto_id(JobCardReportedIssue),
+                    creator=user,
+                )
+                for photo in report.photos.filter(is_deleted=False):
+                    JobCardReportedIssuePhoto.objects.create(
+                        reported_issue=job_report,
+                        image=photo.image.name,
+                        sort_order=photo.sort_order,
+                        auto_id=get_auto_id(JobCardReportedIssuePhoto),
+                        creator=user,
+                    )
             job.estimated_cost = quote.grand_total
             job.save(update_fields=['estimated_cost', 'date_updated'])
         return JsonResponse({'success': True, 'already_converted': False, 'job_card_id': str(job.id), 'job_number': job.job_number})
