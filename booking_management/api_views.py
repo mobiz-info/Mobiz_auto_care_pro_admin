@@ -4454,6 +4454,7 @@ def api_job_card_list(request):
             'quotation_id': str(jc.quotation_id or jc.job_quotation_id or ''),
             'quotation_number': jc.quotation.quotation_number if jc.quotation_id else (jc.job_quotation.quotation_number if jc.job_quotation_id else ''),
             'job_quotation_id': str(jc.job_quotation_id or ''),
+            'lead_id': str(jc.lead_id or ''),
             'vehicle_type': v_type,
             'vehicle_make': v_make,
             'vehicle_model': v_model,
@@ -4482,12 +4483,15 @@ def api_job_card_detail(request, job_card_id):
         return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
 
     try:
+        company, branch = _job_pipeline_scope(user)
         jc = JobCard.objects.select_related(
             'customer', 'customer__customer_type', 'vehicle', 'vehicle__make',
             'vehicle__brand_model', 'vehicle__vehicle_type_model',
             'vehicle__vehicle_type_model__vehicle_type', 'vehicle__color',
             'vehicle__emission_standard', 'branch', 'company', 'quotation', 'job_quotation'
-        ).get(id=job_card_id, is_deleted=False)
+        ).get(id=job_card_id, company=company, is_deleted=False)
+        if branch and jc.branch_id != branch.id:
+            return JsonResponse({'success': False, 'message': 'Job Card not found'}, status=404)
     except JobCard.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Job Card not found'}, status=404)
 
@@ -4585,6 +4589,7 @@ def api_job_card_detail(request, job_card_id):
         'success': True,
         'job_card': {
             'id': str(jc.id),
+            'lead_id': str(jc.lead_id or ''),
             'job_number': jc.job_number,
             'job_date': jc.job_date.strftime('%d-%m-%Y') if jc.job_date else '',
             'expected_delivery_date': jc.expected_delivery_date.strftime('%d-%m-%Y %I:%M %p') if jc.expected_delivery_date else '',
@@ -4610,6 +4615,7 @@ def api_job_card_detail(request, job_card_id):
                 'state': c.state or '',
                 'country': c.country or '',
                 'customer_type': c.customer_type.name if c.customer_type else 'Individual',
+                'customer_type_id': str(c.customer_type_id or ''),
                 'tax_number': c.tax_number or '',
                 'tin_number': c.tin_number or '',
             },
@@ -4624,6 +4630,7 @@ def api_job_card_detail(request, job_card_id):
                 'brand_model_id': str(v.brand_model.id) if (v and v.brand_model) else '',
                 'vehicle_type': v.vehicle_type_model.vehicle_type.name if (v and v.vehicle_type_model and v.vehicle_type_model.vehicle_type) else '',
                 'vehicle_type_id': str(v.vehicle_type_model.vehicle_type.id) if (v and v.vehicle_type_model and v.vehicle_type_model.vehicle_type) else '',
+                'segment_id': str(v.vehicle_type_model_id or ''),
                 'model_year': v.model_year or '',
                 'variant_trim': v.variant_trim or '',
                 'color': v.color.name if (v and v.color) else '',
@@ -4647,6 +4654,90 @@ def api_job_card_detail(request, job_card_id):
     })
 
 
+def _job_card_records_from_lead(lead, profile, vehicle_data, company, branch, user):
+    from client_management.models import CustomerType
+    from master.models import VehicleTypeModel, VehicleMake, VehicleBrandModel, VehicleColor, EmissionStandard
+    from core.functions import get_auto_id
+
+    name = (profile.get('name') or lead.customer_name or '').strip()
+    phone = (profile.get('phone') or lead.phone_number or '').strip()
+    customer_type = CustomerType.objects.filter(
+        id=profile.get('customer_type_id') or lead.customer_type_id, is_deleted=False
+    ).first()
+    if not name or not phone or not customer_type or not (profile.get('state') or lead.state) or not (profile.get('city') or lead.city):
+        raise ValueError('Customer name, mobile, customer type, state, and city are required')
+    if 'corporate' in customer_type.name.lower() and not all((profile.get('tax_number'), profile.get('tin_number'), profile.get('pan_number'))):
+        raise ValueError('Tax registration number, TIN, and PAN are required for corporate customers')
+    customer = lead.customer
+    if customer is None:
+        phone_key = ''.join(ch for ch in phone.upper() if ch.isalnum())
+        for candidate in Customer.objects.filter(company=company, branch=branch, is_deleted=False).only('id', 'phone'):
+            if ''.join(ch for ch in (candidate.phone or '').upper() if ch.isalnum()) == phone_key:
+                customer = Customer.objects.select_for_update().get(id=candidate.id)
+                break
+    if customer is None:
+        customer = Customer(
+            company=company, branch=branch, auto_id=get_auto_id(Customer), creator=user,
+            customer_category='motor',
+        )
+    for field, value in {
+        'name': name, 'phone': phone, 'customer_type': customer_type,
+        'whatsapp_number': (profile.get('whatsapp') or lead.whatsapp_number or '').strip(),
+        'email': (profile.get('email') or lead.email or '').strip(),
+        'state': (profile.get('state') or lead.state or '').strip(),
+        'city': (profile.get('city') or lead.city or '').strip(),
+        'tax_number': (profile.get('tax_number') or '').strip(),
+        'tin_number': (profile.get('tin_number') or '').strip(),
+        'pan_number': (profile.get('pan_number') or '').strip(),
+    }.items():
+        setattr(customer, field, value)
+    customer.save()
+
+    vehicle_number = (vehicle_data.get('vehicle_number') or lead.vehicle_number or '').strip().upper()
+    segment = VehicleTypeModel.objects.filter(
+        id=vehicle_data.get('segment_id') or lead.vehicle_segment_id, is_active=True, is_deleted=False
+    ).first()
+    make = VehicleMake.objects.filter(
+        id=vehicle_data.get('make_id') or lead.vehicle_make_master_id, is_active=True, is_deleted=False
+    ).first()
+    model = VehicleBrandModel.objects.filter(
+        id=vehicle_data.get('brand_model_id') or lead.vehicle_model_master_id, is_active=True, is_deleted=False
+    ).first()
+    if not vehicle_number or not segment:
+        raise ValueError('Vehicle number and segment are required')
+    if model:
+        if model.vehicle_type_model_id != segment.id:
+            raise ValueError('Selected model does not match the vehicle segment')
+        make = make or model.make
+        if make and model.make_id != make.id:
+            raise ValueError('Selected make does not match the vehicle model')
+    color = VehicleColor.objects.filter(id=vehicle_data.get('color_id') or lead.vehicle_color_id, is_deleted=False).first()
+    emission = EmissionStandard.objects.filter(id=vehicle_data.get('emission_standard_id') or lead.vehicle_emission_standard_id, is_deleted=False).first()
+    vehicle = lead.vehicle
+    if vehicle is None:
+        plate_key = ''.join(ch for ch in vehicle_number.upper() if ch.isalnum())
+        for candidate in CustomerVehicle.objects.filter(customer=customer, is_deleted=False).only('id', 'vehicle_number'):
+            if ''.join(ch for ch in (candidate.vehicle_number or '').upper() if ch.isalnum()) == plate_key:
+                vehicle = CustomerVehicle.objects.select_for_update().get(id=candidate.id)
+                break
+    if vehicle is None:
+        vehicle = CustomerVehicle(customer=customer, auto_id=get_auto_id(CustomerVehicle), creator=user)
+    vehicle.vehicle_number = vehicle_number
+    vehicle.vehicle_type = segment.vehicle_type
+    vehicle.vehicle_type_model = segment
+    vehicle.make = make
+    vehicle.brand_model = model
+    vehicle.color = color
+    vehicle.emission_standard = emission
+    vehicle.fuel_type = vehicle_data.get('fuel_type') or lead.vehicle_fuel_type or ''
+    vehicle.wheel_type = vehicle_data.get('wheel_type') or lead.vehicle_wheel_type or CustomerVehicle.WHEEL_TYPE_NORMAL
+    vehicle.save()
+    lead.customer = customer
+    lead.vehicle = vehicle
+    lead.save(update_fields=['customer', 'vehicle', 'date_updated'])
+    return customer, vehicle
+
+
 @csrf_exempt
 def api_job_card_create(request):
     """Creates a new job card with services, parts, labour, extras."""
@@ -4659,23 +4750,40 @@ def api_job_card_create(request):
 
     try:
         data = json.loads(request.body)
-        customer_id = data.get('customer_id')
-        vehicle_id = data.get('vehicle_id')
-
-        if not customer_id or not vehicle_id:
-            return JsonResponse({'success': False, 'message': 'Customer and Vehicle are required'}, status=400)
-
-        customer = Customer.objects.get(id=customer_id, is_deleted=False)
-        vehicle = CustomerVehicle.objects.get(id=vehicle_id, customer=customer, is_deleted=False)
-
-        company = user.profile.company if hasattr(user, 'profile') and user.profile and user.profile.company else customer.company
+        lead = None
+        company, managed_branch = _job_pipeline_scope(user)
+        if data.get('lead_id'):
+            from .models import JobLead
+            lead = JobLead.objects.filter(
+                id=data['lead_id'], company=company, status=JobLead.STATUS_SUCCESS, is_deleted=False
+            ).first()
+            if not lead or (managed_branch and lead.branch_id != managed_branch.id):
+                return JsonResponse({'success': False, 'message': 'Successful lead not found'}, status=404)
+            existing = JobCard.objects.filter(lead=lead).first()
+            if existing:
+                return JsonResponse({'success': True, 'already_created': True, 'job_card_id': str(existing.id), 'job_number': existing.job_number})
+            if not data.get('customer_profile') or not data.get('vehicle_details'):
+                return JsonResponse({'success': False, 'message': 'Customer and vehicle details are required'}, status=400)
+            branch = lead.branch
+            customer = lead.customer
+            vehicle = lead.vehicle
+        else:
+            customer_id = data.get('customer_id')
+            vehicle_id = data.get('vehicle_id')
+            if not customer_id or not vehicle_id:
+                return JsonResponse({'success': False, 'message': 'Customer and Vehicle are required'}, status=400)
+            customer = Customer.objects.get(id=customer_id, is_deleted=False)
+            vehicle = CustomerVehicle.objects.get(id=vehicle_id, customer=customer, is_deleted=False)
+            company = company or customer.company
         branch = None
         role = getattr(user.profile.role, 'name', None) if hasattr(user, 'profile') and user.profile and user.profile.role else None
-        if role == 'BRANCH_ADMIN' and hasattr(user, 'managed_branch') and user.managed_branch:
+        if lead:
+            branch = lead.branch
+        elif role == 'BRANCH_ADMIN' and hasattr(user, 'managed_branch') and user.managed_branch:
             branch = user.managed_branch
         elif data.get('branch_id'):
             branch = Branch.objects.filter(id=data.get('branch_id'), is_deleted=False).first()
-        if not branch:
+        if not branch and not lead:
             branch = customer.branch
 
         # Parse delivery date
@@ -4692,11 +4800,16 @@ def api_job_card_create(request):
                     pass
 
         with transaction.atomic():
+            if lead:
+                customer, vehicle = _job_card_records_from_lead(
+                    lead, data['customer_profile'], data['vehicle_details'], company, branch, user
+                )
             jc = JobCard.objects.create(
                 company=company,
                 branch=branch,
                 customer=customer,
                 vehicle=vehicle,
+                lead=lead,
                 expected_delivery_date=expected_delivery,
                 delivery_lead_time=data.get('delivery_lead_time', '').strip() or None,
                 current_section=data.get('current_section', 'General Inspection').strip() or 'General Inspection',
@@ -4793,6 +4906,8 @@ def api_job_card_create(request):
             'estimated_cost': float(jc.estimated_cost),
         })
 
+    except ValueError as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=400)
     except Exception as exc:
         return JsonResponse({'success': False, 'message': str(exc)}, status=500)
 
@@ -4921,6 +5036,7 @@ def api_job_card_from_quotation(request, quotation_id):
         return JsonResponse({'success': False, 'message': str(exc)}, status=500)
 
 
+@transaction.atomic
 @csrf_exempt
 def api_job_card_update(request, job_card_id):
     """Updates an existing job card and replaces its items."""
@@ -4932,8 +5048,56 @@ def api_job_card_update(request, job_card_id):
         return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
 
     try:
-        jc = JobCard.objects.get(id=job_card_id, is_deleted=False)
+        company, branch = _job_pipeline_scope(user)
+        jc = JobCard.objects.get(id=job_card_id, company=company, is_deleted=False)
+        if branch and jc.branch_id != branch.id:
+            return JsonResponse({'success': False, 'message': 'Job Card not found'}, status=404)
         data = json.loads(request.body)
+
+        profile = data.get('customer_profile')
+        vehicle_data = data.get('vehicle_details')
+        if profile is not None:
+            from client_management.models import CustomerType
+            customer_type = CustomerType.objects.filter(
+                id=profile.get('customer_type_id'), is_deleted=False
+            ).first() if profile.get('customer_type_id') else jc.customer.customer_type
+            name = (profile.get('name') or '').strip()
+            phone = (profile.get('phone') or '').strip()
+            if not name or not phone or not customer_type or not (profile.get('state') or '').strip() or not (profile.get('city') or '').strip():
+                return JsonResponse({'success': False, 'message': 'Customer name, mobile, type, state, and city are required'}, status=400)
+            if 'corporate' in customer_type.name.lower() and not all((profile.get('tax_number'), profile.get('tin_number'), profile.get('pan_number'))):
+                return JsonResponse({'success': False, 'message': 'Tax registration number, TIN, and PAN are required for corporate customers'}, status=400)
+            for field, value in {
+                'name': name, 'phone': phone, 'customer_type': customer_type,
+                'whatsapp_number': (profile.get('whatsapp') or '').strip(),
+                'email': (profile.get('email') or '').strip(),
+                'state': (profile.get('state') or '').strip(), 'city': (profile.get('city') or '').strip(),
+                'tax_number': (profile.get('tax_number') or '').strip(),
+                'tin_number': (profile.get('tin_number') or '').strip(),
+                'pan_number': (profile.get('pan_number') or '').strip(),
+            }.items():
+                setattr(jc.customer, field, value)
+            jc.customer.save()
+        if vehicle_data is not None:
+            from master.models import VehicleTypeModel, VehicleMake, VehicleBrandModel, VehicleColor, EmissionStandard
+            segment = VehicleTypeModel.objects.filter(id=vehicle_data.get('segment_id'), is_active=True, is_deleted=False).first()
+            make = VehicleMake.objects.filter(id=vehicle_data.get('make_id'), is_active=True, is_deleted=False).first() if vehicle_data.get('make_id') else None
+            model = VehicleBrandModel.objects.filter(id=vehicle_data.get('brand_model_id'), is_active=True, is_deleted=False).first() if vehicle_data.get('brand_model_id') else None
+            plate = (vehicle_data.get('vehicle_number') or '').strip().upper()
+            if not plate or not segment:
+                return JsonResponse({'success': False, 'message': 'Vehicle number and segment are required'}, status=400)
+            if model and (model.vehicle_type_model_id != segment.id or (make and model.make_id != make.id)):
+                return JsonResponse({'success': False, 'message': 'Selected vehicle make, model, and segment do not match'}, status=400)
+            jc.vehicle.vehicle_number = plate
+            jc.vehicle.vehicle_type = segment.vehicle_type
+            jc.vehicle.vehicle_type_model = segment
+            jc.vehicle.make = make or (model.make if model else None)
+            jc.vehicle.brand_model = model
+            jc.vehicle.color = VehicleColor.objects.filter(id=vehicle_data.get('color_id'), is_deleted=False).first() if vehicle_data.get('color_id') else None
+            jc.vehicle.emission_standard = EmissionStandard.objects.filter(id=vehicle_data.get('emission_standard_id'), is_deleted=False).first() if vehicle_data.get('emission_standard_id') else None
+            jc.vehicle.fuel_type = vehicle_data.get('fuel_type') or ''
+            jc.vehicle.wheel_type = vehicle_data.get('wheel_type') or CustomerVehicle.WHEEL_TYPE_NORMAL
+            jc.vehicle.save()
 
         delivery_date_str = data.get('expected_delivery_date')
         if delivery_date_str:
@@ -5487,6 +5651,8 @@ def api_job_leads(request):
         status = request.GET.get('status', '')
         if status in dict(JobLead.STATUS_CHOICES):
             qs = qs.filter(status=status)
+        if request.GET.get('unconverted', '').lower() in ('1', 'true', 'yes'):
+            qs = qs.filter(status=JobLead.STATUS_SUCCESS, job_card__isnull=True)
         search = request.GET.get('search', '').strip()
         if search:
             qs = qs.filter(Q(customer_name__icontains=search) | Q(phone_number__icontains=search) | Q(vehicle_number__icontains=search) | Q(vehicle_make__icontains=search) | Q(vehicle_model__icontains=search))
@@ -6056,11 +6222,13 @@ def api_job_quotation_create(request):
 
 
 def _job_quotation_data(quotation, include_lines=False, request=None):
+    from .models import JobCard
     try:
         linked_job = quotation.job_card
         linked_job_id = str(linked_job.id)
     except Exception:
-        linked_job_id = ''
+        linked_job = JobCard.objects.filter(lead_id=quotation.lead_id).first() if quotation.lead_id else None
+        linked_job_id = str(linked_job.id) if linked_job else ''
     company = getattr(quotation.branch, 'company', None) if quotation.branch_id else getattr(quotation.customer, 'company', None)
     seal = getattr(company, 'company_seal', None) if company else None
     seal_url = request.build_absolute_uri(seal.url) if request and seal else (seal.url if seal else '')
@@ -6534,6 +6702,13 @@ def api_job_card_from_job_quotation(request, quotation_id):
             ) or quote.extras.filter(is_deleted=False, total__gt=0).exists()
             if not has_priced_items:
                 return JsonResponse({'success': False, 'message': 'A quotation needs at least one priced item before conversion'}, status=409)
+            if quote.lead_id:
+                existing_lead_job = JobCard.objects.filter(lead_id=quote.lead_id).first()
+                if existing_lead_job:
+                    if not existing_lead_job.job_quotation_id:
+                        existing_lead_job.job_quotation = quote
+                        existing_lead_job.save(update_fields=['job_quotation', 'date_updated'])
+                    return JsonResponse({'success': True, 'already_converted': True, 'job_card_id': str(existing_lead_job.id), 'job_number': existing_lead_job.job_number})
             existing = JobCard.objects.filter(job_quotation=quote).first()
             if existing:
                 return JsonResponse({'success': True, 'already_converted': True, 'job_card_id': str(existing.id), 'job_number': existing.job_number})
@@ -6543,7 +6718,7 @@ def api_job_card_from_job_quotation(request, quotation_id):
             items = list(quote.items.filter(is_deleted=False).select_related('service', 'stock_item'))
             job = JobCard.objects.create(
                 company=company, branch=branch, customer=quote.customer, vehicle=quote.vehicle,
-                job_quotation=quote, current_section='General Inspection',
+                job_quotation=quote, lead=quote.lead, current_section='General Inspection',
                 current_service=items[0].service_name if items else '',
                 additional_remarks=quote.additional_services or None,
                 expected_delivery_date=quote.tentative_delivery_at, creator=user,

@@ -225,6 +225,13 @@ class JobCard(BaseModel):
         blank=True,
         related_name='job_card',
     )
+    lead = models.OneToOneField(
+        'booking_management.JobLead',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='job_card',
+    )
 
     job_number = models.CharField(max_length=50, unique=True, db_index=True)
     job_date = models.DateField(default=timezone.now)
