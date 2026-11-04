@@ -4967,6 +4967,44 @@ def api_get_expense_items_by_head(request):
         from django.shortcuts import get_object_or_404
 
         head = get_object_or_404(ExpenseHead, Q(company=getattr(getattr(user, 'profile', None), 'company', None)) | Q(company__isnull=True), id=expense_head_id, is_deleted=False)
+
+        company = getattr(getattr(user, 'profile', None), 'company', None)
+        if not company and getattr(user, 'managed_branch', None):
+            company = user.managed_branch.company
+        normalized_head_name = ' '.join(
+            head.name.strip().lower().replace('&', 'and').split()
+        )
+        if normalized_head_name == 'salary and wages':
+            from client_management.models import Branch, Staff
+
+            staff_qs = Staff.objects.filter(
+                company=company,
+                is_deleted=False,
+            ).order_by('name')
+            branch = getattr(user, 'managed_branch', None)
+            requested_branch_id = request.GET.get('branch_id')
+            if branch:
+                staff_qs = staff_qs.filter(branch=branch)
+            elif requested_branch_id:
+                staff_qs = staff_qs.filter(
+                    branch__in=Branch.objects.filter(
+                        id=requested_branch_id,
+                        company=company,
+                        is_deleted=False,
+                    )
+                )
+
+            staff_names = sorted({
+                staff.name.strip()
+                for staff in staff_qs
+                if staff.name and staff.name.strip()
+            }, key=str.casefold)
+            return JsonResponse({
+                'success': True,
+                'expense_head_id': str(head.id),
+                'expense_head_name': head.name,
+                'items': staff_names,
+            })
         
         items_set = set()
 
@@ -4995,16 +5033,6 @@ def api_get_expense_items_by_head(request):
         for s in stock_qs:
             if s.item_name and s.item_name.strip():
                 items_set.add(s.item_name.strip())
-
-        # 3. If head is Salary, also include staff names
-        if 'salary' in head.name.strip().lower():
-            from client_management.models import Staff
-            staff_qs = Staff.objects.filter(is_deleted=False)
-            if company:
-                staff_qs = staff_qs.filter(company=company)
-            for st in staff_qs:
-                if st.name and st.name.strip():
-                    items_set.add(st.name.strip())
 
         items_list = sorted(list(items_set))
         return JsonResponse({
@@ -5224,6 +5252,27 @@ def api_create_expense_entry(request):
             expense_head = ExpenseHead.objects.get(id=expense_head_id)
         except Exception:
             return JsonResponse({'success': False, 'message': f'Expense Head not found for ID: {expense_head_id}'}, status=400)
+
+        normalized_head_name = ' '.join(
+            expense_head.name.strip().lower().replace('&', 'and').split()
+        )
+        if normalized_head_name in {'salary', 'salary advance'}:
+            return JsonResponse({
+                'success': False,
+                'message': 'Select Salary & Wages for staff expenses.',
+            }, status=400)
+        if normalized_head_name == 'salary and wages':
+            from client_management.models import Staff
+            if not Staff.objects.filter(
+                company=company,
+                branch=branch,
+                is_deleted=False,
+                name__iexact=str(expense_name).strip(),
+            ).exists():
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Select a staff member for Salary & Wages expenses.',
+                }, status=400)
 
         expense = Expense.objects.filter(
             expense_head=expense_head,

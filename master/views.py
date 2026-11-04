@@ -1178,6 +1178,8 @@ def expense_create(request):
     expense_heads = ExpenseHead.objects.filter(
         Q(company=company) | Q(company__isnull=True),
         is_deleted=False
+    ).exclude(name__iexact='salary').exclude(
+        name__iexact='salary advance'
     ).order_by('name')
 
     from client_management.models import Stock, Staff
@@ -1244,6 +1246,23 @@ def expense_create(request):
             id=expense_head_id,
             is_deleted=False
         )
+
+        normalized_head_name = ' '.join(
+            expense_head.name.strip().lower().replace('&', 'and').split()
+        )
+        if normalized_head_name in {'salary', 'salary advance'}:
+            messages.error(request, 'Select Salary & Wages for staff expenses.')
+            return redirect('expense_create')
+        if normalized_head_name in {'salary and wages'}:
+            from client_management.models import Staff
+            if not Staff.objects.filter(
+                company=company,
+                branch_id=branch_id,
+                is_deleted=False,
+                name__iexact=expense_name,
+            ).exists():
+                messages.error(request, 'Select a staff member for Salary & Wages expenses.')
+                return redirect('expense_create')
 
         expense, created = Expense.objects.get_or_create(
             expense_head=expense_head,

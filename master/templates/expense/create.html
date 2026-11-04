@@ -219,7 +219,7 @@ textarea.form-control:focus {
                 <label class="form-label">
                     <span>Branch <span class="required">*</span></span>
                 </label>
-                <select name="branch" class="form-control" required>
+                <select name="branch" id="branch_select" class="form-control" required>
                     <option value="">-- Select Branch --</option>
                     {% for b in branches %}
                     <option value="{{ b.id }}" {% if expense_entry and expense_entry.branch.id == b.id %}selected{% endif %}>
@@ -454,6 +454,10 @@ textarea.form-control:focus {
             loadItemsForSelectedHead();
         });
 
+        document.getElementById('branch_select')?.addEventListener('change', function() {
+            if (expenseHeadSelect.value) loadItemsForSelectedHead();
+        });
+
         // Initialize state
         updateSupplierVisibility();
         if (expenseHeadSelect.value) {
@@ -466,6 +470,18 @@ textarea.form-control:focus {
         const headId = headSelect.value;
         const nameSelect = document.getElementById('expense_name_select');
         const finalInput = document.getElementById('final_expense_name');
+        const customNameButton = document.getElementById('toggle_custom_name_btn');
+        const selectedHeadName = (headSelect.selectedOptions[0]?.dataset.headName || '')
+            .trim().toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ');
+        const isSalaryWages = selectedHeadName === 'salary and wages';
+        customNameButton.style.display = isSalaryWages ? 'none' : '';
+
+        if (isSalaryWages) {
+            isCustomMode = false;
+            document.getElementById('expense_text_container').style.display = 'none';
+            document.getElementById('expense_select_container').style.display = 'block';
+            finalInput.value = '';
+        }
 
         if (!headId) {
             nameSelect.innerHTML = '<option value="">-- Select Expense Head First --</option>';
@@ -475,13 +491,17 @@ textarea.form-control:focus {
         nameSelect.innerHTML = '<option value="">Loading items...</option>';
 
         try {
-            const res = await fetch(`/api/expenses/items-by-head/?expense_head_id=${headId}`);
+            const branchId = document.getElementById('branch_select')?.value || '';
+            const branchParam = branchId ? `&branch_id=${encodeURIComponent(branchId)}` : '';
+            const res = await fetch(`/api/expenses/items-by-head/?expense_head_id=${headId}${branchParam}`);
             const data = await res.json();
 
             nameSelect.innerHTML = '';
             const defaultOpt = document.createElement('option');
             defaultOpt.value = '';
-            defaultOpt.textContent = '-- Select Item or Type Custom --';
+            defaultOpt.textContent = isSalaryWages
+                ? '-- Select Staff --'
+                : '-- Select Item or Type Custom --';
             nameSelect.appendChild(defaultOpt);
 
             let matched = false;
@@ -499,21 +519,28 @@ textarea.form-control:focus {
                 });
             }
 
-            // Always add option for custom item
-            const customOpt = document.createElement('option');
-            customOpt.value = '__CUSTOM__';
-            customOpt.textContent = '+ Enter Custom Item Name...';
-            nameSelect.appendChild(customOpt);
+            if (!isSalaryWages) {
+                const customOpt = document.createElement('option');
+                customOpt.value = '__CUSTOM__';
+                customOpt.textContent = '+ Enter Custom Item Name...';
+                nameSelect.appendChild(customOpt);
+            } else if (!data.items || data.items.length === 0) {
+                defaultOpt.textContent = 'No staff available for this branch';
+            }
 
-            if (isEditMode && initialExpenseName && !matched) {
+            if (!isSalaryWages && isEditMode && initialExpenseName && !matched) {
                 // If the existing name wasn't in list, activate custom mode
                 switchToCustomMode(initialExpenseName);
             }
 
         } catch (err) {
             console.error("Failed to load items:", err);
-            nameSelect.innerHTML = '<option value="__CUSTOM__">+ Enter Custom Item Name</option>';
-            switchToCustomMode(finalInput.value);
+            if (isSalaryWages) {
+                nameSelect.innerHTML = '<option value="">Staff list could not be loaded</option>';
+            } else {
+                nameSelect.innerHTML = '<option value="__CUSTOM__">+ Enter Custom Item Name</option>';
+                switchToCustomMode(finalInput.value);
+            }
         }
     }
 
