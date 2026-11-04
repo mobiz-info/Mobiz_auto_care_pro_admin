@@ -5995,6 +5995,18 @@ def api_job_quotation_create(request):
                     discount_type=row.get('discount_type') or 'amount', discount_percentage=Decimal(str(row.get('discount_percentage') or 0)),
                     total=total, remarks=row.get('remarks') or '', auto_id=get_auto_id(JobQuotationExtra), creator=user,
                 )
+            for row in data.get('labour_charges', []):
+                name = (row.get('name') or '').strip()
+                price = Decimal(str(row.get('price', row.get('cost', 0)) or 0))
+                discount = Decimal(str(row.get('discount') or 0))
+                if not name or price < 0 or discount < 0:
+                    raise ValueError('Labour name, cost, and discount must be valid')
+                JobQuotationExtra.objects.create(
+                    quotation=quotation, name=name, price=price, quantity=Decimal('1'),
+                    discount=discount, line_type='labour', discount_type='amount',
+                    discount_percentage=Decimal('0'), total=max(Decimal('0'), price - discount),
+                    remarks=row.get('remarks') or '', auto_id=get_auto_id(JobQuotationExtra), creator=user,
+                )
             for index, (category, issue_service, issue, issue_text, photos, rate, quantity, discount) in enumerate(prepared_issues):
                 reported_issue = JobQuotationIssue.objects.create(
                     quotation=quotation, category=category, service=issue_service, issue=issue,
@@ -6327,6 +6339,37 @@ def api_job_quotation_update(request, quotation_id):
                     extra.save()
                     keep_extra_ids.append(extra.id)
                 quotation.extras.filter(line_type='quote_form', is_deleted=False).exclude(id__in=keep_extra_ids).update(is_deleted=True, updater=user)
+            if 'labour_charges' in data:
+                keep_labour_ids = []
+                for row in data.get('labour_charges', []):
+                    name = (row.get('name') or '').strip()
+                    price = Decimal(str(row.get('price', row.get('cost', 0)) or 0))
+                    discount = Decimal(str(row.get('discount') or 0))
+                    if not name or price < 0 or discount < 0:
+                        transaction.set_rollback(True)
+                        return JsonResponse({'success': False, 'message': 'Labour name, cost, and discount must be valid'}, status=400)
+                    labour = JobQuotationExtra.objects.filter(
+                        id=row.get('id'), quotation=quotation, line_type='labour', is_deleted=False
+                    ).first() if row.get('id') else None
+                    if labour is None:
+                        labour = JobQuotationExtra(
+                            quotation=quotation, line_type='labour',
+                            auto_id=get_auto_id(JobQuotationExtra), creator=user,
+                        )
+                    labour.name = name
+                    labour.price = price
+                    labour.quantity = Decimal('1')
+                    labour.discount = discount
+                    labour.discount_type = 'amount'
+                    labour.discount_percentage = Decimal('0')
+                    labour.total = max(Decimal('0'), price - discount)
+                    labour.remarks = row.get('remarks') or ''
+                    labour.updater = user if labour.pk else None
+                    labour.save()
+                    keep_labour_ids.append(labour.id)
+                quotation.extras.filter(line_type='labour', is_deleted=False).exclude(
+                    id__in=keep_labour_ids
+                ).update(is_deleted=True, updater=user)
             if 'reported_issues' in data:
                 retained_reports = []
                 for index, row in enumerate(data.get('reported_issues') or []):
@@ -6418,7 +6461,7 @@ def api_job_quotation_update(request, quotation_id):
                 JobQuotationItem.objects.filter(reported_issue_id__in=removed_report_ids, is_deleted=False).update(is_deleted=True, updater=user)
                 JobQuotationIssuePhoto.objects.filter(reported_issue_id__in=removed_report_ids, is_deleted=False).update(is_deleted=True, updater=user)
                 removed_reports.update(is_deleted=True, updater=user)
-            if any(key in data for key in ('items', 'extras', 'reported_issues')):
+            if any(key in data for key in ('items', 'extras', 'labour_charges', 'reported_issues')):
                 row_subtotal = sum(
                     (_job_quotation_item_total(item) for item in quotation.items.filter(is_deleted=False)),
                     Decimal('0'),
@@ -6533,7 +6576,7 @@ def api_job_card_from_job_quotation(request, quotation_id):
                     )
             for extra in quote.extras.filter(is_deleted=False):
                 JobCardExtraItem.objects.create(
-                    job_card=job, extra_details=extra.name, quantity=extra.quantity or Decimal('1'), rate=extra.price,
+                    job_card=job, extra_details=(f'Labour: {extra.name}' if extra.line_type == 'labour' else extra.name), quantity=extra.quantity or Decimal('1'), rate=extra.price,
                     discount=extra.discount, discount_type=extra.discount_type,
                     discount_percentage=extra.discount_percentage, total_amount=extra.total,
                     remarks=extra.remarks or '', creator=user,
