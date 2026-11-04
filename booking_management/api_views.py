@@ -4654,6 +4654,32 @@ def api_job_card_detail(request, job_card_id):
     })
 
 
+@csrf_exempt
+def api_job_card_delete(request, job_card_id):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Only POST allowed'}, status=405)
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+    try:
+        company, branch = _job_pipeline_scope(user)
+        with transaction.atomic():
+            job = JobCard.objects.select_for_update().filter(
+                id=job_card_id, company=company, is_deleted=False
+            ).first()
+            if not job or (branch and job.branch_id != branch.id):
+                return JsonResponse({'success': False, 'message': 'Job Card not found'}, status=404)
+            job.is_deleted = True
+            job.lead = None
+            job.quotation = None
+            job.job_quotation = None
+            job.updater = user
+            job.save(update_fields=['is_deleted', 'lead', 'quotation', 'job_quotation', 'updater', 'date_updated'])
+        return JsonResponse({'success': True, 'message': 'Job Card deleted successfully'})
+    except Exception as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=500)
+
+
 def _job_card_records_from_lead(lead, profile, vehicle_data, company, branch, user):
     from client_management.models import CustomerType
     from master.models import VehicleTypeModel, VehicleMake, VehicleBrandModel, VehicleColor, EmissionStandard
@@ -6225,9 +6251,9 @@ def _job_quotation_data(quotation, include_lines=False, request=None):
     from .models import JobCard
     try:
         linked_job = quotation.job_card
-        linked_job_id = str(linked_job.id)
+        linked_job_id = str(linked_job.id) if not linked_job.is_deleted else ''
     except Exception:
-        linked_job = JobCard.objects.filter(lead_id=quotation.lead_id).first() if quotation.lead_id else None
+        linked_job = JobCard.objects.filter(lead_id=quotation.lead_id, is_deleted=False).first() if quotation.lead_id else None
         linked_job_id = str(linked_job.id) if linked_job else ''
     company = getattr(quotation.branch, 'company', None) if quotation.branch_id else getattr(quotation.customer, 'company', None)
     seal = getattr(company, 'company_seal', None) if company else None
