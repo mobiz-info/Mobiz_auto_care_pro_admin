@@ -246,6 +246,7 @@ class JobCard(BaseModel):
     additional_remarks = models.TextField(blank=True, null=True)
     appointment_details = models.TextField(blank=True, null=True)
     inspection_at = models.DateTimeField(null=True, blank=True)
+    inspection_details = models.JSONField(default=dict, blank=True)
     internal_notes = models.TextField(blank=True, null=True)
     prepared_by = models.ForeignKey(
         'client_management.Staff', on_delete=models.SET_NULL, null=True, blank=True,

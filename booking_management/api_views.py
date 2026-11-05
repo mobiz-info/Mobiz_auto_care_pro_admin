@@ -4633,6 +4633,7 @@ def api_job_card_detail(request, job_card_id):
             'additional_remarks': jc.additional_remarks or '',
             'appointment_details': jc.appointment_details or '',
             'inspection_at': jc.inspection_at.isoformat() if jc.inspection_at else '',
+            'inspection_details': jc.inspection_details or {},
             'internal_notes': jc.internal_notes or '',
             'prepared_by_id': str(jc.prepared_by_id or ''),
             'prepared_by_name': jc.prepared_by.name if jc.prepared_by_id else '',
@@ -4999,6 +5000,7 @@ def api_job_card_create(request):
                 additional_remarks=data.get('additional_remarks', '').strip() or None,
                 appointment_details=data.get('appointment_details', '').strip() or None,
                 inspection_at=inspection_at,
+                inspection_details=data.get('inspection_details') or {},
                 internal_notes=data.get('internal_notes', '').strip() or None,
                 prepared_by=prepared_by,
                 creator=user,
@@ -5319,6 +5321,8 @@ def api_job_card_update(request, job_card_id):
             if inspection_at and timezone.is_naive(inspection_at):
                 inspection_at = timezone.make_aware(inspection_at)
             jc.inspection_at = inspection_at
+        if 'inspection_details' in data:
+            jc.inspection_details = data.get('inspection_details') or {}
         if 'internal_notes' in data:
             jc.internal_notes = data['internal_notes']
         if 'prepared_by_id' in data:
