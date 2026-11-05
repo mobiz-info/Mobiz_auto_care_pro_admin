@@ -4488,7 +4488,7 @@ def api_job_card_detail(request, job_card_id):
             'customer', 'customer__customer_type', 'vehicle', 'vehicle__make',
             'vehicle__brand_model', 'vehicle__vehicle_type_model',
             'vehicle__vehicle_type_model__vehicle_type', 'vehicle__color',
-            'vehicle__emission_standard', 'branch', 'company', 'quotation', 'job_quotation'
+            'vehicle__emission_standard', 'branch', 'company', 'quotation', 'job_quotation', 'prepared_by'
         ).get(id=job_card_id, company=company, is_deleted=False)
         if branch and jc.branch_id != branch.id:
             return JsonResponse({'success': False, 'message': 'Job Card not found'}, status=404)
@@ -4534,6 +4534,7 @@ def api_job_card_detail(request, job_card_id):
             'rate_with_tax': float(p.rate_with_tax or 0),
             'quantity': float(p.quantity or 1),
             'discount': float(p.discount or 0),
+            'warranty_years': float(p.warranty_years or 0),
             'vat_percentage': float(p.vat_percentage or 0),
             'total_amount': float(p.total_amount or 0),
             'remarks': p.remarks or '',
@@ -4587,6 +4588,13 @@ def api_job_card_detail(request, job_card_id):
                 'name': report.issue.name if report.issue else report.issue_text,
             },
             'issue_text': report.issue_text,
+            'pricing': {
+                'rate': float(report.rate or 0),
+                'quantity': float(report.quantity or 1),
+                'discount': float(report.discount or 0),
+                'warranty': report.warranty or '',
+                'remarks': report.remarks or '',
+            },
             'photos': photos,
         })
 
@@ -4624,6 +4632,10 @@ def api_job_card_detail(request, job_card_id):
             'status_display': dict(JobCard.STATUS_CHOICES).get(effective_status, effective_status.title()),
             'additional_remarks': jc.additional_remarks or '',
             'appointment_details': jc.appointment_details or '',
+            'inspection_at': jc.inspection_at.isoformat() if jc.inspection_at else '',
+            'internal_notes': jc.internal_notes or '',
+            'prepared_by_id': str(jc.prepared_by_id or ''),
+            'prepared_by_name': jc.prepared_by.name if jc.prepared_by_id else '',
             'branch_name': jc.branch.name if jc.branch else '',
             'company_name': company_name,
             'company_logo': company_logo_url,
@@ -4789,6 +4801,7 @@ def _job_card_records_from_lead(lead, profile, vehicle_data, company, branch, us
 
 
 def _save_job_card_reported_issues(job_card, rows, uploaded_files, user):
+    from decimal import Decimal, InvalidOperation
     from PIL import Image
     from core.functions import get_auto_id
     from service_management.models import JobCardCategory, JobCardService, JobCardIssue
@@ -4808,6 +4821,14 @@ def _save_job_card_reported_issues(job_card, rows, uploaded_files, user):
         issue_text = (row.get('issue_text') or (issue.name if issue else '')).strip()
         if not category or not service or not issue or not issue_text or len(issue_text) > 200:
             raise ValueError(f'Issue row {index + 1} has invalid category, service, or issue')
+        try:
+            rate = Decimal(str(row.get('rate') or 0))
+            quantity = Decimal(str(row.get('quantity') or 1))
+            discount = Decimal(str(row.get('discount') or 0))
+        except (InvalidOperation, TypeError, ValueError):
+            raise ValueError(f'Issue row {index + 1} has invalid pricing')
+        if rate < 0 or quantity <= 0 or discount < 0:
+            raise ValueError(f'Issue row {index + 1} has invalid pricing')
 
         report = None
         report_id = row.get('report_id')
@@ -4854,6 +4875,11 @@ def _save_job_card_reported_issues(job_card, rows, uploaded_files, user):
         report.service = service
         report.issue = issue
         report.issue_text = issue_text
+        report.rate = rate
+        report.quantity = quantity
+        report.discount = discount
+        report.warranty = (row.get('warranty') or '').strip() or None
+        report.remarks = (row.get('remarks') or '').strip() or None
         report.sort_order = index
         report.updater = user
         report.save()
@@ -4940,6 +4966,20 @@ def api_job_card_create(request):
                 except ValueError:
                     pass
 
+        from django.utils.dateparse import parse_datetime
+        from client_management.models import Staff
+        inspection_at = parse_datetime(data.get('inspection_at') or '')
+        if inspection_at and timezone.is_naive(inspection_at):
+            inspection_at = timezone.make_aware(inspection_at)
+        prepared_by = None
+        if data.get('prepared_by_id'):
+            prepared_by = Staff.objects.filter(
+                id=data['prepared_by_id'], company=company, branch=branch,
+                is_deleted=False,
+            ).first()
+            if not prepared_by:
+                return JsonResponse({'success': False, 'message': 'Prepared-by staff is invalid'}, status=400)
+
         with transaction.atomic():
             if lead:
                 customer, vehicle = _job_card_records_from_lead(
@@ -4958,6 +4998,9 @@ def api_job_card_create(request):
                 status=data.get('status', JobCard.STATUS_NEW),
                 additional_remarks=data.get('additional_remarks', '').strip() or None,
                 appointment_details=data.get('appointment_details', '').strip() or None,
+                inspection_at=inspection_at,
+                internal_notes=data.get('internal_notes', '').strip() or None,
+                prepared_by=prepared_by,
                 creator=user,
             )
 
@@ -5000,6 +5043,7 @@ def api_job_card_create(request):
                     rate_with_tax=Decimal(str(p.get('rate_with_tax', 0) or 0)),
                     quantity=Decimal(str(p.get('quantity', 1) or 1)),
                     discount=Decimal(str(p.get('discount', 0) or 0)),
+                    warranty_years=Decimal(str(p.get('warranty_years', 0) or 0)),
                     vat_percentage=Decimal(str(p.get('vat_percentage', 0) or 0)),
                     total_amount=Decimal(str(p.get('total_amount', 0) or 0)),
                     remarks=p.get('remarks', '').strip() or None,
@@ -5269,6 +5313,23 @@ def api_job_card_update(request, job_card_id):
             jc.additional_remarks = data['additional_remarks']
         if 'appointment_details' in data:
             jc.appointment_details = data['appointment_details']
+        if 'inspection_at' in data:
+            from django.utils.dateparse import parse_datetime
+            inspection_at = parse_datetime(data.get('inspection_at') or '')
+            if inspection_at and timezone.is_naive(inspection_at):
+                inspection_at = timezone.make_aware(inspection_at)
+            jc.inspection_at = inspection_at
+        if 'internal_notes' in data:
+            jc.internal_notes = data['internal_notes']
+        if 'prepared_by_id' in data:
+            from client_management.models import Staff
+            prepared_by_id = data.get('prepared_by_id')
+            jc.prepared_by = Staff.objects.filter(
+                id=prepared_by_id, company=jc.company, branch=jc.branch,
+                is_deleted=False,
+            ).first() if prepared_by_id else None
+            if prepared_by_id and not jc.prepared_by:
+                return JsonResponse({'success': False, 'message': 'Prepared-by staff is invalid'}, status=400)
 
         with transaction.atomic():
             # If services array provided, update items
@@ -5313,6 +5374,7 @@ def api_job_card_update(request, job_card_id):
                         rate_with_tax=Decimal(str(p.get('rate_with_tax', 0) or 0)),
                         quantity=Decimal(str(p.get('quantity', 1) or 1)),
                         discount=Decimal(str(p.get('discount', 0) or 0)),
+                        warranty_years=Decimal(str(p.get('warranty_years', 0) or 0)),
                         vat_percentage=Decimal(str(p.get('vat_percentage', 0) or 0)),
                         total_amount=Decimal(str(p.get('total_amount', 0) or 0)),
                         remarks=p.get('remarks', '').strip() or None,
@@ -6873,10 +6935,18 @@ def api_job_card_from_job_quotation(request, quotation_id):
                 company=company, branch=branch, customer=quote.customer, vehicle=quote.vehicle,
                 job_quotation=quote, lead=quote.lead, current_section='General Inspection',
                 current_service=items[0].service_name if items else '',
-                additional_remarks=quote.additional_services or None,
+                additional_remarks=quote.customer_comments or quote.additional_services or None,
+                internal_notes=quote.internal_notes or None,
+                inspection_at=quote.inspection_at,
+                prepared_by=quote.prepared_by,
                 expected_delivery_date=quote.tentative_delivery_at, creator=user,
             )
             for item in items:
+                # Report-linked service pricing is stored on the Job Card issue row.
+                # Do not duplicate it as a separate service item, or recalculation
+                # would count the same issue twice.
+                if item.reported_issue_id and not item.stock_item_id:
+                    continue
                 qty = item.quantity or Decimal('1')
                 discount = item.discount or Decimal('0')
                 total = _job_quotation_item_total(item)
@@ -6893,6 +6963,7 @@ def api_job_card_from_job_quotation(request, quotation_id):
                         product_name=item.stock_item_name or (stock.item_name if stock else 'Part'),
                         current_stock=stock.quantity if stock else 0, unit=stock.unit if stock else 'Pcs',
                         rate=item.rate, rate_with_tax=item.rate, quantity=qty, discount=discount, total_amount=total, remarks=part_remarks, creator=user,
+                        warranty_years=item.warranty_years or 0,
                     )
                 else:
                     JobCardServiceItem.objects.create(
@@ -6912,12 +6983,18 @@ def api_job_card_from_job_quotation(request, quotation_id):
             for report in quote.reported_issues.filter(is_deleted=False).select_related(
                 'category', 'service', 'issue'
             ).prefetch_related('photos'):
+                priced_item = getattr(report, 'priced_item', None)
                 job_report = JobCardReportedIssue.objects.create(
                     job_card=job,
                     category=report.category,
                     service=report.service,
                     issue=report.issue,
                     issue_text=report.issue_text,
+                    rate=priced_item.rate if priced_item else 0,
+                    quantity=priced_item.quantity if priced_item else 1,
+                    discount=priced_item.discount if priced_item else 0,
+                    warranty=(f'{priced_item.warranty_years} years' if priced_item and priced_item.warranty_years else ''),
+                    remarks=priced_item.remarks if priced_item else '',
                     sort_order=report.sort_order,
                     auto_id=get_auto_id(JobCardReportedIssue),
                     creator=user,

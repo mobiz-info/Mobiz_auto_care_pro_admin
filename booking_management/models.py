@@ -245,6 +245,12 @@ class JobCard(BaseModel):
 
     additional_remarks = models.TextField(blank=True, null=True)
     appointment_details = models.TextField(blank=True, null=True)
+    inspection_at = models.DateTimeField(null=True, blank=True)
+    internal_notes = models.TextField(blank=True, null=True)
+    prepared_by = models.ForeignKey(
+        'client_management.Staff', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='prepared_job_cards',
+    )
 
     class Meta:
         ordering = ['-date_added']
@@ -262,7 +268,11 @@ class JobCard(BaseModel):
         p_tot = sum((item.total_amount or 0) for item in self.part_items.filter(is_deleted=False))
         l_tot = sum((item.total_amount or 0) for item in self.labour_items.filter(is_deleted=False))
         e_tot = sum((item.total_amount or 0) for item in self.extra_items.filter(is_deleted=False))
-        self.estimated_cost = s_tot + p_tot + l_tot + e_tot
+        issue_tot = sum(
+            max((item.rate or 0) * (item.quantity or 0) - (item.discount or 0), 0)
+            for item in self.reported_issues.filter(is_deleted=False)
+        )
+        self.estimated_cost = s_tot + p_tot + l_tot + e_tot + issue_tot
         return self.estimated_cost
 
     def __str__(self):
@@ -306,6 +316,7 @@ class JobCardPartItem(BaseModel):
     rate_with_tax = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
     discount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    warranty_years = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     vat_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     remarks = models.TextField(blank=True, null=True)
@@ -521,6 +532,11 @@ class JobCardReportedIssue(BaseModel):
     service = models.ForeignKey('service_management.JobCardService', on_delete=models.PROTECT, related_name='job_card_reports')
     issue = models.ForeignKey('service_management.JobCardIssue', on_delete=models.SET_NULL, null=True, blank=True, related_name='job_card_reports')
     issue_text = models.CharField(max_length=200)
+    rate = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1)
+    discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    warranty = models.CharField(max_length=100, blank=True, null=True)
+    remarks = models.TextField(blank=True, null=True)
     sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
