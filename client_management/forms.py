@@ -827,31 +827,76 @@ class StockForm(forms.ModelForm):
     class Meta:
         model = Stock
         fields = [
-            'group', 'sub_group', 'item_name', 'brand', 'base_unit', 'hsn_code', 'barcode',
-            'is_trading', 'is_operational', 'cgst_percent', 'sgst_percent', 'igst_percent',
-            'profit_margin_percent', 'critical_level', 'expense_head'
+            'company', 'group', 'sub_group', 'item_name', 'brand', 'base_unit', 'hsn_code', 'barcode',
+            'is_trading', 'is_operational', 'cgst_percent', 'sgst_percent', 'igst_percent', 'vat_percent',
+            'profit_margin_percent', 'critical_level'
         ]
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         
-        from master.models import StockGroup, StockSubGroup, ExpenseHead
+        from master.models import StockGroup, StockSubGroup, Country
+        from tax_management.models import Tax, CompanyTax
+        from client_management.models import Client
         from django.db.models import Q
+        from decimal import Decimal
+
+        is_new = getattr(self.instance, '_state', None) and self.instance._state.adding
 
         company = None
         if self.request and hasattr(self.request.user, 'profile') and self.request.user.profile.company:
             company = self.request.user.profile.company
+        elif not is_new and self.instance and self.instance.company:
+            company = self.instance.company
+        elif self.request and self.request.user.is_superuser and self.data and self.data.get('company'):
+            try:
+                company = Client.objects.filter(id=self.data.get('company'), is_deleted=False).first()
+            except Exception:
+                company = None
 
-        # Filter Groups, Sub-Groups, and Expense Heads by company
+        # Resolve country
+        country = None
+        if company and company.country:
+            country = company.country
+        elif self.request and hasattr(self.request.user, 'profile') and hasattr(self.request.user.profile, 'country') and self.request.user.profile.country:
+            country = self.request.user.profile.country
+        else:
+            country = Country.objects.filter(name__iexact='India').first()
+
+        country_name = country.name if country else 'India'
+        self.country = country
+        self.company = company
+        self.is_india = (country_name.strip().lower() == 'india')
+
+        # Company field for superuser
+        if not (self.request and self.request.user.is_superuser):
+            if 'company' in self.fields:
+                del self.fields['company']
+        else:
+            self.fields['company'].required = False
+            self.fields['company'].empty_label = "Global (All Companies)"
+            self.fields['company'].queryset = Client.objects.filter(is_deleted=False).order_by('company_name')
+
+        # Filter Groups and Sub-Groups by company
         if company:
             self.fields['group'].queryset = StockGroup.objects.filter(Q(company=company) | Q(company__isnull=True), is_deleted=False).order_by('name')
-            self.fields['sub_group'].queryset = StockSubGroup.objects.filter(Q(company=company) | Q(company__isnull=True), is_deleted=False).order_by('name')
-            self.fields['expense_head'].queryset = ExpenseHead.objects.filter(Q(company=company) | Q(company__isnull=True), is_deleted=False).order_by('name')
+            subgroup_qs = StockSubGroup.objects.filter(Q(company=company) | Q(company__isnull=True), is_deleted=False).select_related('group').order_by('name')
         else:
             self.fields['group'].queryset = StockGroup.objects.filter(is_deleted=False).order_by('name')
-            self.fields['sub_group'].queryset = StockSubGroup.objects.filter(is_deleted=False).order_by('name')
-            self.fields['expense_head'].queryset = ExpenseHead.objects.filter(is_deleted=False).order_by('name')
+            subgroup_qs = StockSubGroup.objects.filter(is_deleted=False).select_related('group').order_by('name')
+
+        # Filter sub_group queryset by group if selected in data or on instance
+        selected_group_id = None
+        if self.data and self.data.get('group'):
+            selected_group_id = self.data.get('group')
+        elif not is_new and self.instance and self.instance.group_id:
+            selected_group_id = self.instance.group_id
+
+        if selected_group_id:
+            self.fields['sub_group'].queryset = subgroup_qs.filter(group_id=selected_group_id)
+        else:
+            self.fields['sub_group'].queryset = subgroup_qs
 
         self.fields['brand'].required = False
         self.fields['hsn_code'].required = False
@@ -859,13 +904,109 @@ class StockForm(forms.ModelForm):
         self.fields['critical_level'].required = False
         self.fields['group'].required = False
         self.fields['sub_group'].required = False
-        self.fields['expense_head'].required = False
+        self.fields['cgst_percent'].required = False
+        self.fields['sgst_percent'].required = False
+        self.fields['igst_percent'].required = False
+        self.fields['vat_percent'].required = False
+
+        # Query company-enabled or country taxes
+        company_taxes = []
+        if company:
+            enabled_taxes = CompanyTax.objects.filter(
+                company=company, is_enabled=True, is_deleted=False
+            ).select_related('tax')
+            if enabled_taxes.exists():
+                company_taxes = [ct.tax for ct in enabled_taxes]
+        if not company_taxes and country:
+            country_taxes = Tax.objects.filter(country=country, is_deleted=False).order_by('name')
+            if country_taxes.exists():
+                company_taxes = list(country_taxes)
+
+        self.company_taxes = company_taxes
+        self.tax_label = "VAT"
+        self.default_tax_rate = Decimal('0.00')
+
+        if not self.is_india:
+            if company_taxes:
+                t0 = company_taxes[0]
+                self.tax_label = t0.name
+                self.default_tax_rate = t0.percent
+            else:
+                c_lower = country_name.lower()
+                if 'emirates' in c_lower or 'uae' in c_lower:
+                    self.tax_label = "VAT"
+                    self.default_tax_rate = Decimal('5.00')
+                elif 'saudi' in c_lower:
+                    self.tax_label = "VAT"
+                    self.default_tax_rate = Decimal('15.00')
+                elif 'oman' in c_lower or 'bahrain' in c_lower:
+                    self.tax_label = "VAT"
+                    self.default_tax_rate = Decimal('5.00')
+                else:
+                    self.tax_label = "VAT / Tax"
+                    self.default_tax_rate = Decimal('0.00')
+
+            self.fields['vat_percent'].label = f"{self.tax_label} (%)"
+            if is_new:
+                self.fields['vat_percent'].initial = self.default_tax_rate
+                self.initial['vat_percent'] = self.default_tax_rate
+            else:
+                initial_val = self.instance.vat_percent if (self.instance.vat_percent and self.instance.vat_percent > 0) else (self.instance.igst_percent or Decimal('0.00'))
+                self.fields['vat_percent'].initial = initial_val
+                self.initial['vat_percent'] = initial_val
+        else:
+            self.fields['hsn_code'].label = "HSN Code"
 
         for field_name, field in self.fields.items():
             if not isinstance(field.widget, (forms.CheckboxInput, forms.RadioSelect)):
                 field.widget.attrs['class'] = 'form-control'
                 if not isinstance(field.widget, forms.Select):
                     field.widget.attrs['placeholder'] = f"Enter {field.label}"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        from decimal import Decimal
+
+        group = cleaned_data.get('group')
+        sub_group = cleaned_data.get('sub_group')
+        if sub_group and group and sub_group.group_id != group.id:
+            self.add_error('sub_group', f'Sub Group "{sub_group.name}" does not belong to the selected group "{group.name}".')
+
+        is_india = getattr(self, 'is_india', True)
+        if not is_india:
+            vat = cleaned_data.get('vat_percent') or Decimal('0.00')
+            cleaned_data['cgst_percent'] = Decimal('0.00')
+            cleaned_data['sgst_percent'] = Decimal('0.00')
+            cleaned_data['igst_percent'] = vat
+        else:
+            cleaned_data['vat_percent'] = Decimal('0.00')
+        return cleaned_data
+
+    def save(self, commit=True):
+        stock = super().save(commit=False)
+        from decimal import Decimal
+        is_india = getattr(self, 'is_india', True)
+        if not is_india:
+            vat = self.cleaned_data.get('vat_percent') or Decimal('0.00')
+            stock.vat_percent = vat
+            stock.igst_percent = vat
+            stock.cgst_percent = Decimal('0.00')
+            stock.sgst_percent = Decimal('0.00')
+        else:
+            stock.vat_percent = Decimal('0.00')
+
+        if not stock.expense_head:
+            from master.models import ExpenseHead
+            from django.db.models import Q
+            stock.expense_head = ExpenseHead.objects.filter(
+                Q(company=stock.company) | Q(company__isnull=True),
+                name__iexact='Purchase',
+                is_deleted=False
+            ).first()
+
+        if commit:
+            stock.save()
+        return stock
 
 
 from .models import StaffLeave

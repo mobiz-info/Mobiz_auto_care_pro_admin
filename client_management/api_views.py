@@ -5552,10 +5552,11 @@ def api_get_stock_list(request):
             'expense_head_id': str(s.expense_head.id) if s.expense_head else None,
             'expense_head_name': s.expense_head.name if s.expense_head else None,
             'hsn_code': s.hsn_code or '',
+            'vat_percent': float(getattr(s, 'vat_percent', 0) or 0),
             'cgst_percent': float(s.cgst_percent) if s.cgst_percent else 0.0,
             'sgst_percent': float(s.sgst_percent) if s.sgst_percent else 0.0,
             'igst_percent': float(s.igst_percent) if s.igst_percent else 0.0,
-            'tax_percent': float((s.cgst_percent or 0) + (s.sgst_percent or 0)) if (s.cgst_percent or s.sgst_percent) else float(s.igst_percent or 0.0),
+            'tax_percent': float(getattr(s, 'vat_percent', 0) or 0) or (float((s.cgst_percent or 0) + (s.sgst_percent or 0)) if (s.cgst_percent or s.sgst_percent) else float(s.igst_percent or 0.0)),
         } for s in stocks]
         
         return JsonResponse({'success': True, 'stocks': stock_list})
@@ -5780,6 +5781,17 @@ def api_create_stock(request):
         cgst_percent = Decimal(str(data.get('cgst_percent', 0)))
         sgst_percent = Decimal(str(data.get('sgst_percent', 0)))
         igst_percent = Decimal(str(data.get('igst_percent', 0)))
+        vat_percent = Decimal(str(data.get('vat_percent', data.get('tax_percent', 0)) or 0))
+
+        is_india = True
+        if company and company.country and company.country.name.strip().lower() != 'india':
+            is_india = False
+
+        if not is_india and vat_percent > 0:
+            cgst_percent = Decimal('0.00')
+            sgst_percent = Decimal('0.00')
+            igst_percent = vat_percent
+
         profit_margin_percent = Decimal(str(data.get('profit_margin_percent', 0)))
         critical_level = Decimal(str(data.get('critical_level', 0))) if data.get('critical_level') is not None else None
 
@@ -5828,6 +5840,7 @@ def api_create_stock(request):
             cgst_percent=cgst_percent,
             sgst_percent=sgst_percent,
             igst_percent=igst_percent,
+            vat_percent=vat_percent,
             profit_margin_percent=profit_margin_percent,
             critical_level=critical_level,
             expense_head=expense_head,
@@ -5960,6 +5973,20 @@ def api_edit_stock(request, id):
         cgst_percent = Decimal(str(data.get('cgst_percent', 0)))
         sgst_percent = Decimal(str(data.get('sgst_percent', 0)))
         igst_percent = Decimal(str(data.get('igst_percent', 0)))
+        vat_percent = Decimal(str(data.get('vat_percent', data.get('tax_percent', 0)) or 0))
+
+        is_india = True
+        if company and company.country and company.country.name.strip().lower() != 'india':
+            is_india = False
+
+        if not is_india and vat_percent > 0:
+            cgst_percent = Decimal('0.00')
+            sgst_percent = Decimal('0.00')
+            igst_percent = vat_percent
+            stock.vat_percent = vat_percent
+        elif is_india:
+            stock.vat_percent = Decimal('0.00')
+
         profit_margin_percent = Decimal(str(data.get('profit_margin_percent', 0)))
         critical_level = Decimal(str(data.get('critical_level', 0))) if data.get('critical_level') is not None else Decimal('0.00')
 

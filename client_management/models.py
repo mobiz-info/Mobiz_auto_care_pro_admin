@@ -498,10 +498,19 @@ class Stock(BaseModel):
     cgst_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     sgst_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     igst_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    vat_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="VAT / Tax percentage for non-India countries")
     profit_margin_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     critical_level = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Low stock alert level")
     quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Current stock quantity in base unit")
     expense_head = models.ForeignKey('master.ExpenseHead', on_delete=models.SET_NULL, null=True, blank=True, related_name='stock_items')
+
+    @property
+    def total_tax_percent(self):
+        if getattr(self, 'vat_percent', 0):
+            return self.vat_percent
+        if self.cgst_percent or self.sgst_percent:
+            return (self.cgst_percent or 0) + (self.sgst_percent or 0)
+        return self.igst_percent or 0
 
     def __str__(self):
         if self.company:

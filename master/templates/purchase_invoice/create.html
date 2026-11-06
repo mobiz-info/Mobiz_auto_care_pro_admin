@@ -210,7 +210,7 @@
                             data-mainunit="{{ stk.main_unit|default:stk.unit }}"
                             data-baseunit="{{ stk.base_unit|default:stk.unit }}"
                             data-conv="{{ stk.conversion_count|default:1.0 }}"
-                            data-tax="{% if stk.cgst_percent or stk.sgst_percent %}{{ stk.cgst_percent|add:stk.sgst_percent }}{% else %}{{ stk.igst_percent|default:0 }}{% endif %}">
+                            data-tax="{% if stk.vat_percent %}{{ stk.vat_percent }}{% elif stk.cgst_percent or stk.sgst_percent %}{{ stk.cgst_percent|add:stk.sgst_percent }}{% else %}{{ stk.igst_percent|default:0 }}{% endif %}">
                             {{ stk.item_name }} {% if stk.group %}({{ stk.group.name }}){% endif %}
                         </option>
                         {% endfor %}

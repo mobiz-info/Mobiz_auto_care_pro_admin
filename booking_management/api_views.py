@@ -5545,7 +5545,7 @@ def api_job_card_accessories_search(request):
         else:
             rate = 0.0
 
-        tax_percent = float((s.cgst_percent or 0) + (s.sgst_percent or 0) + (s.igst_percent or 0))
+        tax_percent = float(getattr(s, 'vat_percent', 0) or 0) or float((s.cgst_percent or 0) + (s.sgst_percent or 0) + (s.igst_percent or 0))
         rate_with_tax = round(rate * (1 + tax_percent / 100.0), 2)
 
         results.append({
@@ -5788,6 +5788,8 @@ def generate_job_card_pdf_file(job_card, base_url=None):
         'labour_subtotal': labour_subtotal,
         'extras_subtotal': extras_subtotal,
         'grand_total': grand_total,
+        'reported_issues': list(job_card.reported_issues.filter(is_deleted=False)),
+        'inspection_details': job_card.inspection_details or {},
     }
 
     html_string = render_to_string('job_card/job_card_pdf.html', context)

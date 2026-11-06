@@ -72,6 +72,15 @@
     <form method="POST">
         {% csrf_token %}
 
+        <!-- Optional Company Scope for Superuser -->
+        {% if form.company %}
+        <div class="form-group" style="margin-bottom: 20px;">
+            <label for="{{ form.company.id_for_label }}">Company Scope</label>
+            {{ form.company }}
+            <span style="font-size: 0.78rem; color: #64748b; margin-top: 4px; display: block;">Select a company to load its country-specific taxes and settings, or leave as "Global" for all companies.</span>
+        </div>
+        {% endif %}
+
         <!-- Row 1: Stock Item Group & Sub Group -->
         <div class="form-grid-2">
             <div class="form-group">
@@ -125,8 +134,10 @@
         <!-- Row 3 & 4: HSN Code & Barcode -->
         <div class="form-grid-2">
             <div class="form-group">
-                <label for="{{ form.hsn_code.id_for_label }}">HSN Code <span
-                        style="color:#94a3b8;font-size:0.8rem;">(non mandatory)</span></label>
+                <label for="{{ form.hsn_code.id_for_label }}" id="hsn_code_label">
+                    {% if is_india %}HSN Code{% else %}HS / HSN Code{% endif %}
+                    <span style="color:#94a3b8;font-size:0.8rem;">(non mandatory)</span>
+                </label>
                 {{ form.hsn_code }}
             </div>
             <div class="form-group">
@@ -148,23 +159,50 @@
             </label>
         </div>
 
-        <!-- Row 6: Tax Section (Country Load Tax Names) -->
+        <!-- Row 6: Tax Section (Country-Specific Taxes) -->
         <div class="tax-section">
             <div class="tax-title">
                 <i class="ph ph-percent" style="color:#2563eb;"></i> Tax %
+                <span id="country_badge" style="margin-left: auto; font-size: 0.78rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; background: #e0e7ff; color: #1e40af; display: inline-flex; align-items: center; gap: 4px;">
+                    <i class="ph ph-globe"></i>
+                    <span id="country_badge_text">{{ country_name }}{% if is_india %} (GST){% else %} ({{ tax_label }}){% endif %}</span>
+                </span>
             </div>
-            <div class="form-grid-3">
-                <div class="form-group">
-                    <label for="{{ form.cgst_percent.id_for_label }}">CGST (%)</label>
-                    {{ form.cgst_percent }}
+
+            <!-- India GST Block (CGST, SGST, IGST) -->
+            <div id="india_tax_block" style="{% if not is_india %}display: none;{% endif %}">
+                <div class="form-grid-3">
+                    <div class="form-group">
+                        <label for="{{ form.cgst_percent.id_for_label }}">CGST (%)</label>
+                        {{ form.cgst_percent }}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.sgst_percent.id_for_label }}">SGST / SCGT (%)</label>
+                        {{ form.sgst_percent }}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.igst_percent.id_for_label }}">IGST (%)</label>
+                        {{ form.igst_percent }}
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="{{ form.sgst_percent.id_for_label }}">SGST / SCGT (%)</label>
-                    {{ form.sgst_percent }}
-                </div>
-                <div class="form-group">
-                    <label for="{{ form.igst_percent.id_for_label }}">IGST (%)</label>
-                    {{ form.igst_percent }}
+            </div>
+
+            <!-- Non-India Country-Specific Tax Block (VAT / Sales Tax) -->
+            <div id="non_india_tax_block" style="{% if is_india %}display: none;{% endif %}">
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label for="{{ form.vat_percent.id_for_label }}" id="vat_percent_label">{{ tax_label }} (%)</label>
+                        {{ form.vat_percent }}
+                        {% if form.vat_percent.errors %}<div class="error-text">{{ form.vat_percent.errors.0 }}</div>{% endif %}
+                    </div>
+                    <div class="form-group" style="display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 8px;">
+                        <span id="tax_info_text" style="font-size: 0.8rem; color: #64748b;">
+                            Applicable tax for <strong id="info_country_name">{{ country_name }}</strong>.
+                            {% if default_tax_rate %}
+                                Standard rate: <strong id="info_tax_rate">{{ default_tax_rate }}%</strong>
+                            {% endif %}
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -182,11 +220,6 @@
             </div>
         </div>
 
-        <div class="form-group" style="margin-bottom:24px;">
-            <label for="{{ form.expense_head.id_for_label }}">Default Expense Head</label>
-            {{ form.expense_head }}
-        </div>
-
         <!-- Form Actions -->
         <div class="form-actions">
             <a href="{% url 'stock_list' %}" class="btn-secondary">Cancel</a>
@@ -197,4 +230,104 @@
         </div>
     </form>
 </div>
+
+<script>
+    // Dynamic Sub-Group filtering based on Stock Item Group
+    const allSubGroups = {{ subgroups_json|safe|default:"[]" }};
+    const groupSelect = document.getElementById("id_group");
+    const subGroupSelect = document.getElementById("id_sub_group");
+
+    function updateSubGroups(preserveSelection = false) {
+        if (!groupSelect || !subGroupSelect) return;
+        
+        const selectedGroupId = groupSelect.value;
+        const currentSelectedVal = preserveSelection ? (subGroupSelect.dataset.initialValue || subGroupSelect.value) : '';
+        
+        // Clear existing options
+        subGroupSelect.innerHTML = '<option value="">Select Sub Group</option>';
+
+        if (!selectedGroupId) {
+            subGroupSelect.disabled = true;
+            return;
+        }
+
+        subGroupSelect.disabled = false;
+        const matchingSubgroups = allSubGroups.filter(sg => String(sg.group_id) === String(selectedGroupId));
+
+        if (matchingSubgroups.length === 0) {
+            const noOpt = document.createElement("option");
+            noOpt.value = "";
+            noOpt.textContent = "No Sub Groups found for this Group";
+            noOpt.disabled = true;
+            subGroupSelect.appendChild(noOpt);
+            return;
+        }
+
+        matchingSubgroups.forEach(sg => {
+            const opt = document.createElement("option");
+            opt.value = sg.id;
+            opt.textContent = sg.name;
+            if (String(sg.id) === String(currentSelectedVal)) {
+                opt.selected = true;
+            }
+            subGroupSelect.appendChild(opt);
+        });
+    }
+
+    if (groupSelect && subGroupSelect) {
+        subGroupSelect.dataset.initialValue = subGroupSelect.value;
+        updateSubGroups(true);
+
+        groupSelect.addEventListener("change", function() {
+            subGroupSelect.dataset.initialValue = "";
+            updateSubGroups(false);
+        });
+    }
+
+    // Company Tax mapping for superuser
+    const companyTaxMap = {{ company_tax_map_json|safe|default:"{}" }};
+    const companySelect = document.getElementById("id_company");
+
+    if (companySelect && Object.keys(companyTaxMap).length > 0) {
+        companySelect.addEventListener("change", function() {
+            const compId = this.value;
+            const indiaBlock = document.getElementById("india_tax_block");
+            const nonIndiaBlock = document.getElementById("non_india_tax_block");
+            const badgeText = document.getElementById("country_badge_text");
+            const vatLabel = document.getElementById("vat_percent_label");
+            const infoCountry = document.getElementById("info_country_name");
+            const infoRate = document.getElementById("info_tax_rate");
+            const hsnLabel = document.getElementById("hsn_code_label");
+            const vatInput = document.getElementById("id_vat_percent");
+
+            if (!compId || !companyTaxMap[compId]) {
+                // Default global
+                indiaBlock.style.display = "block";
+                nonIndiaBlock.style.display = "none";
+                badgeText.textContent = "Global (All Companies)";
+                if (hsnLabel) hsnLabel.innerHTML = 'HSN Code <span style="color:#94a3b8;font-size:0.8rem;">(non mandatory)</span>';
+                return;
+            }
+
+            const info = companyTaxMap[compId];
+            if (info.is_india) {
+                indiaBlock.style.display = "block";
+                nonIndiaBlock.style.display = "none";
+                badgeText.textContent = `${info.country_name} (GST)`;
+                if (hsnLabel) hsnLabel.innerHTML = 'HSN Code <span style="color:#94a3b8;font-size:0.8rem;">(non mandatory)</span>';
+            } else {
+                indiaBlock.style.display = "none";
+                nonIndiaBlock.style.display = "block";
+                badgeText.textContent = `${info.country_name} (${info.tax_label})`;
+                if (vatLabel) vatLabel.textContent = `${info.tax_label} (%)`;
+                if (infoCountry) infoCountry.textContent = info.country_name;
+                if (infoRate) infoRate.textContent = `${info.default_tax_rate}%`;
+                if (hsnLabel) hsnLabel.innerHTML = 'HS / HSN Code <span style="color:#94a3b8;font-size:0.8rem;">(non mandatory)</span>';
+                if (vatInput && (!vatInput.value || vatInput.value === "0.00" || vatInput.value === "0")) {
+                    vatInput.value = info.default_tax_rate;
+                }
+            }
+        });
+    }
+</script>
 {% endblock %}

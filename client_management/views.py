@@ -2988,6 +2988,8 @@ def stock_create(request):
             
             if not request.user.is_superuser:
                 stock.company = request.user.profile.company
+            else:
+                stock.company = form.cleaned_data.get('company')
 
             stock.save()
             messages.success(request, "Stock item created successfully")
@@ -2995,9 +2997,67 @@ def stock_create(request):
         else:
             messages.error(request, "Please correct the errors below.")
 
+    import json
+    from tax_management.models import CompanyTax, Tax
+    company_tax_map = {}
+    if request.user.is_superuser:
+        from client_management.models import Client
+        for cl in Client.objects.filter(is_deleted=False).select_related('country'):
+            c_name = cl.country.name if cl.country else 'India'
+            c_is_india = (c_name.strip().lower() == 'india')
+            t_label = "VAT"
+            t_rate = 0.0
+            if not c_is_india:
+                cts = CompanyTax.objects.filter(company=cl, is_enabled=True, is_deleted=False).select_related('tax')
+                if cts.exists():
+                    t0 = cts.first().tax
+                    t_label = t0.name
+                    t_rate = float(t0.percent)
+                elif cl.country:
+                    t_obj = Tax.objects.filter(country=cl.country, is_deleted=False).first()
+                    if t_obj:
+                        t_label = t_obj.name
+                        t_rate = float(t_obj.percent)
+                    elif 'emirates' in c_name.lower() or 'uae' in c_name.lower():
+                        t_label = "VAT"
+                        t_rate = 5.0
+                    elif 'saudi' in c_name.lower():
+                        t_label = "VAT"
+                        t_rate = 15.0
+                    elif 'oman' in c_name.lower():
+                        t_label = "VAT"
+                        t_rate = 5.0
+            company_tax_map[str(cl.id)] = {
+                'country_name': c_name,
+                'is_india': c_is_india,
+                'tax_label': t_label,
+                'default_tax_rate': t_rate,
+            }
+
+    country = getattr(form, 'country', None)
+    country_name = country.name if country else 'India'
+    is_india = getattr(form, 'is_india', True)
+
+    from master.models import StockSubGroup
+    from django.db.models import Q
+    subgroup_company = None
+    if not request.user.is_superuser and hasattr(request.user, 'profile') and request.user.profile.company:
+        subgroup_company = request.user.profile.company
+    if subgroup_company:
+        sg_qs = StockSubGroup.objects.filter(Q(company=subgroup_company) | Q(company__isnull=True), is_deleted=False).select_related('group').order_by('name')
+    else:
+        sg_qs = StockSubGroup.objects.filter(is_deleted=False).select_related('group').order_by('name')
+    subgroups_list = [{'id': str(sg.id), 'name': sg.name, 'group_id': str(sg.group_id)} for sg in sg_qs]
+
     return render(request, 'stock/create.html', {
         'form': form,
         'title': 'Create Stock Item',
+        'is_india': is_india,
+        'country_name': country_name,
+        'tax_label': getattr(form, 'tax_label', 'VAT'),
+        'default_tax_rate': getattr(form, 'default_tax_rate', 0),
+        'company_tax_map_json': json.dumps(company_tax_map) if request.user.is_superuser else '{}',
+        'subgroups_json': json.dumps(subgroups_list),
     })
 
 
@@ -3018,16 +3078,78 @@ def stock_edit(request, id):
         if form.is_valid():
             s = form.save(commit=False)
             s.updater = request.user
+            if request.user.is_superuser and 'company' in form.cleaned_data:
+                s.company = form.cleaned_data.get('company')
             s.save()
             messages.success(request, "Stock item updated successfully")
             return redirect('stock_list')
         else:
             messages.error(request, "Please correct the errors below.")
 
+    import json
+    from tax_management.models import CompanyTax, Tax
+    company_tax_map = {}
+    if request.user.is_superuser:
+        from client_management.models import Client
+        for cl in Client.objects.filter(is_deleted=False).select_related('country'):
+            c_name = cl.country.name if cl.country else 'India'
+            c_is_india = (c_name.strip().lower() == 'india')
+            t_label = "VAT"
+            t_rate = 0.0
+            if not c_is_india:
+                cts = CompanyTax.objects.filter(company=cl, is_enabled=True, is_deleted=False).select_related('tax')
+                if cts.exists():
+                    t0 = cts.first().tax
+                    t_label = t0.name
+                    t_rate = float(t0.percent)
+                elif cl.country:
+                    t_obj = Tax.objects.filter(country=cl.country, is_deleted=False).first()
+                    if t_obj:
+                        t_label = t_obj.name
+                        t_rate = float(t_obj.percent)
+                    elif 'emirates' in c_name.lower() or 'uae' in c_name.lower():
+                        t_label = "VAT"
+                        t_rate = 5.0
+                    elif 'saudi' in c_name.lower():
+                        t_label = "VAT"
+                        t_rate = 15.0
+                    elif 'oman' in c_name.lower():
+                        t_label = "VAT"
+                        t_rate = 5.0
+            company_tax_map[str(cl.id)] = {
+                'country_name': c_name,
+                'is_india': c_is_india,
+                'tax_label': t_label,
+                'default_tax_rate': t_rate,
+            }
+
+    country = getattr(form, 'country', None)
+    country_name = country.name if country else 'India'
+    is_india = getattr(form, 'is_india', True)
+
+    from master.models import StockSubGroup
+    from django.db.models import Q
+    subgroup_company = None
+    if not request.user.is_superuser and hasattr(request.user, 'profile') and request.user.profile.company:
+        subgroup_company = request.user.profile.company
+    elif stock and stock.company:
+        subgroup_company = stock.company
+    if subgroup_company:
+        sg_qs = StockSubGroup.objects.filter(Q(company=subgroup_company) | Q(company__isnull=True), is_deleted=False).select_related('group').order_by('name')
+    else:
+        sg_qs = StockSubGroup.objects.filter(is_deleted=False).select_related('group').order_by('name')
+    subgroups_list = [{'id': str(sg.id), 'name': sg.name, 'group_id': str(sg.group_id)} for sg in sg_qs]
+
     return render(request, 'stock/create.html', {
         'form': form,
         'title': 'Edit Stock Item',
         'is_edit': True,
+        'is_india': is_india,
+        'country_name': country_name,
+        'tax_label': getattr(form, 'tax_label', 'VAT'),
+        'default_tax_rate': getattr(form, 'default_tax_rate', 0),
+        'company_tax_map_json': json.dumps(company_tax_map) if request.user.is_superuser else '{}',
+        'subgroups_json': json.dumps(subgroups_list),
     })
 
 

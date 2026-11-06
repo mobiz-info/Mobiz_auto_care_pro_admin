@@ -3709,10 +3709,11 @@ def stock_report(request):
         elif status_code == 'LOW_STOCK':
             low_stock_count += 1
 
+        vat = float(getattr(stock, 'vat_percent', 0) or 0)
         cgst = float(stock.cgst_percent or 0)
         sgst = float(stock.sgst_percent or 0)
         igst = float(stock.igst_percent or 0)
-        tax_rate = round(cgst + sgst + igst, 2)
+        tax_rate = round(vat or (cgst + sgst + igst), 2)
 
         unit_name = stock.get_unit_display() if hasattr(stock, 'get_unit_display') else (stock.unit or 'Piece')
 

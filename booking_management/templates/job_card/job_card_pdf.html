@@ -337,6 +337,86 @@
         </table>
     </div>
 
+    <!-- Vehicle Inspection Details -->
+    {% if inspection_details or job_card.inspection_at %}
+    <div class="section-title">Vehicle Inspection Details</div>
+    <div class="info-card" style="margin-bottom: 12px; min-height: auto;">
+        {% if job_card.inspection_at %}
+        <div class="info-row" style="margin-bottom: 6px;">
+            <span class="info-label" style="width: 120px;">Inspection Date:</span>
+            <span class="info-value">{{ job_card.inspection_at|date:"d-m-Y h:i A" }}</span>
+        </div>
+        {% endif %}
+        {% if inspection_details.tyre %}
+        <div style="margin-top: 4px; padding-bottom: 4px;">
+            <strong style="color: #1e3a8a; font-size: 8.5pt;">Tyre Inspection:</strong>
+            <div style="font-size: 8pt; color: #334155; margin-top: 2px;">
+                {% if inspection_details.tyre.wheel_assessment %}
+                    {% for k, v in inspection_details.tyre.wheel_assessment.items %}
+                        {% if v %}<span style="display: inline-block; background: #e2e8f0; padding: 1px 5px; border-radius: 3px; margin-right: 4px; margin-bottom: 2px;"><strong>{{ k }}:</strong> {{ v }}</span>{% endif %}
+                    {% endfor %}
+                {% endif %}
+                {% if inspection_details.tyre.pressure %} • <strong>Pressure:</strong> {{ inspection_details.tyre.pressure }}{% endif %}
+                {% if inspection_details.tyre.tread_depth %} • <strong>Tread Depth:</strong> {{ inspection_details.tyre.tread_depth }}{% endif %}
+                {% if inspection_details.tyre.twi_value %} • <strong>TWI:</strong> {{ inspection_details.tyre.twi_value }}{% endif %}
+                {% if inspection_details.tyre.wear_indicators %} • <strong>Wear Indicator:</strong> {{ inspection_details.tyre.wear_indicators }}{% endif %}
+                {% if inspection_details.tyre.dot_year %} • <strong>DOT Year:</strong> {{ inspection_details.tyre.dot_year }}{% endif %}
+                {% if inspection_details.tyre.wear_distribution %} • <strong>Wear Distribution:</strong> {{ inspection_details.tyre.wear_distribution|join:", " }}{% endif %}
+                {% if inspection_details.tyre.surface_damage %} • <span style="color: #b91c1c;"><strong>Damage:</strong> {{ inspection_details.tyre.surface_damage|join:", " }}</span>{% endif %}
+                {% if inspection_details.tyre.structural_damage %} • <span style="color: #b91c1c;"><strong>Structural:</strong> {{ inspection_details.tyre.structural_damage|join:", " }}</span>{% endif %}
+                {% if inspection_details.tyre.valve_issues %} • <span style="color: #b91c1c;"><strong>Valve:</strong> {{ inspection_details.tyre.valve_issues|join:", " }}</span>{% endif %}
+                {% if inspection_details.tyre.rim_issues %} • <span style="color: #b91c1c;"><strong>Rim:</strong> {{ inspection_details.tyre.rim_issues|join:", " }}</span>{% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if inspection_details.wheel_alignment %}
+        <div style="margin-top: 6px; padding-top: 4px; border-top: 1px solid #f1f5f9;">
+            <strong style="color: #1e3a8a; font-size: 8.5pt;">Wheel Alignment & Balancing:</strong>
+            <div style="font-size: 8pt; color: #334155; margin-top: 2px;">
+                {% for k, v in inspection_details.wheel_alignment.items %}
+                    {% if v %}<span style="display: inline-block; margin-right: 10px; margin-bottom: 2px;"><strong>{{ k }}:</strong> {{ v }}</span>{% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if inspection_details.oil %}
+        <div style="margin-top: 6px; padding-top: 4px; border-top: 1px solid #f1f5f9;">
+            <strong style="color: #1e3a8a; font-size: 8.5pt;">Oil & Fluids Inspection:</strong>
+            <div style="font-size: 8pt; color: #334155; margin-top: 2px;">
+                {% for k, v in inspection_details.oil.items %}
+                    {% if v %}<span style="display: inline-block; margin-right: 10px; margin-bottom: 2px;"><strong>{{ k }}:</strong> {{ v }}</span>{% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Reported Issues -->
+    {% if reported_issues %}
+    <div class="section-title">Reported Issues</div>
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th style="width: 5%;">#</th>
+                <th style="width: 35%;">Service</th>
+                <th style="width: 60%;">Issue Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for issue in reported_issues %}
+            <tr>
+                <td class="text-center">{{ forloop.counter }}</td>
+                <td><strong>{{ issue.service.name|default:"General Service" }}</strong></td>
+                <td>{{ issue.issue_text }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
     <!-- Services Table -->
     {% if services %}
     <div class="section-title">Requested Services</div>
