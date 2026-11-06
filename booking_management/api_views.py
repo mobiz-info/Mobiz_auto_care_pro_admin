@@ -4986,6 +4986,12 @@ def api_job_card_create(request):
                 customer, vehicle = _job_card_records_from_lead(
                     lead, data['customer_profile'], data['vehicle_details'], company, branch, user
                 )
+            if 'engine_number' in data or 'chassis_number' in data:
+                if 'engine_number' in data:
+                    vehicle.engine_number = (data.get('engine_number') or '').strip() or None
+                if 'chassis_number' in data:
+                    vehicle.chassis_number = (data.get('chassis_number') or '').strip() or None
+                vehicle.save()
             jc = JobCard.objects.create(
                 company=company,
                 branch=branch,
@@ -5289,6 +5295,13 @@ def api_job_card_update(request, job_card_id):
             jc.vehicle.emission_standard = EmissionStandard.objects.filter(id=vehicle_data.get('emission_standard_id'), is_deleted=False).first() if vehicle_data.get('emission_standard_id') else None
             jc.vehicle.fuel_type = vehicle_data.get('fuel_type') or ''
             jc.vehicle.wheel_type = vehicle_data.get('wheel_type') or CustomerVehicle.WHEEL_TYPE_NORMAL
+            jc.vehicle.save()
+
+        if 'engine_number' in data or 'chassis_number' in data:
+            if 'engine_number' in data:
+                jc.vehicle.engine_number = (data.get('engine_number') or '').strip() or None
+            if 'chassis_number' in data:
+                jc.vehicle.chassis_number = (data.get('chassis_number') or '').strip() or None
             jc.vehicle.save()
 
         delivery_date_str = data.get('expected_delivery_date')
