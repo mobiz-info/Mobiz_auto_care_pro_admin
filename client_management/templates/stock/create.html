@@ -73,14 +73,7 @@
         {% csrf_token %}
 
         <!-- Optional Company Scope for Superuser -->
-        {% if form.company %}
-        <div class="form-group" style="margin-bottom: 20px;">
-            <label for="{{ form.company.id_for_label }}">Company Scope</label>
-            {{ form.company }}
-            <span style="font-size: 0.78rem; color: #64748b; margin-top: 4px; display: block;">Select a company to load
-                its country-specific taxes and settings, or leave as "Global" for all companies.</span>
-        </div>
-        {% endif %}
+
 
         <!-- Row 1: Stock Item Group & Sub Group -->
         <div class="form-grid-2">
