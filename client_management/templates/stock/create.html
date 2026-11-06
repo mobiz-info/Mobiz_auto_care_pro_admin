@@ -77,7 +77,8 @@
         <div class="form-group" style="margin-bottom: 20px;">
             <label for="{{ form.company.id_for_label }}">Company Scope</label>
             {{ form.company }}
-            <span style="font-size: 0.78rem; color: #64748b; margin-top: 4px; display: block;">Select a company to load its country-specific taxes and settings, or leave as "Global" for all companies.</span>
+            <span style="font-size: 0.78rem; color: #64748b; margin-top: 4px; display: block;">Select a company to load
+                its country-specific taxes and settings, or leave as "Global" for all companies.</span>
         </div>
         {% endif %}
 
@@ -106,19 +107,19 @@
                 <label for="{{ form.base_unit.id_for_label }}">Base Unit <span style="color:red">*</span></label>
                 <select name="base_unit" id="id_base_unit" class="form-control" required>
                     <option value="">Select Base Unit</option>
-                    <option value="Litre" {% if form.base_unit.value == "Litre" %}selected{% endif %}>Litre</option>
-                    <option value="Piece" {% if form.base_unit.value == "Piece" %}selected{% endif %}>Piece / Pcs</option>
-                    <option value="Box" {% if form.base_unit.value == "Box" %}selected{% endif %}>Box</option>
-                    <option value="KG" {% if form.base_unit.value == "KG" %}selected{% endif %}>KG</option>
-                    <option value="Meter" {% if form.base_unit.value == "Meter" %}selected{% endif %}>Meter</option>
-                    <option value="Bottle" {% if form.base_unit.value == "Bottle" %}selected{% endif %}>Bottle</option>
-                    <option value="Can" {% if form.base_unit.value == "Can" %}selected{% endif %}>Can</option>
-                    <option value="Gallon" {% if form.base_unit.value == "Gallon" %}selected{% endif %}>Gallon</option>
-                    <option value="Pack" {% if form.base_unit.value == "Pack" %}selected{% endif %}>Pack</option>
-                    <option value="Set" {% if form.base_unit.value == "Set" %}selected{% endif %}>Set</option>
-                    <option value="Pair" {% if form.base_unit.value == "Pair" %}selected{% endif %}>Pair</option>
-                    <option value="Barrel" {% if form.base_unit.value == "Barrel" %}selected{% endif %}>Barrel</option>
-                    <option value="Roll" {% if form.base_unit.value == "Roll" %}selected{% endif %}>Roll</option>
+                    <option value="Litre" {% if form.base_unit.value=="Litre" %}selected{% endif %}>Litre</option>
+                    <option value="Piece" {% if form.base_unit.value=="Piece" %}selected{% endif %}>Piece / Pcs</option>
+                    <option value="Box" {% if form.base_unit.value=="Box" %}selected{% endif %}>Box</option>
+                    <option value="KG" {% if form.base_unit.value=="KG" %}selected{% endif %}>KG</option>
+                    <option value="Meter" {% if form.base_unit.value=="Meter" %}selected{% endif %}>Meter</option>
+                    <option value="Bottle" {% if form.base_unit.value=="Bottle" %}selected{% endif %}>Bottle</option>
+                    <option value="Can" {% if form.base_unit.value=="Can" %}selected{% endif %}>Can</option>
+                    <option value="Gallon" {% if form.base_unit.value=="Gallon" %}selected{% endif %}>Gallon</option>
+                    <option value="Pack" {% if form.base_unit.value=="Pack" %}selected{% endif %}>Pack</option>
+                    <option value="Set" {% if form.base_unit.value=="Set" %}selected{% endif %}>Set</option>
+                    <option value="Pair" {% if form.base_unit.value=="Pair" %}selected{% endif %}>Pair</option>
+                    <option value="Barrel" {% if form.base_unit.value=="Barrel" %}selected{% endif %}>Barrel</option>
+                    <option value="Roll" {% if form.base_unit.value=="Roll" %}selected{% endif %}>Roll</option>
                 </select>
                 {% if form.base_unit.errors %}<div class="error-text">{{ form.base_unit.errors.0 }}</div>{% endif %}
             </div>
@@ -126,7 +127,8 @@
 
         <!-- Row 2.5: Brand -->
         <div class="form-group" style="margin-bottom: 20px;">
-            <label for="{{ form.brand.id_for_label }}">Brand <span style="color:#94a3b8;font-size:0.8rem;">(non mandatory)</span></label>
+            <label for="{{ form.brand.id_for_label }}">Brand <span style="color:#94a3b8;font-size:0.8rem;">(non
+                    mandatory)</span></label>
             {{ form.brand }}
             {% if form.brand.errors %}<div class="error-text">{{ form.brand.errors.0 }}</div>{% endif %}
         </div>
@@ -163,9 +165,11 @@
         <div class="tax-section">
             <div class="tax-title">
                 <i class="ph ph-percent" style="color:#2563eb;"></i> Tax %
-                <span id="country_badge" style="margin-left: auto; font-size: 0.78rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; background: #e0e7ff; color: #1e40af; display: inline-flex; align-items: center; gap: 4px;">
+                <span id="country_badge"
+                    style="margin-left: auto; font-size: 0.78rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; background: #e0e7ff; color: #1e40af; display: inline-flex; align-items: center; gap: 4px;">
                     <i class="ph ph-globe"></i>
-                    <span id="country_badge_text">{{ country_name }}{% if is_india %} (GST){% else %} ({{ tax_label }}){% endif %}</span>
+                    <span id="country_badge_text">{{ country_name }}{% if is_india %} (GST){% else %} ({{ tax_label
+                        }}){% endif %}</span>
                 </span>
             </div>
 
@@ -191,17 +195,15 @@
             <div id="non_india_tax_block" style="{% if is_india %}display: none;{% endif %}">
                 <div class="form-grid-2">
                     <div class="form-group">
-                        <label for="{{ form.vat_percent.id_for_label }}" id="vat_percent_label">{{ tax_label }} (%)</label>
+                        <label for="{{ form.vat_percent.id_for_label }}" id="vat_percent_label">{{ tax_label }}
+                            (%)</label>
                         {{ form.vat_percent }}
-                        {% if form.vat_percent.errors %}<div class="error-text">{{ form.vat_percent.errors.0 }}</div>{% endif %}
+                        {% if form.vat_percent.errors %}<div class="error-text">{{ form.vat_percent.errors.0 }}</div>{%
+                        endif %}
                     </div>
-                    <div class="form-group" style="display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 8px;">
-                        <span id="tax_info_text" style="font-size: 0.8rem; color: #64748b;">
-                            Applicable tax for <strong id="info_country_name">{{ country_name }}</strong>.
-                            {% if default_tax_rate %}
-                                Standard rate: <strong id="info_tax_rate">{{ default_tax_rate }}%</strong>
-                            {% endif %}
-                        </span>
+                    <div class="form-group"
+                        style="display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 8px;">
+
                     </div>
                 </div>
             </div>
@@ -233,16 +235,16 @@
 
 <script>
     // Dynamic Sub-Group filtering based on Stock Item Group
-    const allSubGroups = {{ subgroups_json|safe|default:"[]" }};
+    const allSubGroups = {{ subgroups_json| safe |default: "[]" }};
     const groupSelect = document.getElementById("id_group");
     const subGroupSelect = document.getElementById("id_sub_group");
 
     function updateSubGroups(preserveSelection = false) {
         if (!groupSelect || !subGroupSelect) return;
-        
+
         const selectedGroupId = groupSelect.value;
         const currentSelectedVal = preserveSelection ? (subGroupSelect.dataset.initialValue || subGroupSelect.value) : '';
-        
+
         // Clear existing options
         subGroupSelect.innerHTML = '<option value="">Select Sub Group</option>';
 
@@ -278,18 +280,18 @@
         subGroupSelect.dataset.initialValue = subGroupSelect.value;
         updateSubGroups(true);
 
-        groupSelect.addEventListener("change", function() {
+        groupSelect.addEventListener("change", function () {
             subGroupSelect.dataset.initialValue = "";
             updateSubGroups(false);
         });
     }
 
     // Company Tax mapping for superuser
-    const companyTaxMap = {{ company_tax_map_json|safe|default:"{}" }};
+    const companyTaxMap = {{ company_tax_map_json| safe |default: "{}" }};
     const companySelect = document.getElementById("id_company");
 
     if (companySelect && Object.keys(companyTaxMap).length > 0) {
-        companySelect.addEventListener("change", function() {
+        companySelect.addEventListener("change", function () {
             const compId = this.value;
             const indiaBlock = document.getElementById("india_tax_block");
             const nonIndiaBlock = document.getElementById("non_india_tax_block");
