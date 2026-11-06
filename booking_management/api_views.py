@@ -4973,13 +4973,18 @@ def api_job_card_create(request):
         if inspection_at and timezone.is_naive(inspection_at):
             inspection_at = timezone.make_aware(inspection_at)
         prepared_by = None
-        if data.get('prepared_by_id'):
-            prepared_by = Staff.objects.filter(
-                id=data['prepared_by_id'], company=company, branch=branch,
-                is_deleted=False,
-            ).first()
+        prepared_by_id = (data.get('prepared_by_id') or '').strip()
+        if prepared_by_id and prepared_by_id not in ('null', 'None'):
+            staff_qs = Staff.objects.filter(id=prepared_by_id, is_deleted=False)
+            if company:
+                staff_qs = staff_qs.filter(company=company)
+            elif customer and getattr(customer, 'company_id', None):
+                staff_qs = staff_qs.filter(company_id=customer.company_id)
+            prepared_by = staff_qs.first()
             if not prepared_by:
                 return JsonResponse({'success': False, 'message': 'Prepared-by staff is invalid'}, status=400)
+            if not branch and prepared_by.branch_id:
+                branch = prepared_by.branch
 
         with transaction.atomic():
             if lead:
@@ -5340,13 +5345,18 @@ def api_job_card_update(request, job_card_id):
             jc.internal_notes = data['internal_notes']
         if 'prepared_by_id' in data:
             from client_management.models import Staff
-            prepared_by_id = data.get('prepared_by_id')
-            jc.prepared_by = Staff.objects.filter(
-                id=prepared_by_id, company=jc.company, branch=jc.branch,
-                is_deleted=False,
-            ).first() if prepared_by_id else None
-            if prepared_by_id and not jc.prepared_by:
-                return JsonResponse({'success': False, 'message': 'Prepared-by staff is invalid'}, status=400)
+            prepared_by_id = (data.get('prepared_by_id') or '').strip()
+            if prepared_by_id and prepared_by_id not in ('null', 'None'):
+                staff_qs = Staff.objects.filter(id=prepared_by_id, is_deleted=False)
+                if jc.company_id:
+                    staff_qs = staff_qs.filter(company_id=jc.company_id)
+                elif company:
+                    staff_qs = staff_qs.filter(company=company)
+                jc.prepared_by = staff_qs.first()
+                if not jc.prepared_by:
+                    return JsonResponse({'success': False, 'message': 'Prepared-by staff is invalid'}, status=400)
+            else:
+                jc.prepared_by = None
 
         with transaction.atomic():
             # If services array provided, update items
@@ -6058,16 +6068,18 @@ def api_job_lead_form_data(request):
     from master.models import State, VehicleType, VehicleTypeModel, VehicleMake, VehicleBrandModel, VehicleColor, EmissionStandard
     from service_management.models import Service, BranchService, CompanyService, BranchServiceCategory
     from .models import JobLeadGenerationMode
-    if not branch:
-        branch_id = request.GET.get('branch_id')
-        branch = Branch.objects.filter(id=branch_id, company=company, is_deleted=False).first() if branch_id else Branch.objects.filter(company=company, is_deleted=False).order_by('name').first()
+    scoped_branch = branch
+    branch_id = request.GET.get('branch_id')
+    if not branch and branch_id:
+        branch = Branch.objects.filter(id=branch_id, company=company, is_deleted=False).first()
+    active_branch = branch or Branch.objects.filter(company=company, is_deleted=False).order_by('name').first()
     staff = Staff.objects.filter(company=company, is_deleted=False)
-    if branch:
+    if scoped_branch or branch_id:
         staff = staff.filter(branch=branch)
     enabled_ids = CompanyService.objects.filter(company=company, is_enabled=True).values_list('service_id', flat=True)
-    enabled_ids = BranchService.objects.filter(branch=branch, is_enabled=True, is_deleted=False, service_id__in=enabled_ids).values_list('service_id', flat=True) if branch else []
+    enabled_ids = BranchService.objects.filter(branch=active_branch, is_enabled=True, is_deleted=False, service_id__in=enabled_ids).values_list('service_id', flat=True) if active_branch else []
     services = Service.objects.filter(id__in=enabled_ids, is_active=True, is_deleted=False)
-    disabled_categories = BranchServiceCategory.objects.filter(branch=branch, is_enabled=False, is_deleted=False).values_list('service_type_id', flat=True) if branch else []
+    disabled_categories = BranchServiceCategory.objects.filter(branch=active_branch, is_enabled=False, is_deleted=False).values_list('service_type_id', flat=True) if active_branch else []
     services = services.exclude(service_type_id__in=disabled_categories).distinct()
     states = State.objects.filter(is_deleted=False)
     country = getattr(company, 'country', None)
@@ -6334,13 +6346,19 @@ def api_job_quotation_create(request):
         with transaction.atomic():
             from client_management.models import Staff
             from django.utils.dateparse import parse_datetime
-            prepared_by = Staff.objects.filter(
-                id=data.get('prepared_by_id'), company=company, is_deleted=False
-            ).first() if data.get('prepared_by_id') else None
-            if prepared_by and branch and prepared_by.branch_id != branch.id:
-                prepared_by = None
-            if data.get('prepared_by_id') and not prepared_by:
-                return JsonResponse({'success': False, 'message': 'Prepared-by staff is not available'}, status=400)
+            prepared_by = None
+            prepared_by_id = (data.get('prepared_by_id') or '').strip()
+            if prepared_by_id and prepared_by_id not in ('null', 'None'):
+                staff_qs = Staff.objects.filter(id=prepared_by_id, is_deleted=False)
+                if company:
+                    staff_qs = staff_qs.filter(company=company)
+                elif customer and getattr(customer, 'company_id', None):
+                    staff_qs = staff_qs.filter(company_id=customer.company_id)
+                prepared_by = staff_qs.first()
+                if not prepared_by:
+                    return JsonResponse({'success': False, 'message': 'Prepared-by staff is not available'}, status=400)
+                if not branch and prepared_by.branch_id:
+                    branch = prepared_by.branch
             quotation = JobQuotation.objects.create(
                 quotation_number=f'JQT-{get_auto_id(JobQuotation):04d}', lead=lead, revised_from=revised_from,
                 customer=customer, vehicle=vehicle, branch=branch or customer.branch,
@@ -6668,12 +6686,19 @@ def api_job_quotation_update(request, quotation_id):
             if 'tentative_delivery_at' in data:
                 quotation.tentative_delivery_at = parse_datetime(data['tentative_delivery_at']) if data.get('tentative_delivery_at') else None
             if 'prepared_by_id' in data:
-                quotation.prepared_by = Staff.objects.filter(id=data.get('prepared_by_id'), company=company, is_deleted=False).first() if data.get('prepared_by_id') else None
-                if quotation.prepared_by and branch and quotation.prepared_by.branch_id != branch.id:
+                prepared_by_id = (data.get('prepared_by_id') or '').strip()
+                if prepared_by_id and prepared_by_id not in ('null', 'None'):
+                    staff_qs = Staff.objects.filter(id=prepared_by_id, is_deleted=False)
+                    if quotation.company_id:
+                        staff_qs = staff_qs.filter(company_id=quotation.company_id)
+                    elif company:
+                        staff_qs = staff_qs.filter(company=company)
+                    quotation.prepared_by = staff_qs.first()
+                    if not quotation.prepared_by:
+                        transaction.set_rollback(True)
+                        return JsonResponse({'success': False, 'message': 'Prepared-by staff is not available'}, status=400)
+                else:
                     quotation.prepared_by = None
-                if data.get('prepared_by_id') and not quotation.prepared_by:
-                    transaction.set_rollback(True)
-                    return JsonResponse({'success': False, 'message': 'Prepared-by staff is not available'}, status=400)
             for field in ('additional_services', 'additional_days_needed', 'subtotal', 'tax_percentage', 'tax_amount', 'discount', 'discount_type', 'discount_percentage', 'grand_total', 'is_grand_total'):
                 if field in data:
                     setattr(quotation, field, data[field])
