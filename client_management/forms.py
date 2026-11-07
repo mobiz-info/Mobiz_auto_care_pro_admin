@@ -824,19 +824,58 @@ class WhatsAppComposeForm(forms.ModelForm):
 
 
 class StockForm(forms.ModelForm):
+    base_unit = forms.ChoiceField(
+        choices=[
+            ('', 'Select Unit'),
+            ('Piece', 'Piece (Pcs)'),
+            ('Litre', 'Litre (Ltr)'),
+            ('Millilitre', 'Millilitre (ml)'),
+            ('Kilogram', 'Kilogram (Kg)'),
+            ('Gram', 'Gram (g)'),
+            ('Box', 'Box'),
+            ('Packet', 'Packet'),
+            ('Bottle', 'Bottle'),
+            ('Can', 'Can'),
+            ('Gallon', 'Gallon'),
+            ('Barrel', 'Barrel'),
+            ('Set', 'Set'),
+            ('Roll', 'Roll'),
+            ('Meter', 'Meter'),
+            ('Pair', 'Pair'),
+        ],
+        required=True,
+        label="Unit *"
+    )
+
     class Meta:
         model = Stock
         fields = [
-            'company', 'group', 'sub_group', 'item_name', 'brand', 'base_unit', 'hsn_code', 'barcode',
-            'is_trading', 'is_operational', 'cgst_percent', 'sgst_percent', 'igst_percent', 'vat_percent',
-            'profit_margin_percent', 'critical_level'
+            'company', 'product_code', 'brand', 'item_name', 'country_of_origin',
+            'supplier', 'supplier_name', 'quantity', 'base_unit',
+            'purchase_rate', 'selling_price', 'tax_percent',
+            'is_trading', 'is_operational'
         ]
+        labels = {
+            'product_code': 'Product Code',
+            'brand': 'Brand',
+            'item_name': 'Product Name',
+            'country_of_origin': 'Country of Origin',
+            'supplier': 'Supplier',
+            'supplier_name': 'Supplier Name',
+            'quantity': 'Stock Count',
+            'base_unit': 'Unit',
+            'purchase_rate': 'Purchase Rate',
+            'selling_price': 'Selling Rate',
+            'tax_percent': 'Tax (%)',
+            'is_trading': 'Trading Item',
+            'is_operational': 'Operational Item',
+        }
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         
-        from master.models import StockGroup, StockSubGroup, Country
+        from master.models import Supplier, Country
         from tax_management.models import Tax, CompanyTax
         from client_management.models import Client
         from django.db.models import Q
@@ -878,84 +917,72 @@ class StockForm(forms.ModelForm):
             self.fields['company'].empty_label = "Global (All Companies)"
             self.fields['company'].queryset = Client.objects.filter(is_deleted=False).order_by('company_name')
 
-        # Filter Groups and Sub-Groups by company
+        # Filter Suppliers by company
         if company:
-            self.fields['group'].queryset = StockGroup.objects.filter(Q(company=company) | Q(company__isnull=True), is_deleted=False).order_by('name')
-            subgroup_qs = StockSubGroup.objects.filter(Q(company=company) | Q(company__isnull=True), is_deleted=False).select_related('group').order_by('name')
+            self.fields['supplier'].queryset = Supplier.objects.filter(
+                Q(company=company) | Q(company__isnull=True), is_deleted=False
+            ).order_by('name')
         else:
-            self.fields['group'].queryset = StockGroup.objects.filter(is_deleted=False).order_by('name')
-            subgroup_qs = StockSubGroup.objects.filter(is_deleted=False).select_related('group').order_by('name')
-
-        # Filter sub_group queryset by group if selected in data or on instance
-        selected_group_id = None
-        if self.data and self.data.get('group'):
-            selected_group_id = self.data.get('group')
-        elif not is_new and self.instance and self.instance.group_id:
-            selected_group_id = self.instance.group_id
-
-        if selected_group_id:
-            self.fields['sub_group'].queryset = subgroup_qs.filter(group_id=selected_group_id)
-        else:
-            self.fields['sub_group'].queryset = subgroup_qs
-
-        self.fields['brand'].required = False
-        self.fields['hsn_code'].required = False
-        self.fields['barcode'].required = False
-        self.fields['critical_level'].required = False
-        self.fields['group'].required = False
-        self.fields['sub_group'].required = False
-        self.fields['cgst_percent'].required = False
-        self.fields['sgst_percent'].required = False
-        self.fields['igst_percent'].required = False
-        self.fields['vat_percent'].required = False
+            self.fields['supplier'].queryset = Supplier.objects.filter(is_deleted=False).order_by('name')
+        self.fields['supplier'].required = False
+        self.fields['supplier'].empty_label = "Select Supplier (Optional)"
 
         # Query company-enabled or country taxes
-        company_taxes = []
+        tax_label = "VAT" if not self.is_india else "GST"
+        default_tax_rate = Decimal('0.00')
+
         if company:
             enabled_taxes = CompanyTax.objects.filter(
                 company=company, is_enabled=True, is_deleted=False
             ).select_related('tax')
             if enabled_taxes.exists():
-                company_taxes = [ct.tax for ct in enabled_taxes]
-        if not company_taxes and country:
+                t0 = enabled_taxes.first().tax
+                tax_label = t0.name
+                default_tax_rate = t0.percent
+        if default_tax_rate == 0 and country:
             country_taxes = Tax.objects.filter(country=country, is_deleted=False).order_by('name')
             if country_taxes.exists():
-                company_taxes = list(country_taxes)
-
-        self.company_taxes = company_taxes
-        self.tax_label = "VAT"
-        self.default_tax_rate = Decimal('0.00')
-
-        if not self.is_india:
-            if company_taxes:
-                t0 = company_taxes[0]
-                self.tax_label = t0.name
-                self.default_tax_rate = t0.percent
+                t0 = country_taxes.first()
+                tax_label = t0.name
+                default_tax_rate = t0.percent
             else:
                 c_lower = country_name.lower()
-                if 'emirates' in c_lower or 'uae' in c_lower:
-                    self.tax_label = "VAT"
-                    self.default_tax_rate = Decimal('5.00')
+                if 'emirates' in c_lower or 'uae' in c_lower or 'oman' in c_lower or 'bahrain' in c_lower:
+                    tax_label = "VAT"
+                    default_tax_rate = Decimal('5.00')
                 elif 'saudi' in c_lower:
-                    self.tax_label = "VAT"
-                    self.default_tax_rate = Decimal('15.00')
-                elif 'oman' in c_lower or 'bahrain' in c_lower:
-                    self.tax_label = "VAT"
-                    self.default_tax_rate = Decimal('5.00')
-                else:
-                    self.tax_label = "VAT / Tax"
-                    self.default_tax_rate = Decimal('0.00')
+                    tax_label = "VAT"
+                    default_tax_rate = Decimal('15.00')
+                elif 'india' in c_lower:
+                    tax_label = "GST"
+                    default_tax_rate = Decimal('18.00')
 
-            self.fields['vat_percent'].label = f"{self.tax_label} (%)"
-            if is_new:
-                self.fields['vat_percent'].initial = self.default_tax_rate
-                self.initial['vat_percent'] = self.default_tax_rate
-            else:
-                initial_val = self.instance.vat_percent if (self.instance.vat_percent and self.instance.vat_percent > 0) else (self.instance.igst_percent or Decimal('0.00'))
-                self.fields['vat_percent'].initial = initial_val
-                self.initial['vat_percent'] = initial_val
+        self.tax_label = tax_label
+        self.default_tax_rate = default_tax_rate
+        self.fields['tax_percent'].label = f"{tax_label} (%)"
+
+        if is_new:
+            self.fields['tax_percent'].initial = default_tax_rate
+            self.initial['tax_percent'] = default_tax_rate
+            self.fields['is_trading'].initial = True
+            self.fields['is_operational'].initial = False
         else:
-            self.fields['hsn_code'].label = "HSN Code"
+            current_tax = self.instance.tax_percent or self.instance.vat_percent or self.instance.igst_percent or Decimal('0.00')
+            self.fields['tax_percent'].initial = current_tax
+            self.initial['tax_percent'] = current_tax
+            if self.instance.base_unit:
+                self.fields['base_unit'].initial = self.instance.base_unit
+            elif self.instance.unit:
+                self.fields['base_unit'].initial = self.instance.unit
+
+        self.fields['product_code'].required = False
+        self.fields['brand'].required = False
+        self.fields['country_of_origin'].required = False
+        self.fields['supplier_name'].required = False
+        self.fields['quantity'].required = False
+        self.fields['purchase_rate'].required = False
+        self.fields['selling_price'].required = True
+        self.fields['tax_percent'].required = False
 
         for field_name, field in self.fields.items():
             if not isinstance(field.widget, (forms.CheckboxInput, forms.RadioSelect)):
@@ -967,33 +994,38 @@ class StockForm(forms.ModelForm):
         cleaned_data = super().clean()
         from decimal import Decimal
 
-        group = cleaned_data.get('group')
-        sub_group = cleaned_data.get('sub_group')
-        if sub_group and group and sub_group.group_id != group.id:
-            self.add_error('sub_group', f'Sub Group "{sub_group.name}" does not belong to the selected group "{group.name}".')
+        tax_percent = cleaned_data.get('tax_percent') or Decimal('0.00')
+        cleaned_data['tax_percent'] = tax_percent
 
-        is_india = getattr(self, 'is_india', True)
-        if not is_india:
-            vat = cleaned_data.get('vat_percent') or Decimal('0.00')
-            cleaned_data['cgst_percent'] = Decimal('0.00')
-            cleaned_data['sgst_percent'] = Decimal('0.00')
-            cleaned_data['igst_percent'] = vat
-        else:
-            cleaned_data['vat_percent'] = Decimal('0.00')
+        supplier = cleaned_data.get('supplier')
+        supplier_name = cleaned_data.get('supplier_name')
+        if supplier and not supplier_name:
+            cleaned_data['supplier_name'] = supplier.name
+
+        base_unit = cleaned_data.get('base_unit')
+        cleaned_data['unit'] = base_unit
+
         return cleaned_data
 
     def save(self, commit=True):
         stock = super().save(commit=False)
         from decimal import Decimal
-        is_india = getattr(self, 'is_india', True)
-        if not is_india:
-            vat = self.cleaned_data.get('vat_percent') or Decimal('0.00')
-            stock.vat_percent = vat
-            stock.igst_percent = vat
+
+        tax_percent = self.cleaned_data.get('tax_percent') or Decimal('0.00')
+        stock.tax_percent = tax_percent
+        stock.vat_percent = tax_percent
+        stock.igst_percent = tax_percent
+
+        if getattr(self, 'is_india', False):
+            half_tax = tax_percent / Decimal('2.0')
+            stock.cgst_percent = half_tax
+            stock.sgst_percent = half_tax
+        else:
             stock.cgst_percent = Decimal('0.00')
             stock.sgst_percent = Decimal('0.00')
-        else:
-            stock.vat_percent = Decimal('0.00')
+
+        if not stock.unit and stock.base_unit:
+            stock.unit = stock.base_unit
 
         if not stock.expense_head:
             from master.models import ExpenseHead

@@ -7,7 +7,36 @@
 {% block content %}
 <style>
     .premium-form-container {
-        max-width: 750px;
+        max-width: 800px;
+        margin: 0 auto;
+        background: #ffffff;
+        border-radius: 14px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        border: 1px solid #e2e8f0;
+        padding: 32px;
+    }
+
+    .form-header-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 28px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .form-header-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+
+    .form-header-title i {
+        color: #2563eb;
+        font-size: 1.7rem;
     }
 
     .form-grid-2 {
@@ -17,199 +46,266 @@
         margin-bottom: 20px;
     }
 
-    .form-grid-3 {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 16px;
-        margin-bottom: 20px;
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
     }
 
-    .checkbox-group {
-        display: flex;
-        align-items: center;
-        gap: 24px;
-        margin: 16px 0 24px 0;
-        padding: 12px 16px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-    }
-
-    .checkbox-label {
-        display: flex;
-        align-items: center;
-        gap: 8px;
+    .form-group label {
         font-weight: 600;
+        font-size: 0.88rem;
         color: #334155;
-        cursor: pointer;
     }
 
-    .tax-section {
+    .form-control {
+        width: 100%;
+        padding: 10px 14px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 0.92rem;
+        color: #1e293b;
+        background: #ffffff;
+        transition: all 0.2s ease;
+        outline: none;
+        box-sizing: border-box;
+    }
+
+    .form-control:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .toggle-section {
         background: #f8fafc;
         border: 1px solid #e2e8f0;
         border-radius: 10px;
-        padding: 16px;
-        margin-bottom: 24px;
+        padding: 16px 20px;
+        margin: 24px 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
     }
 
-    .tax-title {
-        font-size: 0.9rem;
-        font-weight: 700;
-        color: #1e293b;
-        margin-bottom: 12px;
+    .toggle-item {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 12px;
+        cursor: pointer;
+    }
+
+    .toggle-item input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: #2563eb;
+        cursor: pointer;
+    }
+
+    .toggle-text {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .toggle-title {
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: #1e293b;
+    }
+
+    .toggle-desc {
+        font-size: 0.78rem;
+        color: #64748b;
+    }
+
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid #f1f5f9;
+    }
+
+    .btn-secondary {
+        padding: 10px 20px;
+        background: #f1f5f9;
+        color: #475569;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: background 0.2s;
+    }
+
+    .btn-secondary:hover {
+        background: #e2e8f0;
+    }
+
+    .btn-primary {
+        padding: 10px 24px;
+        background: #2563eb;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+        transition: background 0.2s;
+    }
+
+    .btn-primary:hover {
+        background: #1d4ed8;
+    }
+
+    .error-text {
+        font-size: 0.8rem;
+        color: #dc2626;
+        margin-top: 4px;
+    }
+
+    .tax-badge {
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 20px;
+        background: #e0e7ff;
+        color: #1e40af;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
     }
 </style>
 
 <div class="premium-form-container">
-    <div class="premium-form-title">
-        <i class="ph ph-package" style="color:#2563eb;font-size:1.6rem;"></i>
-        {{ title }}
+    <div class="form-header-bar">
+        <div class="form-header-title">
+            <i class="ph ph-package"></i>
+            {{ title }}
+        </div>
+        <div>
+            <span class="tax-badge" id="country_badge">
+                <i class="ph ph-globe"></i>
+                <span id="country_badge_text">{{ country_name }} ({{ tax_label }})</span>
+            </span>
+        </div>
     </div>
 
     <form method="POST">
         {% csrf_token %}
 
-        <!-- Optional Company Scope for Superuser -->
+        {% if form.company %}
+        <!-- Superuser Company Scope -->
+        <div class="form-group" style="margin-bottom: 20px;">
+            <label for="{{ form.company.id_for_label }}">Assign to Company</label>
+            {{ form.company }}
+            {% if form.company.errors %}<div class="error-text">{{ form.company.errors.0 }}</div>{% endif %}
+        </div>
+        {% endif %}
 
-
-        <!-- Row 1: Stock Item Group & Sub Group -->
+        <!-- Row 1: Product Code & Brand -->
         <div class="form-grid-2">
             <div class="form-group">
-                <label for="{{ form.group.id_for_label }}">Stock Item Group</label>
-                {{ form.group }}
-                {% if form.group.errors %}<div class="error-text">{{ form.group.errors.0 }}</div>{% endif %}
+                <label for="{{ form.product_code.id_for_label }}">Product Code</label>
+                {{ form.product_code }}
+                {% if form.product_code.errors %}<div class="error-text">{{ form.product_code.errors.0 }}</div>{% endif %}
             </div>
             <div class="form-group">
-                <label for="{{ form.sub_group.id_for_label }}">Sub Group</label>
-                {{ form.sub_group }}
-                {% if form.sub_group.errors %}<div class="error-text">{{ form.sub_group.errors.0 }}</div>{% endif %}
+                <label for="{{ form.brand.id_for_label }}">Brand</label>
+                {{ form.brand }}
+                {% if form.brand.errors %}<div class="error-text">{{ form.brand.errors.0 }}</div>{% endif %}
             </div>
         </div>
 
-        <!-- Row 2: Item Name & Base Unit -->
+        <!-- Row 2: Product Name & Country of Origin -->
         <div class="form-grid-2">
             <div class="form-group">
-                <label for="{{ form.item_name.id_for_label }}">Item Name <span style="color:red">*</span></label>
+                <label for="{{ form.item_name.id_for_label }}">Product Name <span style="color:red">*</span></label>
                 {{ form.item_name }}
                 {% if form.item_name.errors %}<div class="error-text">{{ form.item_name.errors.0 }}</div>{% endif %}
             </div>
             <div class="form-group">
-                <label for="{{ form.base_unit.id_for_label }}">Base Unit <span style="color:red">*</span></label>
-                <select name="base_unit" id="id_base_unit" class="form-control" required>
-                    <option value="">Select Base Unit</option>
-                    <option value="Litre" {% if form.base_unit.value == "Litre" %}selected{% endif %}>Litre</option>
-                    <option value="Piece" {% if form.base_unit.value == "Piece" %}selected{% endif %}>Piece / Pcs</option>
-                    <option value="Box" {% if form.base_unit.value == "Box" %}selected{% endif %}>Box</option>
-                    <option value="KG" {% if form.base_unit.value == "KG" %}selected{% endif %}>KG</option>
-                    <option value="Meter" {% if form.base_unit.value == "Meter" %}selected{% endif %}>Meter</option>
-                    <option value="Bottle" {% if form.base_unit.value == "Bottle" %}selected{% endif %}>Bottle</option>
-                    <option value="Can" {% if form.base_unit.value == "Can" %}selected{% endif %}>Can</option>
-                    <option value="Gallon" {% if form.base_unit.value == "Gallon" %}selected{% endif %}>Gallon</option>
-                    <option value="Pack" {% if form.base_unit.value == "Pack" %}selected{% endif %}>Pack</option>
-                    <option value="Set" {% if form.base_unit.value == "Set" %}selected{% endif %}>Set</option>
-                    <option value="Pair" {% if form.base_unit.value == "Pair" %}selected{% endif %}>Pair</option>
-                    <option value="Barrel" {% if form.base_unit.value == "Barrel" %}selected{% endif %}>Barrel</option>
-                    <option value="Roll" {% if form.base_unit.value == "Roll" %}selected{% endif %}>Roll</option>
-                </select>
+                <label for="{{ form.country_of_origin.id_for_label }}">Country of Origin</label>
+                {{ form.country_of_origin }}
+                {% if form.country_of_origin.errors %}<div class="error-text">{{ form.country_of_origin.errors.0 }}</div>{% endif %}
+            </div>
+        </div>
+
+        <!-- Row 3: Supplier (Selection or Name) -->
+        <div class="form-grid-2">
+            <div class="form-group">
+                <label for="{{ form.supplier.id_for_label }}">Supplier (Registered)</label>
+                {{ form.supplier }}
+                {% if form.supplier.errors %}<div class="error-text">{{ form.supplier.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.supplier_name.id_for_label }}">Supplier Name (or Custom)</label>
+                {{ form.supplier_name }}
+                {% if form.supplier_name.errors %}<div class="error-text">{{ form.supplier_name.errors.0 }}</div>{% endif %}
+            </div>
+        </div>
+
+        <!-- Row 4: Stock Count & Unit -->
+        <div class="form-grid-2">
+            <div class="form-group">
+                <label for="{{ form.quantity.id_for_label }}">Stock Count</label>
+                {{ form.quantity }}
+                {% if form.quantity.errors %}<div class="error-text">{{ form.quantity.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.base_unit.id_for_label }}">Unit <span style="color:red">*</span></label>
+                {{ form.base_unit }}
                 {% if form.base_unit.errors %}<div class="error-text">{{ form.base_unit.errors.0 }}</div>{% endif %}
             </div>
         </div>
 
-        <!-- Row 2.5: Brand -->
-        <div class="form-group" style="margin-bottom: 20px;">
-            <label for="{{ form.brand.id_for_label }}">Brand <span style="color:#94a3b8;font-size:0.8rem;">(non
-                    mandatory)</span></label>
-            {{ form.brand }}
-            {% if form.brand.errors %}<div class="error-text">{{ form.brand.errors.0 }}</div>{% endif %}
-        </div>
-
-        <!-- Row 3 & 4: HSN Code & Barcode -->
+        <!-- Row 5: Purchase Rate & Selling Rate -->
         <div class="form-grid-2">
             <div class="form-group">
-                <label for="{{ form.hsn_code.id_for_label }}" id="hsn_code_label">
-                    {% if is_india %}HSN Code{% else %}HS / HSN Code{% endif %}
-                    <span style="color:#94a3b8;font-size:0.8rem;">(non mandatory)</span>
-                </label>
-                {{ form.hsn_code }}
+                <label for="{{ form.purchase_rate.id_for_label }}">Purchase Rate</label>
+                {{ form.purchase_rate }}
+                {% if form.purchase_rate.errors %}<div class="error-text">{{ form.purchase_rate.errors.0 }}</div>{% endif %}
             </div>
             <div class="form-group">
-                <label for="{{ form.barcode.id_for_label }}">Barcode <span style="color:#94a3b8;font-size:0.8rem;">(non
-                        mandatory)</span></label>
-                {{ form.barcode }}
+                <label for="{{ form.selling_price.id_for_label }}">Selling Rate <span style="color:red">*</span></label>
+                {{ form.selling_price }}
+                {% if form.selling_price.errors %}<div class="error-text">{{ form.selling_price.errors.0 }}</div>{% endif %}
             </div>
         </div>
 
-        <!-- Row 5: Checkboxes (Trading & Operational) -->
-        <div class="checkbox-group">
-            <label class="checkbox-label">
-                {{ form.is_trading }}
-                Trading Item
-            </label>
-            <label class="checkbox-label">
-                {{ form.is_operational }}
-                Operational Item
-            </label>
-        </div>
-
-        <!-- Row 6: Tax Section (Country-Specific Taxes) -->
-        <div class="tax-section">
-            <div class="tax-title">
-                <i class="ph ph-percent" style="color:#2563eb;"></i> Tax %
-                <span id="country_badge"
-                    style="margin-left: auto; font-size: 0.78rem; font-weight: 600; padding: 3px 10px; border-radius: 20px; background: #e0e7ff; color: #1e40af; display: inline-flex; align-items: center; gap: 4px;">
-                    <i class="ph ph-globe"></i>
-                    <span id="country_badge_text">{{ country_name }}{% if is_india %} (GST){% else %} ({{ tax_label }}){% endif %}</span>
+        <!-- Row 6: Tax % -->
+        <div class="form-grid-2">
+            <div class="form-group">
+                <label for="{{ form.tax_percent.id_for_label }}" id="tax_percent_label">{{ tax_label }} (%)</label>
+                {{ form.tax_percent }}
+                {% if form.tax_percent.errors %}<div class="error-text">{{ form.tax_percent.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="form-group" style="justify-content: flex-end; padding-bottom: 8px;">
+                <span style="font-size: 0.8rem; color: #64748b;">
+                    <i class="ph ph-info"></i> Tax applied automatically during billing and invoice generation.
                 </span>
             </div>
-
-            <!-- India GST Block (CGST, SGST, IGST) -->
-            <div id="india_tax_block" style="{% if not is_india %}display: none;{% endif %}">
-                <div class="form-grid-3">
-                    <div class="form-group">
-                        <label for="{{ form.cgst_percent.id_for_label }}">CGST (%)</label>
-                        {{ form.cgst_percent }}
-                    </div>
-                    <div class="form-group">
-                        <label for="{{ form.sgst_percent.id_for_label }}">SGST / SCGT (%)</label>
-                        {{ form.sgst_percent }}
-                    </div>
-                    <div class="form-group">
-                        <label for="{{ form.igst_percent.id_for_label }}">IGST (%)</label>
-                        {{ form.igst_percent }}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Non-India Country-Specific Tax Block (VAT / Sales Tax) -->
-            <div id="non_india_tax_block" style="{% if is_india %}display: none;{% endif %}">
-                <div class="form-grid-2">
-                    <div class="form-group">
-                        <label for="{{ form.vat_percent.id_for_label }}" id="vat_percent_label">{{ tax_label }} (%)</label>
-                        {{ form.vat_percent }}
-                        {% if form.vat_percent.errors %}<div class="error-text">{{ form.vat_percent.errors.0 }}</div>{% endif %}
-                    </div>
-                    <div class="form-group"
-                        style="display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 8px;">
-
-                    </div>
-                </div>
-            </div>
         </div>
 
-        <!-- Row 7 & 8: Profit Margin & Critical Level -->
-        <div class="form-grid-2">
-            <div class="form-group">
-                <label for="{{ form.profit_margin_percent.id_for_label }}">Profit Margin (%)</label>
-                {{ form.profit_margin_percent }}
-            </div>
-            <div class="form-group">
-                <label for="{{ form.critical_level.id_for_label }}">Critical Level <span
-                        style="color:#94a3b8;font-size:0.8rem;">(non mandatory)</span></label>
-                {{ form.critical_level }}
-            </div>
+        <!-- Row 7: Trading Item & Operational Item Toggles -->
+        <div class="toggle-section">
+            <label class="toggle-item">
+                {{ form.is_trading }}
+                <div class="toggle-text">
+                    <span class="toggle-title">Trading Item (Yes / No)</span>
+                    <span class="toggle-desc">Items sold or billed directly to customers</span>
+                </div>
+            </label>
+            <label class="toggle-item">
+                {{ form.is_operational }}
+                <div class="toggle-text">
+                    <span class="toggle-title">Operational Item (Yes / No)</span>
+                    <span class="toggle-desc">Internal consumables used in workshop services</span>
+                </div>
+            </label>
         </div>
 
         <!-- Form Actions -->
@@ -224,100 +320,38 @@
 </div>
 
 <script>
-    // Dynamic Sub-Group filtering based on Stock Item Group
-    const allSubGroups = {{ subgroups_json|default:"[]"|safe }};
-    const groupSelect = document.getElementById("id_group");
-    const subGroupSelect = document.getElementById("id_sub_group");
-
-    function updateSubGroups(preserveSelection = false) {
-        if (!groupSelect || !subGroupSelect) return;
-
-        const selectedGroupId = groupSelect.value;
-        const currentSelectedVal = preserveSelection ? (subGroupSelect.dataset.initialValue || subGroupSelect.value) : '';
-
-        // Clear existing options
-        subGroupSelect.innerHTML = '<option value="">Select Sub Group</option>';
-
-        if (!selectedGroupId) {
-            subGroupSelect.disabled = true;
-            return;
-        }
-
-        subGroupSelect.disabled = false;
-        const matchingSubgroups = allSubGroups.filter(sg => String(sg.group_id) === String(selectedGroupId));
-
-        if (matchingSubgroups.length === 0) {
-            const noOpt = document.createElement("option");
-            noOpt.value = "";
-            noOpt.textContent = "No Sub Groups found for this Group";
-            noOpt.disabled = true;
-            subGroupSelect.appendChild(noOpt);
-            return;
-        }
-
-        matchingSubgroups.forEach(sg => {
-            const opt = document.createElement("option");
-            opt.value = sg.id;
-            opt.textContent = sg.name;
-            if (String(sg.id) === String(currentSelectedVal)) {
-                opt.selected = true;
+    // Auto sync supplier name when registered supplier dropdown changes
+    const supplierSelect = document.getElementById("id_supplier");
+    const supplierNameInput = document.getElementById("id_supplier_name");
+    if (supplierSelect && supplierNameInput) {
+        supplierSelect.addEventListener("change", function() {
+            if (this.selectedIndex > 0) {
+                supplierNameInput.value = this.options[this.selectedIndex].text.trim();
             }
-            subGroupSelect.appendChild(opt);
         });
     }
 
-    if (groupSelect && subGroupSelect) {
-        subGroupSelect.dataset.initialValue = subGroupSelect.value;
-        updateSubGroups(true);
-
-        groupSelect.addEventListener("change", function () {
-            subGroupSelect.dataset.initialValue = "";
-            updateSubGroups(false);
-        });
-    }
-
-    // Company Tax mapping for superuser
+    // Dynamic tax rate and country badge for superuser company selector
     const companyTaxMap = {{ company_tax_map_json|default:"{}"|safe }};
     const companySelect = document.getElementById("id_company");
 
     if (companySelect && Object.keys(companyTaxMap).length > 0) {
         companySelect.addEventListener("change", function () {
             const compId = this.value;
-            const indiaBlock = document.getElementById("india_tax_block");
-            const nonIndiaBlock = document.getElementById("non_india_tax_block");
             const badgeText = document.getElementById("country_badge_text");
-            const vatLabel = document.getElementById("vat_percent_label");
-            const infoCountry = document.getElementById("info_country_name");
-            const infoRate = document.getElementById("info_tax_rate");
-            const hsnLabel = document.getElementById("hsn_code_label");
-            const vatInput = document.getElementById("id_vat_percent");
+            const taxLabel = document.getElementById("tax_percent_label");
+            const taxInput = document.getElementById("id_tax_percent");
 
             if (!compId || !companyTaxMap[compId]) {
-                // Default global
-                indiaBlock.style.display = "block";
-                nonIndiaBlock.style.display = "none";
-                badgeText.textContent = "Global (All Companies)";
-                if (hsnLabel) hsnLabel.innerHTML = 'HSN Code <span style="color:#94a3b8;font-size:0.8rem;">(non mandatory)</span>';
+                if (badgeText) badgeText.textContent = "Global";
                 return;
             }
 
             const info = companyTaxMap[compId];
-            if (info.is_india) {
-                indiaBlock.style.display = "block";
-                nonIndiaBlock.style.display = "none";
-                badgeText.textContent = `${info.country_name} (GST)`;
-                if (hsnLabel) hsnLabel.innerHTML = 'HSN Code <span style="color:#94a3b8;font-size:0.8rem;">(non mandatory)</span>';
-            } else {
-                indiaBlock.style.display = "none";
-                nonIndiaBlock.style.display = "block";
-                badgeText.textContent = `${info.country_name} (${info.tax_label})`;
-                if (vatLabel) vatLabel.textContent = `${info.tax_label} (%)`;
-                if (infoCountry) infoCountry.textContent = info.country_name;
-                if (infoRate) infoRate.textContent = `${info.default_tax_rate}%`;
-                if (hsnLabel) hsnLabel.innerHTML = 'HS / HSN Code <span style="color:#94a3b8;font-size:0.8rem;">(non mandatory)</span>';
-                if (vatInput && (!vatInput.value || vatInput.value === "0.00" || vatInput.value === "0")) {
-                    vatInput.value = info.default_tax_rate;
-                }
+            if (badgeText) badgeText.textContent = `${info.country_name} (${info.tax_label})`;
+            if (taxLabel) taxLabel.textContent = `${info.tax_label} (%)`;
+            if (taxInput && (!taxInput.value || taxInput.value === "0.00" || taxInput.value === "0")) {
+                taxInput.value = info.default_tax_rate;
             }
         });
     }

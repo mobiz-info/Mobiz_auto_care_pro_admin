@@ -488,10 +488,16 @@ class Stock(BaseModel):
     barcode = models.CharField(max_length=100, blank=True, null=True)
     part_number = models.CharField(max_length=100, blank=True, null=True, db_index=True, help_text="Part Number")
     alternate_part_number = models.CharField(max_length=100, blank=True, null=True, db_index=True, help_text="Alternate Part Number")
+    product_code = models.CharField(max_length=100, blank=True, null=True, db_index=True, help_text="Product Code")
+    country_of_origin = models.CharField(max_length=150, blank=True, null=True, help_text="Country of Origin")
+    supplier = models.ForeignKey('master.Supplier', on_delete=models.SET_NULL, null=True, blank=True, related_name='stocks')
+    supplier_name = models.CharField(max_length=200, blank=True, null=True, help_text="Supplier Name")
+    purchase_rate = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, help_text="Purchase Rate")
     selling_price = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, help_text="Standard selling price")
+    tax_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="Tax / VAT Percentage")
     is_trading = models.BooleanField(default=True)
     is_operational = models.BooleanField(default=False)
-    unit = models.CharField(max_length=50, choices=UNIT_CHOICES)
+    unit = models.CharField(max_length=50, choices=UNIT_CHOICES, blank=True, null=True)
     base_unit = models.CharField(max_length=50, blank=True, null=True)
     main_unit = models.CharField(max_length=50, blank=True, null=True)
     conversion_count = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
@@ -506,16 +512,46 @@ class Stock(BaseModel):
 
     @property
     def total_tax_percent(self):
+        if getattr(self, 'tax_percent', None) is not None and self.tax_percent > 0:
+            return self.tax_percent
         if getattr(self, 'vat_percent', 0):
             return self.vat_percent
         if self.cgst_percent or self.sgst_percent:
             return (self.cgst_percent or 0) + (self.sgst_percent or 0)
         return self.igst_percent or 0
 
+    def save(self, *args, **kwargs):
+        if self.product_code and not self.part_number:
+            self.part_number = self.product_code
+        elif self.part_number and not self.product_code:
+            self.product_code = self.part_number
+
+        if self.base_unit and not self.unit:
+            self.unit = self.base_unit
+        elif self.unit and not self.base_unit:
+            self.base_unit = self.unit
+
+        if self.supplier and not self.supplier_name:
+            self.supplier_name = self.supplier.name
+
+        # Sync tax
+        if self.tax_percent is not None and self.tax_percent > 0:
+            if not self.vat_percent or self.vat_percent == 0:
+                self.vat_percent = self.tax_percent
+            if not self.igst_percent or self.igst_percent == 0:
+                self.igst_percent = self.tax_percent
+        elif self.vat_percent and self.vat_percent > 0:
+            self.tax_percent = self.vat_percent
+        elif self.igst_percent and self.igst_percent > 0:
+            self.tax_percent = self.igst_percent
+
+        super().save(*args, **kwargs)
+
     def __str__(self):
+        unit_display = self.get_unit_display() if self.unit else (self.base_unit or '')
         if self.company:
-            return f"{self.item_name} ({self.get_unit_display()}) - {self.company.company_name}"
-        return f"{self.item_name} ({self.get_unit_display()}) - Global"
+            return f"{self.item_name} ({unit_display}) - {self.company.company_name}"
+        return f"{self.item_name} ({unit_display}) - Global"
 
 
 class StaffLeave(BaseModel):

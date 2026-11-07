@@ -48,6 +48,8 @@ urlpatterns = [
 
     # Stock Management
     path('stock/', views.stock_list, name='stock_list'),
+    path('stock/sample-excel/', views.stock_sample_excel, name='stock_sample_excel'),
+    path('stock/import-excel/', views.stock_import_excel, name='stock_import_excel'),
     path('purchased-stock/', views.purchased_stock_list, name='purchased_stock_list'),
     path('stock-consumption-report/', views.stock_consumption_report, name='stock_consumption_report'),
     path('stock/create/', views.stock_create, name='stock_create'),

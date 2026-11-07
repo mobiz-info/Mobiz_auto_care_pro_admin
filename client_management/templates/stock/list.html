@@ -52,16 +52,80 @@
         pointer-events: none;
         cursor: not-allowed;
     }
+
+    /* Modal styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(4px);
+        z-index: 9999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+    .modal-card {
+        background: white;
+        border-radius: 16px;
+        max-width: 520px;
+        width: 100%;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+        animation: modalFadeIn 0.2s ease-out;
+    }
+    @keyframes modalFadeIn {
+        from { opacity: 0; transform: scale(0.96); }
+        to { opacity: 1; transform: scale(1); }
+    }
+    .btn-excel-download {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 14px;
+        background: #ffffff;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+        border-radius: 8px;
+        font-size: 0.84rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+    .btn-excel-download:hover {
+        background: #f0fdf4;
+        border-color: #86efac;
+    }
+    .btn-excel-import {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 14px;
+        background: #10b981;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.84rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .btn-excel-import:hover {
+        background: #059669;
+    }
 </style>
 
 <div class="list-container">
 
     <!-- Header -->
-    <div class="list-header">
+    <div class="list-header" style="flex-wrap: wrap; gap: 12px;">
         <form method="GET" class="search-wrapper" style="display:flex; align-items:center; gap:10px; width:auto; flex-wrap:wrap;">
             <div style="position:relative; flex:1; min-width:220px;">
                 <i class="ph ph-magnifying-glass search-icon"></i>
-                <input type="text" name="search" value="{% if search %}{{ search }}{% endif %}" placeholder="Search stock item..." class="search-input">
+                <input type="text" name="search" value="{% if search %}{{ search }}{% endif %}" placeholder="Search code, name, brand, supplier..." class="search-input">
             </div>
             <select name="type" class="search-input" style="width:auto; padding-left:12px; cursor:pointer;" onchange="this.form.submit()">
                 <option value="">All Item Types</option>
@@ -70,15 +134,29 @@
                 <option value="both" {% if selected_type == 'both' %}selected{% endif %}>Trading & Operational</option>
             </select>
         </form>
-        <div style="display:flex; gap:10px;">
+
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
+            <!-- Download Excel Format -->
+            <a href="{% url 'stock_sample_excel' %}" class="btn-excel-download" title="Download Excel template for bulk import">
+                <i class="ph ph-download-simple" style="font-size:1.1rem; color:#16a34a;"></i>
+                Download Excel Format
+            </a>
+
+            <!-- Import Excel -->
+            <button type="button" class="btn-excel-import" onclick="openImportModal()" title="Import stock items from Excel sheet">
+                <i class="ph ph-file-arrow-up" style="font-size:1.1rem;"></i>
+                Import Excel
+            </button>
+
             {% if request.user.is_superuser %}
             <form method="POST" action="{% url 'stock_delete_all' %}" style="display:inline;" onsubmit="return confirm('WARNING: Are you sure you want to delete ALL stock items across all companies? This action cannot be undone.');">
                 {% csrf_token %}
                 <button type="submit" class="btn-create" style="background:#dc2626; border-color:#dc2626; color:#fff;">
-                    <i class="ph-bold ph-trash"></i> Delete All Stock
+                    <i class="ph-bold ph-trash"></i> Delete All
                 </button>
             </form>
             {% endif %}
+
             <a href="{% url 'stock_create' %}" class="btn-create">
                 <i class="ph-bold ph-plus"></i> Add Stock
             </a>
@@ -91,13 +169,16 @@
             <thead>
                 <tr>
                     <th>#</th>
-                    <th>Item Name</th>
-                    <th>Item Type</th>
-                    <th>Group</th>
-                    <th>Sub Group</th>
+                    <th>Product Code</th>
+                    <th>Product Name & Brand</th>
+                    <th>Country of Origin</th>
+                    <th>Supplier</th>
+                    <th>Stock Count</th>
                     <th>Unit</th>
-                    <th>Expense Head</th>
-                    <th>Scope</th>
+                    <th>Purchase Rate</th>
+                    <th>Selling Rate</th>
+                    <th>Tax %</th>
+                    <th>Item Type</th>
                     <th style="text-align:right;">Actions</th>
                 </tr>
             </thead>
@@ -107,22 +188,70 @@
                     <td style="color:#94a3b8;">{{ forloop.counter }}</td>
 
                     <td>
+                        {% if stock.product_code %}
+                            <span style="font-family:monospace; font-weight:700; background:#f1f5f9; padding:2px 8px; border-radius:4px; color:#334155; font-size:0.85rem;">{{ stock.product_code }}</span>
+                        {% else %}
+                            <span style="color:#94a3b8; font-style:italic;">-</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
                         <div style="display:flex; align-items:center; gap:10px;">
-                            <div style="width:32px;height:32px;border-radius:50%;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#475569;">
+                            <div style="width:32px;height:32px;border-radius:50%;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#475569;flex-shrink:0;">
                                 <i class="ph-fill ph-package"></i>
                             </div>
                             <div>
-                                <strong>{{ stock.item_name }}</strong>
+                                <strong style="color:#0f172a;">{{ stock.item_name }}</strong>
                                 {% if stock.brand %}
-                                    <div style="font-size:0.75rem; color:#64748b;">{{ stock.brand }}</div>
+                                    <div style="font-size:0.75rem; color:#64748b; font-weight:500;">Brand: {{ stock.brand }}</div>
                                 {% endif %}
                             </div>
                         </div>
                     </td>
 
                     <td>
+                        {% if stock.country_of_origin %}
+                            <span style="font-size:0.88rem; color:#475569;">{{ stock.country_of_origin }}</span>
+                        {% else %}
+                            <span style="color:#94a3b8; font-style:italic;">-</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if stock.supplier %}
+                            <span style="font-weight:600; color:#1e293b;">{{ stock.supplier.name }}</span>
+                        {% elif stock.supplier_name %}
+                            <span style="font-weight:500; color:#475569;">{{ stock.supplier_name }}</span>
+                        {% else %}
+                            <span style="color:#94a3b8; font-style:italic;">-</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        <span style="font-weight:700; color:#0f172a; font-size:0.95rem;">{{ stock.quantity|default:"0" }}</span>
+                    </td>
+
+                    <td>
+                        <span style="font-weight:500; color:#475569;">{{ stock.base_unit|default:stock.unit|default:"Piece" }}</span>
+                    </td>
+
+                    <td>
+                        <span style="font-weight:600; color:#475569;">{{ stock.purchase_rate|default:"0.00" }}</span>
+                    </td>
+
+                    <td>
+                        <span style="font-weight:700; color:#16a34a;">{{ stock.selling_price|default:"0.00" }}</span>
+                    </td>
+
+                    <td>
+                        <span style="font-weight:600; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:4px; font-size:0.84rem;">
+                            {{ stock.tax_percent|default:stock.total_tax_percent|default:"0" }}%
+                        </span>
+                    </td>
+
+                    <td>
                         {% if stock.is_trading and stock.is_operational %}
-                            <span class="type-badge type-both" title="Trading & Internal Operational Consumable">
+                            <span class="type-badge type-both" title="Trading & Operational Consumable">
                                 <i class="ph-bold ph-swap"></i> Trading & Operational
                             </span>
                         {% elif stock.is_trading %}
@@ -130,51 +259,11 @@
                                 <i class="ph-bold ph-shopping-cart"></i> Trading
                             </span>
                         {% elif stock.is_operational %}
-                            <span class="type-badge type-operational" title="Operational Consumable (Internal use, ₹0 billing)">
+                            <span class="type-badge type-operational" title="Operational Consumable (Internal use)">
                                 <i class="ph-bold ph-wrench"></i> Operational
                             </span>
                         {% else %}
                             <span style="font-weight:400; color:#94a3b8; font-style:italic;">None</span>
-                        {% endif %}
-                    </td>
-
-                    <td>
-                        {% if stock.group %}
-                            <span style="font-weight:600; color:#1e293b;">{{ stock.group.name }}</span>
-                        {% else %}
-                            <span style="font-weight:400; color:#94a3b8; font-style:italic;">None</span>
-                        {% endif %}
-                    </td>
-
-                    <td>
-                        {% if stock.sub_group %}
-                            <span style="font-weight:500; color:#475569;">{{ stock.sub_group.name }}</span>
-                        {% else %}
-                            <span style="font-weight:400; color:#94a3b8; font-style:italic;">None</span>
-                        {% endif %}
-                    </td>
-
-                    <td>
-                        <span style="font-weight:500; color:#475569;">{{ stock.get_unit_display }}</span>
-                    </td>
-
-                    <td>
-                        {% if stock.expense_head %}
-                            <span style="font-weight:500; color:#475569;">{{ stock.expense_head.name }}</span>
-                        {% else %}
-                            <span style="font-weight:400; color:#94a3b8; font-style:italic;">None</span>
-                        {% endif %}
-                    </td>
-
-                    <td>
-                        {% if not stock.company %}
-                            <span class="scope-badge scope-global">
-                                <i class="ph ph-globe"></i> Global
-                            </span>
-                        {% else %}
-                            <span class="scope-badge scope-company">
-                                <i class="ph ph-buildings"></i> {{ stock.company.company_name }}
-                            </span>
                         {% endif %}
                     </td>
 
@@ -188,10 +277,10 @@
                                     <i class="ph ph-trash"></i>
                                 </a>
                             {% else %}
-                                <a href="#" class="action-btn disabled" title="Global stock items cannot be edited by companies">
+                                <a href="#" class="action-btn disabled" title="Global stock items cannot be edited">
                                     <i class="ph ph-pencil-simple"></i>
                                 </a>
-                                <a href="#" class="action-btn disabled" title="Global stock items cannot be deleted by companies">
+                                <a href="#" class="action-btn disabled" title="Global stock items cannot be deleted">
                                     <i class="ph ph-trash"></i>
                                 </a>
                             {% endif %}
@@ -200,8 +289,9 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="9" style="text-align:center; padding: 30px; color:#94a3b8;">
-                        No stock items found.
+                    <td colspan="12" style="text-align:center; padding: 40px; color:#94a3b8;">
+                        <i class="ph ph-package" style="font-size:2.2rem; color:#cbd5e1; display:block; margin-bottom:8px;"></i>
+                        No stock items found. Click "Add Stock" or "Import Excel" to get started.
                     </td>
                 </tr>
                 {% endfor %}
@@ -223,5 +313,89 @@
     {% endif %}
 
 </div>
+
+<!-- Excel Import Modal -->
+<div id="importModal" class="modal-overlay" onclick="handleBackdropClick(event)">
+    <div class="modal-card">
+        <div style="background: linear-gradient(135deg, #1e3a8a, #0f172a); padding: 20px 24px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(16, 185, 129, 0.2); display: flex; align-items: center; justify-content: center;">
+                    <i class="ph ph-file-arrow-up" style="font-size: 1.4rem; color: #34d399;"></i>
+                </div>
+                <div>
+                    <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: white;">Import Stock Items</h3>
+                    <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #94a3b8;">Upload your Excel spreadsheet (.xlsx) to bulk import</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeImportModal()" style="background: transparent; border: none; color: #94a3b8; font-size: 1.4rem; cursor: pointer; padding: 4px;">
+                <i class="ph ph-x"></i>
+            </button>
+        </div>
+
+        <form action="{% url 'stock_import_excel' %}" method="POST" enctype="multipart/form-data" style="padding: 24px;">
+            {% csrf_token %}
+
+            <!-- Download Template Banner -->
+            <div style="margin-bottom: 20px; padding: 14px 16px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                <div>
+                    <div style="font-weight: 600; font-size: 0.88rem; color: #166534;">Sample Template Format</div>
+                    <div style="font-size: 0.76rem; color: #15803d; margin-top: 2px;">Includes all required columns pre-formatted</div>
+                </div>
+                <a href="{% url 'stock_sample_excel' %}" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: #16a34a; color: white; border-radius: 8px; font-size: 0.82rem; font-weight: 600; text-decoration: none; white-space: nowrap;">
+                    <i class="ph ph-download-simple"></i> Download .xlsx
+                </a>
+            </div>
+
+            <!-- Optional Company selector for Superuser -->
+            {% if request.user.is_superuser and companies %}
+            <div style="margin-bottom: 18px;">
+                <label style="display: block; font-weight: 600; font-size: 0.85rem; color: #334155; margin-bottom: 6px;">
+                    Target Company <span style="color:red">*</span>
+                </label>
+                <select name="company_id" style="width: 100%; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; background: white; outline: none;" required>
+                    <option value="">Select Company</option>
+                    {% for c in companies %}
+                    <option value="{{ c.id }}">{{ c.company_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            <!-- File Upload -->
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-weight: 600; font-size: 0.85rem; color: #334155; margin-bottom: 6px;">
+                    Select Excel File (.xlsx) <span style="color:red">*</span>
+                </label>
+                <input type="file" name="excel_file" accept=".xlsx, .xls" required style="width: 100%; padding: 14px; border: 2px dashed #cbd5e1; border-radius: 10px; font-size: 0.88rem; background: #f8fafc; cursor: pointer; box-sizing: border-box;">
+                <div style="font-size: 0.75rem; color: #64748b; margin-top: 6px;">
+                    Fields: Product Code, Brand, Product Name, Country of Origin, Supplier Name, Stock Count, Unit, Purchase Rate, Selling Rate, Tax %, Trading Item (Yes/No), Operational Item (Yes/No).
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" onclick="closeImportModal()" class="btn-secondary" style="padding: 10px 18px; cursor: pointer;">
+                    Cancel
+                </button>
+                <button type="submit" class="btn-primary" style="padding: 10px 22px;">
+                    <i class="ph ph-upload-simple"></i> Upload & Import
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openImportModal() {
+        document.getElementById("importModal").style.display = "flex";
+    }
+    function closeImportModal() {
+        document.getElementById("importModal").style.display = "none";
+    }
+    function handleBackdropClick(event) {
+        if (event.target.id === "importModal") {
+            closeImportModal();
+        }
+    }
+</script>
 
 {% endblock %}

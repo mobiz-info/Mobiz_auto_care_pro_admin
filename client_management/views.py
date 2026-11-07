@@ -2875,6 +2875,318 @@ def whatsapp_template_delete(request, id):
 
 
 @login_required
+def stock_sample_excel(request):
+    import io
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Stock Items Template"
+
+    headers = [
+        "Product Code",
+        "Brand",
+        "Product Name *",
+        "Country of Origin",
+        "Supplier Name",
+        "Stock Count",
+        "Unit *",
+        "Purchase Rate",
+        "Selling Rate *",
+        "Tax %",
+        "Trading Item (Yes/No)",
+        "Operational Item (Yes/No)"
+    ]
+    ws.append(headers)
+
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    for col_num in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+
+    sample_rows = [
+        [
+            "PRD-101",
+            "Sonax",
+            "Car Wash Shampoo 5L",
+            "Germany",
+            "Al Futtaim Auto Parts",
+            25,
+            "Can",
+            45.00,
+            75.00,
+            5.00,
+            "Yes",
+            "Yes"
+        ],
+        [
+            "PRD-102",
+            "Bosch",
+            "Oil Filter OF-22",
+            "Japan",
+            "Emirates Spares LLC",
+            50,
+            "Piece",
+            18.00,
+            32.00,
+            5.00,
+            "Yes",
+            "No"
+        ],
+        [
+            "PRD-103",
+            "Meguiar's",
+            "Microfiber Cloth 40x40",
+            "USA",
+            "Speedway Car Care",
+            100,
+            "Piece",
+            4.50,
+            10.00,
+            5.00,
+            "No",
+            "Yes"
+        ]
+    ]
+
+    for row_data in sample_rows:
+        ws.append(row_data)
+
+    # Auto-adjust column widths
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = openpyxl.utils.get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 5, 18)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response['Content-Disposition'] = 'attachment; filename="stock_items_template.xlsx"'
+    return response
+
+
+@login_required
+def stock_import_excel(request):
+    if not (request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.role.name in ['COMPANY_ADMIN', 'BRANCH_ADMIN'])):
+        messages.error(request, "You do not have permission to import stock items.")
+        return redirect('stock_list')
+
+    company = None
+    if not request.user.is_superuser:
+        company = getattr(getattr(request.user, 'profile', None), 'company', None)
+        if not company:
+            messages.error(request, "Company configuration missing.")
+            return redirect('dashboard')
+    else:
+        company_id = request.POST.get('company_id')
+        if company_id:
+            from client_management.models import Client
+            company = Client.objects.filter(id=company_id, is_deleted=False).first()
+        if not company and hasattr(request.user, 'profile') and request.user.profile.company:
+            company = request.user.profile.company
+
+    if request.method == 'POST':
+        excel_file = request.FILES.get('excel_file')
+        if not excel_file:
+            messages.error(request, "Please select an Excel file (.xlsx) to upload.")
+            return redirect('stock_list')
+
+        if not excel_file.name.lower().endswith(('.xlsx', '.xls')):
+            messages.error(request, "Invalid file format. Please upload an .xlsx file.")
+            return redirect('stock_list')
+
+        import openpyxl
+        from decimal import Decimal
+        from master.models import Supplier, ExpenseHead
+
+        try:
+            wb = openpyxl.load_workbook(excel_file, data_only=True)
+            ws = wb.active
+        except Exception as e:
+            messages.error(request, f"Failed to read Excel file: {str(e)}")
+            return redirect('stock_list')
+
+        rows = list(ws.iter_rows(values_only=True))
+        if not rows or len(rows) < 2:
+            messages.error(request, "The uploaded Excel sheet contains no data rows.")
+            return redirect('stock_list')
+
+        h_clean = [str(h).replace('*', '').strip().lower() if h is not None else "" for h in rows[0]]
+
+        def find_idx(*keywords):
+            for kw in keywords:
+                kw = kw.strip().lower()
+                for i, h in enumerate(h_clean):
+                    if h == kw or h.startswith(kw) or kw in h.split():
+                        return i
+            for kw in sorted(keywords, key=len, reverse=True):
+                kw = kw.strip().lower()
+                if len(kw) >= 4:
+                    for i, h in enumerate(h_clean):
+                        if kw in h:
+                            return i
+            return -1
+
+        idx_code = find_idx("product code", "code")
+        idx_brand = find_idx("brand")
+        idx_name = find_idx("product name", "item name", "product")
+        idx_country = find_idx("country of origin", "origin", "country")
+        idx_supplier = find_idx("supplier name", "supplier")
+        idx_qty = find_idx("stock count", "quantity", "qty", "stock")
+        idx_unit = find_idx("unit")
+        idx_purchase = find_idx("purchase rate", "purchase price", "purchase")
+        idx_selling = find_idx("selling rate", "selling price", "sale rate", "selling")
+        idx_tax = find_idx("tax %", "tax", "vat %", "vat", "gst")
+        idx_trading = find_idx("trading item", "trading")
+        idx_operational = find_idx("operational item", "operational")
+
+        if idx_name == -1:
+            idx_name = 2 if len(headers) > 2 else 0
+
+        def parse_decimal(val, default=Decimal('0.00')):
+            if val is None or val == "":
+                return default
+            try:
+                clean_str = str(val).replace(',', '').replace('$', '').replace('₹', '').replace('AED', '').strip()
+                return Decimal(clean_str)
+            except Exception:
+                return default
+
+        def parse_bool(val, default=True):
+            if val is None or val == "":
+                return default
+            s = str(val).strip().lower()
+            if s in ['yes', 'y', '1', 'true', 'trading', 'operational']:
+                return True
+            if s in ['no', 'n', '0', 'false']:
+                return False
+            return default
+
+        default_expense_head = ExpenseHead.objects.filter(
+            Q(company=company) | Q(company__isnull=True),
+            name__iexact='Purchase',
+            is_deleted=False
+        ).first()
+
+        created_count = 0
+        updated_count = 0
+        skipped_count = 0
+
+        for row_idx, row in enumerate(rows[1:], start=2):
+            if not row or all(v is None or str(v).strip() == "" for v in row):
+                continue
+
+            item_name = str(row[idx_name]).strip() if (idx_name != -1 and idx_name < len(row) and row[idx_name]) else ""
+            if not item_name:
+                skipped_count += 1
+                continue
+
+            product_code = str(row[idx_code]).strip() if (idx_code != -1 and idx_code < len(row) and row[idx_code]) else ""
+            brand = str(row[idx_brand]).strip() if (idx_brand != -1 and idx_brand < len(row) and row[idx_brand]) else ""
+            country_of_origin = str(row[idx_country]).strip() if (idx_country != -1 and idx_country < len(row) and row[idx_country]) else ""
+            supplier_raw = str(row[idx_supplier]).strip() if (idx_supplier != -1 and idx_supplier < len(row) and row[idx_supplier]) else ""
+            qty_val = parse_decimal(row[idx_qty] if (idx_qty != -1 and idx_qty < len(row)) else None, Decimal('0.00'))
+            unit_val = str(row[idx_unit]).strip() if (idx_unit != -1 and idx_unit < len(row) and row[idx_unit]) else "Piece"
+            purchase_rate_val = parse_decimal(row[idx_purchase] if (idx_purchase != -1 and idx_purchase < len(row)) else None, Decimal('0.00'))
+            selling_price_val = parse_decimal(row[idx_selling] if (idx_selling != -1 and idx_selling < len(row)) else None, Decimal('0.00'))
+            tax_percent_val = parse_decimal(row[idx_tax] if (idx_tax != -1 and idx_tax < len(row)) else None, Decimal('0.00'))
+            is_trading_val = parse_bool(row[idx_trading] if (idx_trading != -1 and idx_trading < len(row)) else None, default=True)
+            is_operational_val = parse_bool(row[idx_operational] if (idx_operational != -1 and idx_operational < len(row)) else None, default=False)
+
+            # Resolve or create Supplier
+            supplier_obj = None
+            if supplier_raw and company:
+                supplier_obj = Supplier.objects.filter(company=company, name__iexact=supplier_raw, is_deleted=False).first()
+                if not supplier_obj:
+                    try:
+                        supplier_obj = Supplier.objects.create(
+                            auto_id=get_auto_id(Supplier),
+                            creator=request.user,
+                            company=company,
+                            name=supplier_raw
+                        )
+                    except Exception:
+                        supplier_obj = None
+
+            # Check if exists by product_code or (item_name and company)
+            stock = None
+            if product_code and company:
+                stock = Stock.objects.filter(company=company, product_code__iexact=product_code, is_deleted=False).first()
+            if not stock and company:
+                stock = Stock.objects.filter(company=company, item_name__iexact=item_name, is_deleted=False).first()
+
+            if stock:
+                # Update existing
+                if product_code:
+                    stock.product_code = product_code
+                    stock.part_number = product_code
+                if brand:
+                    stock.brand = brand
+                if country_of_origin:
+                    stock.country_of_origin = country_of_origin
+                if supplier_obj:
+                    stock.supplier = supplier_obj
+                    stock.supplier_name = supplier_obj.name
+                elif supplier_raw:
+                    stock.supplier_name = supplier_raw
+                stock.quantity = qty_val
+                if unit_val:
+                    stock.base_unit = unit_val
+                    stock.unit = unit_val
+                stock.purchase_rate = purchase_rate_val
+                stock.selling_price = selling_price_val
+                stock.tax_percent = tax_percent_val
+                stock.vat_percent = tax_percent_val
+                stock.igst_percent = tax_percent_val
+                stock.is_trading = is_trading_val
+                stock.is_operational = is_operational_val
+                stock.updater = request.user
+                stock.save()
+                updated_count += 1
+            else:
+                # Create new
+                stock = Stock(
+                    auto_id=get_auto_id(Stock),
+                    creator=request.user,
+                    company=company,
+                    product_code=product_code,
+                    part_number=product_code,
+                    brand=brand,
+                    item_name=item_name,
+                    country_of_origin=country_of_origin,
+                    supplier=supplier_obj,
+                    supplier_name=supplier_obj.name if supplier_obj else supplier_raw,
+                    quantity=qty_val,
+                    base_unit=unit_val,
+                    unit=unit_val,
+                    purchase_rate=purchase_rate_val,
+                    selling_price=selling_price_val,
+                    tax_percent=tax_percent_val,
+                    vat_percent=tax_percent_val,
+                    igst_percent=tax_percent_val,
+                    is_trading=is_trading_val,
+                    is_operational=is_operational_val,
+                    expense_head=default_expense_head
+                )
+                stock.save()
+                created_count += 1
+
+        messages.success(request, f"Import complete: {created_count} added, {updated_count} updated ({skipped_count} skipped).")
+        return redirect('stock_list')
+
+
+@login_required
 def stock_list(request):
     if not (request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.role.name == 'COMPANY_ADMIN')):
         messages.error(request, "You do not have permission to access Stock Management.")
@@ -2884,19 +3196,25 @@ def stock_list(request):
     item_type = request.GET.get('type', '')
     
     if request.user.is_superuser:
-        stocks = Stock.objects.filter(is_deleted=False).select_related('group', 'sub_group', 'expense_head', 'company').order_by('-date_added')
+        stocks = Stock.objects.filter(is_deleted=False).select_related('supplier', 'company').order_by('-date_added')
     else:
         company = getattr(getattr(request.user, 'profile', None), 'company', None)
         if company:
             stocks = Stock.objects.filter(
                 company=company,
                 is_deleted=False
-            ).select_related('group', 'sub_group', 'expense_head', 'company').order_by('-date_added')
+            ).select_related('supplier', 'company').order_by('-date_added')
         else:
             stocks = Stock.objects.none()
 
     if search:
-        stocks = stocks.filter(Q(item_name__icontains=search) | Q(brand__icontains=search))
+        stocks = stocks.filter(
+            Q(item_name__icontains=search) |
+            Q(brand__icontains=search) |
+            Q(product_code__icontains=search) |
+            Q(supplier_name__icontains=search) |
+            Q(country_of_origin__icontains=search)
+        )
 
     if item_type == 'trading':
         stocks = stocks.filter(is_trading=True, is_operational=False)
@@ -2905,14 +3223,18 @@ def stock_list(request):
     elif item_type == 'both':
         stocks = stocks.filter(is_trading=True, is_operational=True)
 
-    paginator = Paginator(stocks, 10)
+    paginator = Paginator(stocks, 15)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
+
+    from client_management.models import Client
+    companies = Client.objects.filter(is_deleted=False).order_by('company_name') if request.user.is_superuser else []
 
     return render(request, 'stock/list.html', {
         'page_obj': page_obj,
         'search': search,
         'selected_type': item_type,
+        'companies': companies,
         'title': 'Stock Item',
     })
 
