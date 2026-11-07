@@ -5907,7 +5907,7 @@ def api_job_leads(request):
         from datetime import date
         from decimal import Decimal, InvalidOperation
         from django.db import transaction
-        from client_management.models import Staff, CustomerType
+        from client_management.models import Staff, CustomerType, Customer, CustomerVehicle
         from service_management.models import Service
         interests = data.get('service_interests') or []
         if not name or not phone or not interests or not data.get('staff_id') or not data.get('customer_type_id') or not data.get('lead_date') or not data.get('next_follow_up_date') or not (data.get('lead_generation_mode') or '').strip():
@@ -5928,13 +5928,23 @@ def api_job_leads(request):
                     raise ValueError('Expected value cannot be negative')
                 expected += amount
                 parsed_items.append((service, amount))
+            customer_id = data.get('customer_id') or None
+            vehicle_id = data.get('vehicle_id') or None
+            customer = Customer.objects.filter(id=customer_id, company=company, is_deleted=False).first() if customer_id else None
+            if customer_id and not customer:
+                raise ValueError('Selected customer is unavailable for this company')
+            if branch and customer and customer.branch_id != branch.id:
+                raise ValueError('Selected customer is unavailable for this branch')
+            vehicle = CustomerVehicle.objects.filter(id=vehicle_id, customer=customer, is_deleted=False).first() if vehicle_id and customer else None
+            if vehicle_id and not vehicle:
+                raise ValueError('Selected vehicle does not belong to the selected customer')
         except (ValueError, InvalidOperation, Staff.DoesNotExist, CustomerType.DoesNotExist, Service.DoesNotExist) as exc:
             return JsonResponse({'status': 'error', 'message': f'Invalid lead details: {exc}'}, status=400)
         with transaction.atomic():
             mode = (data.get('lead_generation_mode') or '').strip()
             JobLeadGenerationMode.objects.get_or_create(company=company, name__iexact=mode, defaults={'name': mode, 'auto_id': get_auto_id(JobLeadGenerationMode), 'creator': user})
             lead = JobLead.objects.create(
-            company=company, branch=branch, customer_name=name, phone_number=phone,
+            company=company, branch=branch, customer=customer, vehicle=vehicle, customer_name=name, phone_number=phone,
             lead_date=lead_date, staff=staff, staff_name=staff.name, customer_type=customer_type,
             whatsapp_number=data.get('whatsapp_number') or '', lead_generation_mode=mode,
             reference=data.get('reference') or '', state=data.get('state') or '', city=data.get('city') or '', email=data.get('email') or '', expected_value=expected,
@@ -5958,6 +5968,14 @@ def api_job_leads(request):
 @csrf_exempt
 def api_job_lead_update(request, lead_id):
     from .models import JobLead
+    from datetime import date
+    from decimal import Decimal, InvalidOperation
+    from django.db import transaction
+    from core.functions import get_auto_id
+    from client_management.models import Staff, CustomerType, Customer, CustomerVehicle
+    from master.models import VehicleType, VehicleTypeModel, VehicleMake, VehicleBrandModel, VehicleColor, EmissionStandard
+    from service_management.models import Service
+    from .models import JobLeadGenerationMode, JobLeadServiceInterest
     user = get_user_from_token(request)
     if not user:
         return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=401)
@@ -5967,12 +5985,82 @@ def api_job_lead_update(request, lead_id):
         if branch and lead.branch_id != branch.id:
             return JsonResponse({'status': 'error', 'message': 'Forbidden'}, status=403)
         data = json.loads(request.body or '{}')
-        for field in ('customer_name', 'phone_number', 'whatsapp_number', 'lead_generation_mode', 'reference', 'state', 'city', 'email', 'service_name', 'staff_name', 'vehicle_number', 'vehicle_make', 'vehicle_model', 'lost_reason'):
-            if field in data:
-                setattr(lead, field, data[field] or '')
-        if 'expected_value' in data:
-            lead.expected_value = data['expected_value'] or 0
-        lead.save()
+        if request.method != 'POST':
+            return JsonResponse({'status': 'error', 'message': 'Only POST allowed'}, status=405)
+        if not data.get('customer_name', lead.customer_name).strip() or not data.get('phone_number', lead.phone_number).strip():
+            return JsonResponse({'status': 'error', 'message': 'Customer name and mobile number are required'}, status=400)
+        with transaction.atomic():
+            text_fields = ('customer_name', 'phone_number', 'whatsapp_number', 'lead_generation_mode', 'reference', 'state', 'city', 'email', 'service_name', 'staff_name', 'vehicle_number', 'vehicle_make', 'vehicle_model', 'vehicle_fuel_type', 'vehicle_wheel_type')
+            for field in text_fields:
+                if field in data:
+                    setattr(lead, field, (data[field] or '').strip() if isinstance(data[field], str) else data[field])
+            if 'lead_date' in data:
+                lead.lead_date = date.fromisoformat(data['lead_date']) if data['lead_date'] else None
+            if 'next_follow_up_date' in data:
+                lead.next_follow_up_date = date.fromisoformat(data['next_follow_up_date']) if data['next_follow_up_date'] else None
+            if 'staff_id' in data:
+                staff_qs = Staff.objects.filter(id=data['staff_id'], company=company, is_deleted=False)
+                if lead.branch_id:
+                    staff_qs = staff_qs.filter(branch_id=lead.branch_id)
+                staff = staff_qs.first()
+                if not staff:
+                    return JsonResponse({'status': 'error', 'message': 'Selected staff is not available for this lead'}, status=400)
+                lead.staff, lead.staff_name = staff, staff.name
+            if 'customer_type_id' in data:
+                customer_type = CustomerType.objects.filter(id=data['customer_type_id'], is_deleted=False).first()
+                if not customer_type:
+                    return JsonResponse({'status': 'error', 'message': 'Selected customer type is invalid'}, status=400)
+                lead.customer_type = customer_type
+            relation_values = (
+                ('vehicle_type_id', VehicleType, 'vehicle_type'),
+                ('vehicle_segment_id', VehicleTypeModel, 'vehicle_segment'),
+                ('vehicle_make_id', VehicleMake, 'vehicle_make_master'),
+                ('vehicle_model_id', VehicleBrandModel, 'vehicle_model_master'),
+                ('vehicle_color_id', VehicleColor, 'vehicle_color'),
+                ('vehicle_emission_standard_id', EmissionStandard, 'vehicle_emission_standard'),
+            )
+            for payload_key, model, field in relation_values:
+                if payload_key in data:
+                    value = model.objects.filter(id=data[payload_key], is_deleted=False).first() if data[payload_key] else None
+                    if data[payload_key] and not value:
+                        return JsonResponse({'status': 'error', 'message': f'Invalid {payload_key.replace("_", " ")}'}, status=400)
+                    setattr(lead, field, value)
+            if 'expected_value' in data:
+                lead.expected_value = Decimal(str(data['expected_value'] or 0))
+                if lead.expected_value < 0:
+                    return JsonResponse({'status': 'error', 'message': 'Expected value cannot be negative'}, status=400)
+            if 'customer_id' in data:
+                customer = Customer.objects.filter(id=data.get('customer_id'), company=company, is_deleted=False).first() if data.get('customer_id') else None
+                if data.get('customer_id') and (not customer or (lead.branch_id and customer.branch_id != lead.branch_id)):
+                    return JsonResponse({'status': 'error', 'message': 'Selected customer is unavailable for this branch'}, status=400)
+                lead.customer = customer
+            if 'vehicle_id' in data:
+                vehicle = CustomerVehicle.objects.filter(id=data.get('vehicle_id'), customer=lead.customer, is_deleted=False).first() if data.get('vehicle_id') and lead.customer_id else None
+                if data.get('vehicle_id') and not vehicle:
+                    return JsonResponse({'status': 'error', 'message': 'Selected vehicle does not belong to the selected customer'}, status=400)
+                lead.vehicle = vehicle
+            if 'lead_generation_mode' in data and lead.lead_generation_mode:
+                JobLeadGenerationMode.objects.get_or_create(company=company, name__iexact=lead.lead_generation_mode, defaults={'name': lead.lead_generation_mode, 'auto_id': get_auto_id(JobLeadGenerationMode), 'creator': user})
+            if 'service_interests' in data:
+                parsed_items = []
+                total = Decimal('0')
+                for item in data.get('service_interests') or []:
+                    service = Service.objects.filter(id=item.get('service_id'), is_active=True, is_deleted=False).select_related('service_type').first()
+                    if not service:
+                        return JsonResponse({'status': 'error', 'message': 'One of the selected services is invalid'}, status=400)
+                    if lead.branch_id and not service.service_branches.filter(branch=lead.branch, is_enabled=True, is_deleted=False).exists():
+                        return JsonResponse({'status': 'error', 'message': 'Selected service is not enabled for this branch'}, status=400)
+                    amount = Decimal(str(item.get('expected_value', 0)))
+                    if amount < 0:
+                        return JsonResponse({'status': 'error', 'message': 'Expected value cannot be negative'}, status=400)
+                    parsed_items.append((service, amount))
+                    total += amount
+                lead.service_name = ', '.join(service.name for service, _ in parsed_items)
+                lead.expected_value = total
+                lead.service_interests.all().delete()
+                for service, amount in parsed_items:
+                    JobLeadServiceInterest.objects.create(lead=lead, service=service, category_name=service.service_type.name, service_name=service.name, expected_value=amount, auto_id=get_auto_id(JobLeadServiceInterest), creator=user)
+            lead.save()
         return JsonResponse({'status': 'success', 'lead': _job_lead_data(lead)})
     except JobLead.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Lead not found'}, status=404)
