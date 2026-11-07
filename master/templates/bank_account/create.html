@@ -170,11 +170,9 @@
             </div>
 
             <div class="form-group" style="margin-bottom:0;">
-                <label for="{{ form.account_number.id_for_label }}">Account Number <span
-                        class="required">*</span></label>
+                <label for="{{ form.account_number.id_for_label }}">Account Number <span class="required">*</span></label>
                 {{ form.account_number }}
-                {% if form.account_number.errors %}<div class="error-text">{{ form.account_number.errors.0 }}</div>{%
-                endif %}
+                {% if form.account_number.errors %}<div class="error-text">{{ form.account_number.errors.0 }}</div>{% endif %}
             </div>
         </div>
 
@@ -207,8 +205,7 @@
                 <span class="input-prefix">{{ currency_symbol }}</span>
                 {{ form.opening_balance }}
             </div>
-            {% if form.opening_balance.errors %}<div class="error-text">{{ form.opening_balance.errors.0 }}</div>{%
-            endif %}
+            {% if form.opening_balance.errors %}<div class="error-text">{{ form.opening_balance.errors.0 }}</div>{% endif %}
         </div>
 
         <!-- Active Checkbox -->
