@@ -220,6 +220,20 @@
             </div>
         </div>
 
+        <!-- Row 1.5: Spare Part No & Alternate No -->
+        <div class="form-grid-2">
+            <div class="form-group">
+                <label for="{{ form.part_number.id_for_label }}">Spare Part No</label>
+                {{ form.part_number }}
+                {% if form.part_number.errors %}<div class="error-text">{{ form.part_number.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.alternate_part_number.id_for_label }}">Alternate No</label>
+                {{ form.alternate_part_number }}
+                {% if form.alternate_part_number.errors %}<div class="error-text">{{ form.alternate_part_number.errors.0 }}</div>{% endif %}
+            </div>
+        </div>
+
         <!-- Row 2: Product Name & Country of Origin -->
         <div class="form-grid-2">
             <div class="form-group">

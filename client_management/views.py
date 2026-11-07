@@ -2886,6 +2886,8 @@ def stock_sample_excel(request):
 
     headers = [
         "Product Code",
+        "Spare Part No",
+        "Alternate No",
         "Brand",
         "Product Name *",
         "Country of Origin",
@@ -2913,6 +2915,8 @@ def stock_sample_excel(request):
     sample_rows = [
         [
             "PRD-101",
+            "SP-SH-01",
+            "ALT-SH-99",
             "Sonax",
             "Car Wash Shampoo 5L",
             "Germany",
@@ -2927,6 +2931,8 @@ def stock_sample_excel(request):
         ],
         [
             "PRD-102",
+            "OF-BOSCH-22",
+            "OF-OEM-110",
             "Bosch",
             "Oil Filter OF-22",
             "Japan",
@@ -2941,6 +2947,8 @@ def stock_sample_excel(request):
         ],
         [
             "PRD-103",
+            "MF-MEG-40",
+            "",
             "Meguiar's",
             "Microfiber Cloth 40x40",
             "USA",
@@ -3039,6 +3047,8 @@ def stock_import_excel(request):
             return -1
 
         idx_code = find_idx("product code", "code")
+        idx_part = find_idx("spare part no", "spart no", "part no", "part number", "part")
+        idx_alt = find_idx("alternate no", "alternate part no", "alternate number", "alternate", "alt no")
         idx_brand = find_idx("brand")
         idx_name = find_idx("product name", "item name", "product")
         idx_country = find_idx("country of origin", "origin", "country")
@@ -3093,6 +3103,8 @@ def stock_import_excel(request):
                 continue
 
             product_code = str(row[idx_code]).strip() if (idx_code != -1 and idx_code < len(row) and row[idx_code]) else ""
+            part_number = str(row[idx_part]).strip() if (idx_part != -1 and idx_part < len(row) and row[idx_part]) else ""
+            alternate_part_number = str(row[idx_alt]).strip() if (idx_alt != -1 and idx_alt < len(row) and row[idx_alt]) else ""
             brand = str(row[idx_brand]).strip() if (idx_brand != -1 and idx_brand < len(row) and row[idx_brand]) else ""
             country_of_origin = str(row[idx_country]).strip() if (idx_country != -1 and idx_country < len(row) and row[idx_country]) else ""
             supplier_raw = str(row[idx_supplier]).strip() if (idx_supplier != -1 and idx_supplier < len(row) and row[idx_supplier]) else ""
@@ -3119,10 +3131,12 @@ def stock_import_excel(request):
                     except Exception:
                         supplier_obj = None
 
-            # Check if exists by product_code or (item_name and company)
+            # Check if exists by product_code, part_number, or item_name
             stock = None
             if product_code and company:
                 stock = Stock.objects.filter(company=company, product_code__iexact=product_code, is_deleted=False).first()
+            if not stock and part_number and company:
+                stock = Stock.objects.filter(company=company, part_number__iexact=part_number, is_deleted=False).first()
             if not stock and company:
                 stock = Stock.objects.filter(company=company, item_name__iexact=item_name, is_deleted=False).first()
 
@@ -3130,7 +3144,10 @@ def stock_import_excel(request):
                 # Update existing
                 if product_code:
                     stock.product_code = product_code
-                    stock.part_number = product_code
+                if part_number:
+                    stock.part_number = part_number
+                if alternate_part_number:
+                    stock.alternate_part_number = alternate_part_number
                 if brand:
                     stock.brand = brand
                 if country_of_origin:
@@ -3161,7 +3178,8 @@ def stock_import_excel(request):
                     creator=request.user,
                     company=company,
                     product_code=product_code,
-                    part_number=product_code,
+                    part_number=part_number or product_code,
+                    alternate_part_number=alternate_part_number,
                     brand=brand,
                     item_name=item_name,
                     country_of_origin=country_of_origin,
@@ -3212,6 +3230,8 @@ def stock_list(request):
             Q(item_name__icontains=search) |
             Q(brand__icontains=search) |
             Q(product_code__icontains=search) |
+            Q(part_number__icontains=search) |
+            Q(alternate_part_number__icontains=search) |
             Q(supplier_name__icontains=search) |
             Q(country_of_origin__icontains=search)
         )

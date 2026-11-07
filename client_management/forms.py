@@ -850,13 +850,15 @@ class StockForm(forms.ModelForm):
     class Meta:
         model = Stock
         fields = [
-            'company', 'product_code', 'brand', 'item_name', 'country_of_origin',
+            'company', 'product_code', 'part_number', 'alternate_part_number', 'brand', 'item_name', 'country_of_origin',
             'supplier', 'supplier_name', 'quantity', 'base_unit',
             'purchase_rate', 'selling_price', 'tax_percent',
             'is_trading', 'is_operational'
         ]
         labels = {
             'product_code': 'Product Code',
+            'part_number': 'Spare Part No',
+            'alternate_part_number': 'Alternate No',
             'brand': 'Brand',
             'item_name': 'Product Name',
             'country_of_origin': 'Country of Origin',
@@ -976,6 +978,8 @@ class StockForm(forms.ModelForm):
                 self.fields['base_unit'].initial = self.instance.unit
 
         self.fields['product_code'].required = False
+        self.fields['part_number'].required = False
+        self.fields['alternate_part_number'].required = False
         self.fields['brand'].required = False
         self.fields['country_of_origin'].required = False
         self.fields['supplier_name'].required = False
