@@ -372,20 +372,7 @@
         </div>
     </div>
 
-    <!-- Messages -->
-    {% if messages %}
-    <div style="margin-bottom: 16px;">
-        {% for message in messages %}
-        <div style="margin-bottom:8px; padding:12px 16px; border-radius:10px; display:flex; align-items:center; gap:8px;
-            {% if message.tags == 'success' %}background:#d1fae5; color:#065f46; border:1px solid #a7f3d0;
-            {% elif message.tags == 'error' %}background:#fee2e2; color:#991b1b; border:1px solid #fecaca;
-            {% else %}background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;{% endif %}">
-            <i class="ph-bold {% if message.tags == 'success' %}ph-check-circle{% else %}ph-warning-circle{% endif %}"></i>
-            {{ message }}
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
+
 
     {% if view_mode == 'customer' %}
         <!-- VIEW MODE: GROUPED BY CUSTOMER ACCORDION -->
