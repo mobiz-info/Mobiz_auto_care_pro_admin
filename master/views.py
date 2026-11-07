@@ -1273,6 +1273,21 @@ def expense_create(request):
             }
         )
 
+        payment_mode = request.POST.get('payment_mode', 'CASH').upper()
+        if payment_mode not in ['CASH', 'BANK']:
+            payment_mode = 'CASH'
+
+        bank_account_id = request.POST.get('bank_account') or None
+        bank_account = None
+        if payment_mode == 'BANK':
+            if not bank_account_id:
+                messages.error(request, "Please select a bank account when paying via Bank.")
+                return redirect('expense_create')
+            bank_account = get_object_or_404(BankAccount, id=bank_account_id, company=company, is_deleted=False)
+            if paid_amount > 0:
+                bank_account.current_balance = Decimal(str(bank_account.current_balance)) - Decimal(str(paid_amount))
+                bank_account.save()
+
         ExpenseEntry.objects.create(
             auto_id=get_auto_id(ExpenseEntry),
             creator=request.user,
@@ -1281,6 +1296,8 @@ def expense_create(request):
             expense=expense,
             amount=amount,
             paid_amount=paid_amount,
+            payment_mode=payment_mode,
+            bank_account=bank_account,
             supplier_id=supplier_id,
             expense_date=expense_date,
             remarks=remarks
@@ -1289,6 +1306,15 @@ def expense_create(request):
         messages.success(request, "Expense Created Successfully")
         return redirect('expense_list')
 
+    if role_name == 'COMPANY_ADMIN':
+        bank_accounts = BankAccount.objects.filter(company=company, is_active=True, is_deleted=False).order_by('bank_name')
+    else:
+        bank_accounts = BankAccount.objects.filter(
+            Q(company=company) & (Q(branch=branch) | Q(branch__isnull=True)),
+            is_active=True,
+            is_deleted=False
+        ).order_by('bank_name')
+
     context = {
         'expense_heads': expense_heads,
         'branches': branches,
@@ -1296,6 +1322,7 @@ def expense_create(request):
         'stocks': stocks,
         'staffs': staffs,
         'suppliers': suppliers,
+        'bank_accounts': bank_accounts,
         'role_name': role_name,
         'currency_symbol': currency_symbol,
         'title': 'Add Expense'
@@ -1424,9 +1451,32 @@ def expense_edit(request, pk):
             }
         )
 
+        # Reverse old bank deduction if any
+        if expense_entry.payment_mode == 'BANK' and expense_entry.bank_account:
+            old_bank = expense_entry.bank_account
+            old_bank.current_balance = Decimal(str(old_bank.current_balance)) + Decimal(str(expense_entry.paid_amount or 0))
+            old_bank.save()
+
+        payment_mode = request.POST.get('payment_mode', 'CASH').upper()
+        if payment_mode not in ['CASH', 'BANK']:
+            payment_mode = 'CASH'
+
+        bank_account_id = request.POST.get('bank_account') or None
+        bank_account = None
+        if payment_mode == 'BANK':
+            if not bank_account_id:
+                messages.error(request, "Please select a bank account when paying via Bank.")
+                return redirect('expense_edit', pk=pk)
+            bank_account = get_object_or_404(BankAccount, id=bank_account_id, company=company, is_deleted=False)
+            if paid_amount > 0:
+                bank_account.current_balance = Decimal(str(bank_account.current_balance)) - Decimal(str(paid_amount))
+                bank_account.save()
+
         expense_entry.expense = expense
         expense_entry.amount = amount
         expense_entry.paid_amount = paid_amount
+        expense_entry.payment_mode = payment_mode
+        expense_entry.bank_account = bank_account
         expense_entry.supplier_id = supplier_id
         expense_entry.expense_date = expense_date
         expense_entry.remarks = remarks
@@ -1436,6 +1486,15 @@ def expense_edit(request, pk):
         messages.success(request, "Expense Updated Successfully")
         return redirect('expense_list')
 
+    if role_name == 'COMPANY_ADMIN':
+        bank_accounts = BankAccount.objects.filter(company=company, is_active=True, is_deleted=False).order_by('bank_name')
+    else:
+        bank_accounts = BankAccount.objects.filter(
+            Q(company=company) & (Q(branch=branch) | Q(branch__isnull=True)),
+            is_active=True,
+            is_deleted=False
+        ).order_by('bank_name')
+
     context = {
         'expense_entry': expense_entry,
         'expense_heads': expense_heads,
@@ -1444,6 +1503,7 @@ def expense_edit(request, pk):
         'stocks': stocks,
         'staffs': staffs,
         'suppliers': suppliers,
+        'bank_accounts': bank_accounts,
         'role_name': role_name,
         'currency_symbol': currency_symbol,
         'title': 'Edit Expense'
@@ -1474,12 +1534,196 @@ def expense_delete(request, pk):
             is_deleted=False
         )
 
+    # Reverse bank balance deduction if paid from bank
+    if expense.payment_mode == 'BANK' and expense.bank_account:
+        bank = expense.bank_account
+        bank.current_balance = Decimal(str(bank.current_balance)) + Decimal(str(expense.paid_amount or 0))
+        bank.save()
+
     expense.is_deleted = True
     expense.updater = request.user
     expense.save()
 
     messages.success(request, "Expense Deleted Successfully")
     return redirect('expense_list')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bank Account CRUD
+# ─────────────────────────────────────────────────────────────────────────────
+
+@login_required
+def bank_account_list(request):
+    role = getattr(getattr(request.user, 'profile', None), 'role', None)
+    role_name = role.name if role else None
+
+    company = None
+    branch = None
+
+    if request.user.is_superuser:
+        accounts = BankAccount.objects.filter(is_deleted=False)
+    elif role_name == 'COMPANY_ADMIN':
+        company = getattr(getattr(request.user, 'profile', None), 'company', None)
+        accounts = BankAccount.objects.filter(company=company, is_deleted=False)
+    else:
+        branch = getattr(request.user, 'managed_branch', None)
+        if not branch and hasattr(request.user, 'profile') and request.user.profile.company:
+            branch = Branch.objects.filter(company=request.user.profile.company, is_deleted=False).first()
+        company = branch.company if branch else getattr(getattr(request.user, 'profile', None), 'company', None)
+        accounts = BankAccount.objects.filter(
+            Q(company=company) & (Q(branch=branch) | Q(branch__isnull=True)),
+            is_deleted=False
+        )
+
+    currency_symbol = '₹'
+    if company and getattr(company, 'country', None) and company.country.currency_symbol:
+        currency_symbol = company.country.currency_symbol
+
+    search = request.GET.get('search', '').strip()
+    if search:
+        accounts = accounts.filter(
+            Q(bank_name__icontains=search) |
+            Q(account_number__icontains=search) |
+            Q(ifsc_code__icontains=search) |
+            Q(bank_branch__icontains=search)
+        )
+
+    paginator = Paginator(accounts.select_related('branch', 'company').order_by('bank_name', 'account_number'), 15)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    return render(request, 'bank_account/list.html', {
+        'page_obj': page_obj,
+        'search': search,
+        'currency_symbol': currency_symbol,
+        'title': 'Bank Accounts',
+        'role_name': role_name,
+    })
+
+
+@login_required
+def bank_account_create(request):
+    role = getattr(getattr(request.user, 'profile', None), 'role', None)
+    role_name = role.name if role else None
+
+    company = None
+    branch = None
+    if role_name == 'COMPANY_ADMIN':
+        company = getattr(getattr(request.user, 'profile', None), 'company', None)
+    elif request.user.is_superuser:
+        if hasattr(request.user, 'profile') and request.user.profile.company:
+            company = request.user.profile.company
+        else:
+            company = Client.objects.filter(is_deleted=False).first()
+    else:
+        branch = getattr(request.user, 'managed_branch', None)
+        if not branch and hasattr(request.user, 'profile') and request.user.profile.company:
+            branch = Branch.objects.filter(company=request.user.profile.company, is_deleted=False).first()
+        company = branch.company if branch else getattr(getattr(request.user, 'profile', None), 'company', None)
+
+    if not company:
+        messages.error(request, "Company information missing.")
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        form = BankAccountForm(request.POST, company=company, user=request.user)
+        if form.is_valid():
+            acc = form.save(commit=False)
+            acc.auto_id = get_auto_id(BankAccount)
+            acc.creator = request.user
+            acc.company = company
+            if role_name != 'COMPANY_ADMIN' and branch:
+                acc.branch = branch
+            acc.current_balance = acc.opening_balance
+            acc.save()
+            messages.success(request, f"Bank Account '{acc.bank_name}' created successfully.")
+            return redirect('bank_account_list')
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        initial = {}
+        if role_name != 'COMPANY_ADMIN' and branch:
+            initial['branch'] = branch
+        form = BankAccountForm(company=company, user=request.user, initial=initial)
+
+    currency_symbol = '₹'
+    if company and getattr(company, 'country', None) and company.country.currency_symbol:
+        currency_symbol = company.country.currency_symbol
+
+    return render(request, 'bank_account/create.html', {
+        'form': form,
+        'currency_symbol': currency_symbol,
+        'title': 'Add Bank Account',
+        'role_name': role_name,
+    })
+
+
+@login_required
+def bank_account_edit(request, pk):
+    role = getattr(getattr(request.user, 'profile', None), 'role', None)
+    role_name = role.name if role else None
+
+    company = None
+    branch = None
+    if role_name == 'COMPANY_ADMIN':
+        company = getattr(getattr(request.user, 'profile', None), 'company', None)
+        account = get_object_or_404(BankAccount, pk=pk, company=company, is_deleted=False)
+    elif request.user.is_superuser:
+        account = get_object_or_404(BankAccount, pk=pk, is_deleted=False)
+        company = account.company
+    else:
+        branch = getattr(request.user, 'managed_branch', None)
+        if not branch and hasattr(request.user, 'profile') and request.user.profile.company:
+            branch = Branch.objects.filter(company=request.user.profile.company, is_deleted=False).first()
+        company = branch.company if branch else getattr(getattr(request.user, 'profile', None), 'company', None)
+        account = get_object_or_404(BankAccount, pk=pk, company=company, is_deleted=False)
+
+    if request.method == 'POST':
+        form = BankAccountForm(request.POST, instance=account, company=company, user=request.user)
+        if form.is_valid():
+            acc = form.save(commit=False)
+            acc.updater = request.user
+            acc.save()
+            messages.success(request, f"Bank Account '{acc.bank_name}' updated successfully.")
+            return redirect('bank_account_list')
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = BankAccountForm(instance=account, company=company, user=request.user)
+
+    currency_symbol = '₹'
+    if company and getattr(company, 'country', None) and company.country.currency_symbol:
+        currency_symbol = company.country.currency_symbol
+
+    return render(request, 'bank_account/create.html', {
+        'form': form,
+        'account': account,
+        'currency_symbol': currency_symbol,
+        'title': 'Edit Bank Account',
+        'is_edit': True,
+        'role_name': role_name,
+    })
+
+
+@login_required
+def bank_account_delete(request, pk):
+    role = getattr(getattr(request.user, 'profile', None), 'role', None)
+    role_name = role.name if role else None
+
+    if role_name == 'COMPANY_ADMIN':
+        company = getattr(getattr(request.user, 'profile', None), 'company', None)
+        account = get_object_or_404(BankAccount, pk=pk, company=company, is_deleted=False)
+    elif request.user.is_superuser:
+        account = get_object_or_404(BankAccount, pk=pk, is_deleted=False)
+    else:
+        branch = getattr(request.user, 'managed_branch', None)
+        company = branch.company if branch else getattr(getattr(request.user, 'profile', None), 'company', None)
+        account = get_object_or_404(BankAccount, pk=pk, company=company, is_deleted=False)
+
+    account.is_deleted = True
+    account.updater = request.user
+    account.save()
+    messages.success(request, "Bank Account deleted successfully.")
+    return redirect('bank_account_list')
 
 
 @login_required

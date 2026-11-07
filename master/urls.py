@@ -68,6 +68,12 @@ urlpatterns = [
     path('expense/delete/<uuid:pk>/',views.expense_delete,name='expense_delete'),
     path('expense/ajax-create-head/', views.ajax_create_expense_head, name='ajax_create_expense_head'),
 
+    # Bank Account
+    path('bank-account/', views.bank_account_list, name='bank_account_list'),
+    path('bank-account/create/', views.bank_account_create, name='bank_account_create'),
+    path('bank-account/edit/<uuid:pk>/', views.bank_account_edit, name='bank_account_edit'),
+    path('bank-account/delete/<uuid:pk>/', views.bank_account_delete, name='bank_account_delete'),
+
     # Vehicle Color
     path('vehicle-color/', views.vehicle_color_list, name='vehicle_color_list'),
     path('vehicle-color/create/', views.vehicle_color_create, name='vehicle_color_create'),

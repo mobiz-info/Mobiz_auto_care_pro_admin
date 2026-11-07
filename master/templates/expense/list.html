@@ -416,7 +416,16 @@
                     </td>
 
                     <td style="font-weight: 600; color: #059669; white-space: nowrap;">
-                        {{ currency_symbol }} {{ obj.paid_amount|default:obj.amount|floatformat:2 }}
+                        <div>{{ currency_symbol }} {{ obj.paid_amount|default:obj.amount|floatformat:2 }}</div>
+                        {% if obj.payment_mode == 'BANK' %}
+                        <span style="display:inline-flex; align-items:center; gap:3px; background:#eff6ff; color:#2563eb; font-size:0.72rem; font-weight:600; padding:1px 6px; border-radius:4px; margin-top:2px;" title="{{ obj.bank_account.bank_name }} - {{ obj.bank_account.account_number }}">
+                            <i class="ph ph-bank"></i> {{ obj.bank_account.bank_name|default:"Bank"|truncatechars:14 }}
+                        </span>
+                        {% else %}
+                        <span style="display:inline-flex; align-items:center; gap:3px; background:#f1f5f9; color:#64748b; font-size:0.72rem; font-weight:600; padding:1px 6px; border-radius:4px; margin-top:2px;">
+                            <i class="ph ph-money"></i> Cash
+                        </span>
+                        {% endif %}
                     </td>
 
                     <td>
@@ -425,7 +434,7 @@
                             <i class="ph ph-check"></i> Paid
                         </span>
                         {% else %}
-                        <span class="status-badge-due" title="Due: {{ currency_symbol }} {{ obj.amount|add:'-1'|default:'' }}">
+                        <span class="status-badge-due">
                             <i class="ph ph-clock"></i> Partial
                         </span>
                         {% endif %}

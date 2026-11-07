@@ -430,3 +430,36 @@ class InsuranceCompanyForm(forms.ModelForm):
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. ICICI Lombard, HDFC ERGO, Tata AIG'}),
             'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
+
+
+class BankAccountForm(forms.ModelForm):
+    class Meta:
+        model = BankAccount
+        fields = ['branch', 'bank_name', 'account_number', 'ifsc_code', 'bank_branch', 'opening_balance', 'is_active']
+        widgets = {
+            'branch': forms.Select(attrs={'class': 'form-control'}),
+            'bank_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. State Bank of India, HDFC Bank'}),
+            'account_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. 123456789012'}),
+            'ifsc_code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. SBIN0001234 / Swift / IBAN'}),
+            'bank_branch': forms.TextInput(attrs={'class': 'form-control', 'placeholder': "e.g. Downtown Branch, MG Road"}),
+            'opening_balance': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': '0.00'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.company = kwargs.pop('company', None)
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
+        if self.company:
+            self.fields['branch'].queryset = Branch.objects.filter(company=self.company, is_deleted=False).order_by('name')
+        else:
+            self.fields['branch'].queryset = Branch.objects.filter(is_deleted=False).order_by('name')
+
+        self.fields['branch'].empty_label = "-- All Branches / Head Office --"
+        self.fields['branch'].required = False
+        self.fields['ifsc_code'].required = False
+        self.fields['bank_branch'].required = False
+        self.fields['bank_name'].required = True
+        self.fields['account_number'].required = True
+        self.fields['opening_balance'].required = True

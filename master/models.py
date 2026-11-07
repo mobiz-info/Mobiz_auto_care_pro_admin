@@ -156,6 +156,31 @@ class Supplier(BaseModel):
     class Meta:
         ordering = ['name']
 
+class BankAccount(BaseModel):
+    company = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='bank_accounts')
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='bank_accounts')
+    bank_name = models.CharField(max_length=150)
+    account_number = models.CharField(max_length=50)
+    ifsc_code = models.CharField(max_length=50, blank=True, null=True, help_text="IFSC / Swift / IBAN Code")
+    bank_branch = models.CharField(max_length=150, blank=True, null=True, help_text="Bank's Branch Location / Name")
+    opening_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    current_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['bank_name', 'account_number']
+
+    def save(self, *args, **kwargs):
+        is_new = getattr(self, '_state', None) and self._state.adding
+        if is_new and (self.current_balance is None or self.current_balance == 0):
+            self.current_balance = self.opening_balance or 0.00
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        b_name = f" ({self.bank_branch})" if self.bank_branch else ""
+        return f"{self.bank_name} - {self.account_number}{b_name}"
+
+
 class ExpenseEntry(BaseModel):
     company = models.ForeignKey(
         Client,
@@ -196,6 +221,25 @@ class ExpenseEntry(BaseModel):
         max_digits=10,
         decimal_places=2,
         default=0.00
+    )
+
+    PAYMENT_MODE_CASH = 'CASH'
+    PAYMENT_MODE_BANK = 'BANK'
+    PAYMENT_MODE_CHOICES = (
+        (PAYMENT_MODE_CASH, 'Cash'),
+        (PAYMENT_MODE_BANK, 'Bank'),
+    )
+    payment_mode = models.CharField(
+        max_length=20,
+        choices=PAYMENT_MODE_CHOICES,
+        default=PAYMENT_MODE_CASH
+    )
+    bank_account = models.ForeignKey(
+        BankAccount,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='expense_entries'
     )
 
     # Stock Purchase linkage

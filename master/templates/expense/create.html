@@ -337,11 +337,48 @@ textarea.form-control:focus {
                 </div>
             </div>
 
-            <!-- Paid Amount (Appears if Has Supplier checked) -->
+            <!-- Payment Mode -->
+            <div class="form-group">
+                <label class="form-label">
+                    <span>Payment Mode <span class="required">*</span></span>
+                </label>
+                <select name="payment_mode" id="payment_mode_select" class="form-control" required>
+                    <option value="CASH" {% if not expense_entry or expense_entry.payment_mode == 'CASH' %}selected{% endif %}>
+                        Cash
+                    </option>
+                    <option value="BANK" {% if expense_entry and expense_entry.payment_mode == 'BANK' %}selected{% endif %}>
+                        Bank Account
+                    </option>
+                </select>
+            </div>
+
+            <!-- Bank Selection (Appears if Payment Mode == BANK) -->
+            <div class="form-group" id="bank_account_wrapper" style="display: none;">
+                <label class="form-label">
+                    <span>Select Bank Account <span class="required">*</span></span>
+                    <a href="{% url 'bank_account_create' %}" target="_blank" class="btn-inline-action">
+                        <i class="ph-bold ph-plus"></i> New Bank
+                    </a>
+                </label>
+                <select name="bank_account" id="bank_account_select" class="form-control">
+                    <option value="">-- Select Bank Account --</option>
+                    {% for b in bank_accounts %}
+                    <option value="{{ b.id }}" data-balance="{{ b.current_balance }}"
+                        {% if expense_entry and expense_entry.bank_account_id == b.id %}selected{% endif %}>
+                        {{ b.bank_name }} - {{ b.account_number }}{% if b.bank_branch %} ({{ b.bank_branch }}){% endif %} [Bal: {{ currency_symbol }}{{ b.current_balance }}]
+                    </option>
+                    {% endfor %}
+                </select>
+                <div id="bank_balance_info" style="font-size:0.8rem; color:#059669; font-weight:600; margin-top:4px; display:none;">
+                    Available Balance: <span id="bank_curr_bal">0.00</span>
+                </div>
+            </div>
+
+            <!-- Paid Amount -->
             <div class="form-group" id="paid_amount_wrapper" style="display: none;">
                 <label class="form-label">
                     <span>Paid Amount</span>
-                    <span style="font-size: 0.78rem; color: #64748b;">(Leave equal for full payment)</span>
+                    <span style="font-size: 0.78rem; color: #64748b;" id="paid_amount_hint">(Amount to be paid)</span>
                 </label>
                 <div class="input-with-prefix">
                     <span class="input-prefix">{{ currency_symbol }}</span>
@@ -425,29 +462,81 @@ textarea.form-control:focus {
         const paidAmountInput = document.getElementById('paid_amount_input');
         const supplierSelect = document.getElementById('supplier_select');
 
-        function updateSupplierVisibility() {
-            if (hasSupplierCheckbox.checked) {
-                supplierWrapper.style.display = 'flex';
+        const paymentModeSelect = document.getElementById('payment_mode_select');
+        const bankAccountWrapper = document.getElementById('bank_account_wrapper');
+        const bankAccountSelect = document.getElementById('bank_account_select');
+        const bankBalanceInfo = document.getElementById('bank_balance_info');
+        const bankCurrBal = document.getElementById('bank_curr_bal');
+
+        function updateBankBalanceDisplay() {
+            if (!bankAccountSelect || !bankBalanceInfo || !bankCurrBal) return;
+            const selectedOpt = bankAccountSelect.selectedOptions[0];
+            if (selectedOpt && selectedOpt.dataset.balance !== undefined && bankAccountSelect.value) {
+                const bal = parseFloat(selectedOpt.dataset.balance) || 0;
+                const paid = parseFloat(paidAmountInput.value) || 0;
+                const remaining = bal - paid;
+                let infoHtml = `Available Balance: <strong>{{ currency_symbol }}${bal.toFixed(2)}</strong>`;
+                if (paid > 0) {
+                    const remColor = remaining < 0 ? '#dc2626' : '#059669';
+                    infoHtml += ` &bull; After payment: <span style="color:${remColor}; font-weight:700;">{{ currency_symbol }}${remaining.toFixed(2)}</span>`;
+                }
+                bankCurrBal.innerHTML = infoHtml;
+                bankBalanceInfo.style.display = 'block';
+            } else {
+                bankBalanceInfo.style.display = 'none';
+            }
+        }
+
+        function updatePaymentAndSupplierVisibility() {
+            const isBank = paymentModeSelect && paymentModeSelect.value === 'BANK';
+            const hasSupplier = hasSupplierCheckbox && hasSupplierCheckbox.checked;
+
+            if (supplierWrapper) {
+                supplierWrapper.style.display = hasSupplier ? 'flex' : 'none';
+                if (!hasSupplier && supplierSelect) {
+                    supplierSelect.value = '';
+                }
+            }
+
+            if (bankAccountWrapper) {
+                bankAccountWrapper.style.display = isBank ? 'flex' : 'none';
+            }
+
+            if (isBank || hasSupplier) {
                 paidAmountWrapper.style.display = 'flex';
                 if (!paidAmountInput.value && amountInput.value) {
                     paidAmountInput.value = amountInput.value;
                 }
             } else {
-                supplierWrapper.style.display = 'none';
                 paidAmountWrapper.style.display = 'none';
-                if (supplierSelect) supplierSelect.value = '';
                 if (amountInput && paidAmountInput) {
                     paidAmountInput.value = amountInput.value;
                 }
             }
+
+            updateBankBalanceDisplay();
         }
 
-        hasSupplierCheckbox.addEventListener('change', updateSupplierVisibility);
+        if (paymentModeSelect) {
+            paymentModeSelect.addEventListener('change', updatePaymentAndSupplierVisibility);
+        }
+
+        if (bankAccountSelect) {
+            bankAccountSelect.addEventListener('change', updateBankBalanceDisplay);
+        }
+
+        hasSupplierCheckbox.addEventListener('change', updatePaymentAndSupplierVisibility);
 
         amountInput.addEventListener('input', function() {
-            if (!hasSupplierCheckbox.checked) {
+            if (!paidAmountInput.dataset.manual) {
                 paidAmountInput.value = amountInput.value;
             }
+            updateBankBalanceDisplay();
+        });
+
+        paidAmountInput.addEventListener('input', function() {
+            paidAmountInput.dataset.manual = 'true';
+            updateBankBalanceDisplay();
         });
 
         expenseHeadSelect.addEventListener('change', function() {
@@ -459,7 +548,7 @@ textarea.form-control:focus {
         });
 
         // Initialize state
-        updateSupplierVisibility();
+        updatePaymentAndSupplierVisibility();
         if (expenseHeadSelect.value) {
             loadItemsForSelectedHead();
         }
