@@ -206,6 +206,20 @@
         </div>
         {% endif %}
 
+        <!-- Row 0: Category & Sub Category -->
+        <div class="form-grid-2">
+            <div class="form-group">
+                <label for="{{ form.group.id_for_label }}">Category</label>
+                {{ form.group }}
+                {% if form.group.errors %}<div class="error-text">{{ form.group.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.sub_group.id_for_label }}">Sub Category</label>
+                {{ form.sub_group }}
+                {% if form.sub_group.errors %}<div class="error-text">{{ form.sub_group.errors.0 }}</div>{% endif %}
+            </div>
+        </div>
+
         <!-- Row 1: Product Code & Brand -->
         <div class="form-grid-2">
             <div class="form-group">
@@ -342,6 +356,46 @@
             if (this.selectedIndex > 0) {
                 supplierNameInput.value = this.options[this.selectedIndex].text.trim();
             }
+        });
+    }
+
+    // Dynamic Sub Category filtering based on Category
+    const allSubGroups = {{ subgroups_json|default:"[]"|safe }};
+    const groupSelect = document.getElementById("id_group");
+    const subGroupSelect = document.getElementById("id_sub_group");
+
+    if (groupSelect && subGroupSelect) {
+        function updateSubCategories(preserveSelected) {
+            const selectedGroupId = groupSelect.value;
+            const currentSubGroupId = preserveSelected ? subGroupSelect.value : "";
+            
+            // Clear current options except placeholder
+            subGroupSelect.innerHTML = '<option value="">---------</option>';
+            
+            if (!selectedGroupId) {
+                return;
+            }
+
+            const matching = allSubGroups.filter(sg => String(sg.group_id) === String(selectedGroupId));
+            matching.forEach(sg => {
+                const opt = document.createElement("option");
+                opt.value = sg.id;
+                opt.textContent = sg.name;
+                if (String(sg.id) === String(currentSubGroupId)) {
+                    opt.selected = true;
+                }
+                subGroupSelect.appendChild(opt);
+            });
+        }
+
+        // Initialize on page load (preserving initial value if any)
+        if (groupSelect.value) {
+            updateSubCategories(true);
+        }
+
+        // Update when category changes
+        groupSelect.addEventListener("change", function () {
+            updateSubCategories(false);
         });
     }
 

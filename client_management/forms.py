@@ -850,12 +850,14 @@ class StockForm(forms.ModelForm):
     class Meta:
         model = Stock
         fields = [
-            'company', 'product_code', 'part_number', 'alternate_part_number', 'brand', 'item_name', 'country_of_origin',
+            'company', 'group', 'sub_group', 'product_code', 'part_number', 'alternate_part_number', 'brand', 'item_name', 'country_of_origin',
             'supplier', 'supplier_name', 'quantity', 'base_unit',
             'purchase_rate', 'selling_price', 'tax_percent',
             'is_trading', 'is_operational'
         ]
         labels = {
+            'group': 'Category',
+            'sub_group': 'Sub Category',
             'product_code': 'Product Code',
             'part_number': 'Spare Part No',
             'alternate_part_number': 'Alternate No',
@@ -877,7 +879,7 @@ class StockForm(forms.ModelForm):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         
-        from master.models import Supplier, Country
+        from master.models import Supplier, Country, StockGroup, StockSubGroup
         from tax_management.models import Tax, CompanyTax
         from client_management.models import Client
         from django.db.models import Q
@@ -918,6 +920,34 @@ class StockForm(forms.ModelForm):
             self.fields['company'].required = False
             self.fields['company'].empty_label = "Global (All Companies)"
             self.fields['company'].queryset = Client.objects.filter(is_deleted=False).order_by('company_name')
+
+        # Category (StockGroup) and Sub Category (StockSubGroup)
+        if company:
+            self.fields['group'].queryset = StockGroup.objects.filter(
+                Q(company=company) | Q(company__isnull=True), is_deleted=False
+            ).order_by('name')
+            subgroup_qs = StockSubGroup.objects.filter(
+                Q(company=company) | Q(company__isnull=True), is_deleted=False
+            ).select_related('group').order_by('name')
+        else:
+            self.fields['group'].queryset = StockGroup.objects.filter(is_deleted=False).order_by('name')
+            subgroup_qs = StockSubGroup.objects.filter(is_deleted=False).select_related('group').order_by('name')
+
+        self.fields['group'].required = False
+        self.fields['group'].empty_label = "Select Category (Optional)"
+        self.fields['sub_group'].required = False
+        self.fields['sub_group'].empty_label = "Select Sub Category (Optional)"
+
+        selected_group_id = None
+        if self.data and self.data.get('group'):
+            selected_group_id = self.data.get('group')
+        elif not is_new and self.instance and self.instance.group_id:
+            selected_group_id = self.instance.group_id
+
+        if selected_group_id:
+            self.fields['sub_group'].queryset = subgroup_qs.filter(group_id=selected_group_id)
+        else:
+            self.fields['sub_group'].queryset = subgroup_qs
 
         # Filter Suppliers by company
         if company:
@@ -997,6 +1027,11 @@ class StockForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         from decimal import Decimal
+
+        group = cleaned_data.get('group')
+        sub_group = cleaned_data.get('sub_group')
+        if sub_group and group and sub_group.group_id != group.id:
+            self.add_error('sub_group', f'Sub Category "{sub_group.name}" does not belong to the selected category "{group.name}".')
 
         tax_percent = cleaned_data.get('tax_percent') or Decimal('0.00')
         cleaned_data['tax_percent'] = tax_percent

@@ -125,7 +125,7 @@
         <form method="GET" class="search-wrapper" style="display:flex; align-items:center; gap:10px; width:auto; flex-wrap:wrap;">
             <div style="position:relative; flex:1; min-width:220px;">
                 <i class="ph ph-magnifying-glass search-icon"></i>
-                <input type="text" name="search" value="{% if search %}{{ search }}{% endif %}" placeholder="Search code, name, brand, supplier..." class="search-input">
+                <input type="text" name="search" value="{% if search %}{{ search }}{% endif %}" placeholder="Search code, name, brand, category, supplier..." class="search-input">
             </div>
             <select name="type" class="search-input" style="width:auto; padding-left:12px; cursor:pointer;" onchange="this.form.submit()">
                 <option value="">All Item Types</option>
@@ -172,6 +172,8 @@
                     <th>Product Code</th>
                     <th>Part / Alt No</th>
                     <th>Product Name & Brand</th>
+                    <th>Category</th>
+                    <th>Sub Category</th>
                     <th>Country of Origin</th>
                     <th>Supplier</th>
                     <th>Stock Count</th>
@@ -220,6 +222,22 @@
                                 {% endif %}
                             </div>
                         </div>
+                    </td>
+
+                    <td>
+                        {% if stock.group %}
+                            <span style="font-weight:600; color:#334155; font-size:0.85rem;">{{ stock.group.name }}</span>
+                        {% else %}
+                            <span style="color:#94a3b8; font-style:italic;">-</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        {% if stock.sub_group %}
+                            <span style="font-size:0.82rem; color:#64748b;">{{ stock.sub_group.name }}</span>
+                        {% else %}
+                            <span style="color:#94a3b8; font-style:italic;">-</span>
+                        {% endif %}
                     </td>
 
                     <td>
@@ -302,7 +320,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="12" style="text-align:center; padding: 40px; color:#94a3b8;">
+                    <td colspan="15" style="text-align:center; padding: 40px; color:#94a3b8;">
                         <i class="ph ph-package" style="font-size:2.2rem; color:#cbd5e1; display:block; margin-bottom:8px;"></i>
                         No stock items found. Click "Add Stock" or "Import Excel" to get started.
                     </td>
@@ -381,7 +399,7 @@
                 </label>
                 <input type="file" name="excel_file" accept=".xlsx, .xls" required style="width: 100%; padding: 14px; border: 2px dashed #cbd5e1; border-radius: 10px; font-size: 0.88rem; background: #f8fafc; cursor: pointer; box-sizing: border-box;">
                 <div style="font-size: 0.75rem; color: #64748b; margin-top: 6px;">
-                    Fields: Product Code, Spare Part No, Alternate No, Brand, Product Name, Country of Origin, Supplier Name, Stock Count, Unit, Purchase Rate, Selling Rate, Tax %, Trading Item (Yes/No), Operational Item (Yes/No).
+                    Fields: Product Code, Spare Part No, Alternate No, Category, Sub Category, Brand, Product Name, Country of Origin, Supplier Name, Stock Count, Unit, Purchase Rate, Selling Rate, Tax %, Trading Item (Yes/No), Operational Item (Yes/No).
                 </div>
             </div>
 

@@ -2888,6 +2888,8 @@ def stock_sample_excel(request):
         "Product Code",
         "Spare Part No",
         "Alternate No",
+        "Category",
+        "Sub Category",
         "Brand",
         "Product Name *",
         "Country of Origin",
@@ -2917,6 +2919,8 @@ def stock_sample_excel(request):
             "PRD-101",
             "SP-SH-01",
             "ALT-SH-99",
+            "WASHING",
+            "BODY WASH",
             "Sonax",
             "Car Wash Shampoo 5L",
             "Germany",
@@ -2933,6 +2937,8 @@ def stock_sample_excel(request):
             "PRD-102",
             "OF-BOSCH-22",
             "OF-OEM-110",
+            "OIL & FILTER",
+            "BOSCH OIL FILTER",
             "Bosch",
             "Oil Filter OF-22",
             "Japan",
@@ -2949,6 +2955,8 @@ def stock_sample_excel(request):
             "PRD-103",
             "MF-MEG-40",
             "",
+            "INTERIOR & EXTERIOR",
+            "BODY POLISH",
             "Meguiar's",
             "Microfiber Cloth 40x40",
             "USA",
@@ -3016,7 +3024,7 @@ def stock_import_excel(request):
 
         import openpyxl
         from decimal import Decimal
-        from master.models import Supplier, ExpenseHead
+        from master.models import Supplier, ExpenseHead, StockGroup, StockSubGroup
 
         try:
             wb = openpyxl.load_workbook(excel_file, data_only=True)
@@ -3049,8 +3057,10 @@ def stock_import_excel(request):
         idx_code = find_idx("product code", "code")
         idx_part = find_idx("spare part no", "spart no", "part no", "part number", "part")
         idx_alt = find_idx("alternate no", "alternate part no", "alternate number", "alternate", "alt no")
+        idx_cat = find_idx("category", "stock group", "group")
+        idx_subcat = find_idx("sub category", "subcategory", "sub group", "subgroup")
         idx_brand = find_idx("brand")
-        idx_name = find_idx("product name", "item name", "product")
+        idx_name = find_idx("product name", "item name", "product", "name")
         idx_country = find_idx("country of origin", "origin", "country")
         idx_supplier = find_idx("supplier name", "supplier")
         idx_qty = find_idx("stock count", "quantity", "qty", "stock")
@@ -3062,7 +3072,7 @@ def stock_import_excel(request):
         idx_operational = find_idx("operational item", "operational")
 
         if idx_name == -1:
-            idx_name = 2 if len(headers) > 2 else 0
+            idx_name = 4 if len(h_clean) > 4 else 2
 
         def parse_decimal(val, default=Decimal('0.00')):
             if val is None or val == "":
@@ -3093,6 +3103,9 @@ def stock_import_excel(request):
         updated_count = 0
         skipped_count = 0
 
+        group_cache = {}
+        subgroup_cache = {}
+
         for row_idx, row in enumerate(rows[1:], start=2):
             if not row or all(v is None or str(v).strip() == "" for v in row):
                 continue
@@ -3105,16 +3118,75 @@ def stock_import_excel(request):
             product_code = str(row[idx_code]).strip() if (idx_code != -1 and idx_code < len(row) and row[idx_code]) else ""
             part_number = str(row[idx_part]).strip() if (idx_part != -1 and idx_part < len(row) and row[idx_part]) else ""
             alternate_part_number = str(row[idx_alt]).strip() if (idx_alt != -1 and idx_alt < len(row) and row[idx_alt]) else ""
+            cat_name = str(row[idx_cat]).strip() if (idx_cat != -1 and idx_cat < len(row) and row[idx_cat]) else ""
+            subcat_name = str(row[idx_subcat]).strip() if (idx_subcat != -1 and idx_subcat < len(row) and row[idx_subcat]) else ""
             brand = str(row[idx_brand]).strip() if (idx_brand != -1 and idx_brand < len(row) and row[idx_brand]) else ""
             country_of_origin = str(row[idx_country]).strip() if (idx_country != -1 and idx_country < len(row) and row[idx_country]) else ""
             supplier_raw = str(row[idx_supplier]).strip() if (idx_supplier != -1 and idx_supplier < len(row) and row[idx_supplier]) else ""
             qty_val = parse_decimal(row[idx_qty] if (idx_qty != -1 and idx_qty < len(row)) else None, Decimal('0.00'))
-            unit_val = str(row[idx_unit]).strip() if (idx_unit != -1 and idx_unit < len(row) and row[idx_unit]) else "Piece"
+            raw_unit = str(row[idx_unit]).strip().lower() if (idx_unit != -1 and idx_unit < len(row) and row[idx_unit]) else "piece"
+            if 'ltr' in raw_unit:
+                unit_val = 'Litre'
+            elif 'drum' in raw_unit or 'barrel' in raw_unit:
+                unit_val = 'Barrel'
+            elif 'box' in raw_unit:
+                unit_val = 'Box'
+            elif 'can' in raw_unit:
+                unit_val = 'Can'
+            elif 'bottle' in raw_unit:
+                unit_val = 'Bottle'
+            else:
+                unit_val = 'Piece'
+
             purchase_rate_val = parse_decimal(row[idx_purchase] if (idx_purchase != -1 and idx_purchase < len(row)) else None, Decimal('0.00'))
             selling_price_val = parse_decimal(row[idx_selling] if (idx_selling != -1 and idx_selling < len(row)) else None, Decimal('0.00'))
             tax_percent_val = parse_decimal(row[idx_tax] if (idx_tax != -1 and idx_tax < len(row)) else None, Decimal('0.00'))
             is_trading_val = parse_bool(row[idx_trading] if (idx_trading != -1 and idx_trading < len(row)) else None, default=True)
             is_operational_val = parse_bool(row[idx_operational] if (idx_operational != -1 and idx_operational < len(row)) else None, default=False)
+
+            # Resolve Category (StockGroup)
+            group_obj = None
+            if cat_name:
+                if cat_name in group_cache:
+                    group_obj = group_cache[cat_name]
+                else:
+                    group_obj = StockGroup.objects.filter(company=company, name__iexact=cat_name, is_deleted=False).first()
+                    if not group_obj:
+                        group_obj = StockGroup.objects.filter(company__isnull=True, name__iexact=cat_name, is_deleted=False).first()
+                    if not group_obj and company:
+                        try:
+                            group_obj = StockGroup.objects.create(
+                                auto_id=get_auto_id(StockGroup),
+                                creator=request.user,
+                                company=company,
+                                name=cat_name
+                            )
+                        except Exception:
+                            group_obj = None
+                    group_cache[cat_name] = group_obj
+
+            # Resolve Sub Category (StockSubGroup)
+            subgroup_obj = None
+            if group_obj and subcat_name:
+                sub_key = (cat_name, subcat_name)
+                if sub_key in subgroup_cache:
+                    subgroup_obj = subgroup_cache[sub_key]
+                else:
+                    subgroup_obj = StockSubGroup.objects.filter(company=company, group=group_obj, name__iexact=subcat_name, is_deleted=False).first()
+                    if not subgroup_obj:
+                        subgroup_obj = StockSubGroup.objects.filter(company__isnull=True, group=group_obj, name__iexact=subcat_name, is_deleted=False).first()
+                    if not subgroup_obj and company:
+                        try:
+                            subgroup_obj = StockSubGroup.objects.create(
+                                auto_id=get_auto_id(StockSubGroup),
+                                creator=request.user,
+                                company=company,
+                                group=group_obj,
+                                name=subcat_name
+                            )
+                        except Exception:
+                            subgroup_obj = None
+                    subgroup_cache[sub_key] = subgroup_obj
 
             # Resolve or create Supplier
             supplier_obj = None
@@ -3148,6 +3220,10 @@ def stock_import_excel(request):
                     stock.part_number = part_number
                 if alternate_part_number:
                     stock.alternate_part_number = alternate_part_number
+                if group_obj:
+                    stock.group = group_obj
+                if subgroup_obj:
+                    stock.sub_group = subgroup_obj
                 if brand:
                     stock.brand = brand
                 if country_of_origin:
@@ -3177,6 +3253,8 @@ def stock_import_excel(request):
                     auto_id=get_auto_id(Stock),
                     creator=request.user,
                     company=company,
+                    group=group_obj,
+                    sub_group=subgroup_obj,
                     product_code=product_code,
                     part_number=part_number or product_code,
                     alternate_part_number=alternate_part_number,
@@ -3214,14 +3292,14 @@ def stock_list(request):
     item_type = request.GET.get('type', '')
     
     if request.user.is_superuser:
-        stocks = Stock.objects.filter(is_deleted=False).select_related('supplier', 'company').order_by('-date_added')
+        stocks = Stock.objects.filter(is_deleted=False).select_related('group', 'sub_group', 'supplier', 'company').order_by('-date_added')
     else:
         company = getattr(getattr(request.user, 'profile', None), 'company', None)
         if company:
             stocks = Stock.objects.filter(
                 company=company,
                 is_deleted=False
-            ).select_related('supplier', 'company').order_by('-date_added')
+            ).select_related('group', 'sub_group', 'supplier', 'company').order_by('-date_added')
         else:
             stocks = Stock.objects.none()
 
@@ -3232,6 +3310,8 @@ def stock_list(request):
             Q(product_code__icontains=search) |
             Q(part_number__icontains=search) |
             Q(alternate_part_number__icontains=search) |
+            Q(group__name__icontains=search) |
+            Q(sub_group__name__icontains=search) |
             Q(supplier_name__icontains=search) |
             Q(country_of_origin__icontains=search)
         )

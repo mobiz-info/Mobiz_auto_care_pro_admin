@@ -273,7 +273,14 @@ class JobCard(BaseModel):
             max((item.rate or 0) * (item.quantity or 0) - (item.discount or 0), 0)
             for item in self.reported_issues.filter(is_deleted=False)
         )
-        self.estimated_cost = s_tot + p_tot + l_tot + e_tot + issue_tot
+        activity_tot = sum(
+            max((activity.cost or 0) - (activity.discount or 0), 0)
+            for activity in JobCardActivity.objects.filter(
+                reported_issue__job_card=self, reported_issue__is_deleted=False,
+                is_deleted=False,
+            )
+        )
+        self.estimated_cost = s_tot + p_tot + l_tot + e_tot + issue_tot + activity_tot
         return self.estimated_cost
 
     def __str__(self):
@@ -538,6 +545,35 @@ class JobCardReportedIssue(BaseModel):
     discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     warranty = models.CharField(max_length=100, blank=True, null=True)
     remarks = models.TextField(blank=True, null=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['sort_order', 'date_added']
+
+
+class JobCardActivity(BaseModel):
+    STATUS_PENDING = 'pending'
+    STATUS_STARTED = 'started'
+    STATUS_COMPLETED = 'completed'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_STARTED, 'Started'),
+        (STATUS_COMPLETED, 'Completed'),
+    ]
+
+    reported_issue = models.ForeignKey(
+        JobCardReportedIssue, on_delete=models.CASCADE, related_name='activities'
+    )
+    name = models.CharField(max_length=200)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    assigned_staff = models.ForeignKey(
+        'client_management.Staff', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='job_card_activities',
+    )
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:

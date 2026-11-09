@@ -11,6 +11,10 @@ class Invoice(BaseModel):
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='invoices')
     vehicle = models.ForeignKey(CustomerVehicle, on_delete=models.CASCADE, related_name='invoices')
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='invoices')
+    job_card = models.OneToOneField(
+        'booking_management.JobCard', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='invoice',
+    )
     scheme = models.ForeignKey('client_management.Scheme', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
     assigned_staffs = models.ManyToManyField('client_management.Staff', blank=True, related_name='assigned_invoices')
     

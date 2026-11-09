@@ -4596,6 +4596,18 @@ def api_job_card_detail(request, job_card_id):
                 'remarks': report.remarks or '',
             },
             'photos': photos,
+            'activities': [{
+                'id': str(activity.id),
+                'name': activity.name,
+                'status': activity.status,
+                'staff_id': str(activity.assigned_staff_id or ''),
+                'staff_name': activity.assigned_staff.name if activity.assigned_staff else '',
+                'started_at': activity.started_at.isoformat() if activity.started_at else '',
+                'completed_at': activity.completed_at.isoformat() if activity.completed_at else '',
+                'cost': float(activity.cost or 0),
+                'discount': float(activity.discount or 0),
+                'sort_order': activity.sort_order,
+            } for activity in report.activities.filter(is_deleted=False).select_related('assigned_staff')],
         })
 
     eff_es = v.emission_standard or (v.vehicle_type_model.emission_standard if (v and v.vehicle_type_model) else None)
@@ -4806,7 +4818,8 @@ def _save_job_card_reported_issues(job_card, rows, uploaded_files, user):
     from PIL import Image
     from core.functions import get_auto_id
     from service_management.models import JobCardCategory, JobCardService, JobCardIssue
-    from .models import JobCardReportedIssue, JobCardReportedIssuePhoto
+    from .models import JobCardReportedIssue, JobCardReportedIssuePhoto, JobCardActivity
+    from client_management.models import Staff
 
     retained_report_ids = []
     for index, row in enumerate(rows or []):
@@ -4885,6 +4898,62 @@ def _save_job_card_reported_issues(job_card, rows, uploaded_files, user):
         report.updater = user
         report.save()
         retained_report_ids[-1] = str(report.id)
+
+        if 'activities' in row:
+            retained_activity_ids = []
+            for activity_index, activity_data in enumerate(row.get('activities') or []):
+                name = (activity_data.get('name') or '').strip()
+                status = (activity_data.get('status') or JobCardActivity.STATUS_PENDING).strip()
+                if not name or len(name) > 200 or status not in dict(JobCardActivity.STATUS_CHOICES):
+                    raise ValueError(f'Activity {activity_index + 1} for issue row {index + 1} is invalid')
+                try:
+                    cost = Decimal(str(activity_data.get('cost') or 0))
+                    activity_discount = Decimal(str(activity_data.get('discount') or 0))
+                except (InvalidOperation, TypeError, ValueError):
+                    raise ValueError(f'Activity {activity_index + 1} has invalid pricing')
+                if cost < 0 or activity_discount < 0:
+                    raise ValueError(f'Activity {activity_index + 1} has invalid pricing')
+                activity = None
+                activity_id = activity_data.get('id')
+                if activity_id:
+                    activity = JobCardActivity.objects.filter(
+                        id=activity_id, reported_issue=report, is_deleted=False
+                    ).first()
+                    if not activity or str(activity.id) in retained_activity_ids:
+                        raise ValueError(f'Activity {activity_index + 1} is not valid for this issue')
+                staff = None
+                staff_id = (activity_data.get('staff_id') or '').strip()
+                if staff_id and staff_id not in ('null', 'None'):
+                    staff_qs = Staff.objects.filter(id=staff_id, is_deleted=False)
+                    activity_company_id = job_card.company_id or getattr(job_card.branch, 'company_id', None)
+                    if activity_company_id:
+                        staff_qs = staff_qs.filter(company_id=activity_company_id)
+                    if job_card.branch_id:
+                        staff_qs = staff_qs.filter(branch_id=job_card.branch_id)
+                    staff = staff_qs.first()
+                    if not staff:
+                        raise ValueError(f'Staff for activity {activity_index + 1} is invalid')
+                if activity is None:
+                    activity = JobCardActivity(
+                        reported_issue=report,
+                        auto_id=get_auto_id(JobCardActivity),
+                        creator=user,
+                    )
+                activity.name = name
+                activity.status = status
+                activity.assigned_staff = staff
+                from django.utils.dateparse import parse_datetime
+                activity.started_at = parse_datetime(activity_data.get('started_at') or '')
+                activity.completed_at = parse_datetime(activity_data.get('completed_at') or '')
+                activity.cost = cost
+                activity.discount = activity_discount
+                activity.sort_order = activity_index
+                activity.updater = user
+                activity.save()
+                retained_activity_ids.append(str(activity.id))
+            JobCardActivity.objects.filter(
+                reported_issue=report, is_deleted=False
+            ).exclude(id__in=retained_activity_ids).update(is_deleted=True, updater=user)
 
         existing_photos.filter(is_deleted=False).exclude(id__in=photo_ids).update(
             is_deleted=True, updater=user
@@ -5457,6 +5526,149 @@ def api_job_card_update(request, job_card_id):
 
     except JobCard.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Job Card not found'}, status=404)
+    except Exception as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=500)
+
+
+@csrf_exempt
+def api_job_card_invoice(request, job_card_id):
+    """Read or create the single invoice generated from a Job Card."""
+    from decimal import Decimal, InvalidOperation
+    from finance_management.models import Invoice, InvoiceItem, Receipt
+    from client_management.models import Stock
+    from core.functions import get_auto_id
+    from django.db import transaction
+
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+    company, branch = _job_pipeline_scope(user)
+    job = JobCard.objects.filter(id=job_card_id, company=company, is_deleted=False).first()
+    if not job or (branch and job.branch_id != branch.id):
+        return JsonResponse({'success': False, 'message': 'Job Card not found'}, status=404)
+
+    def response_for(invoice):
+        return {
+            'success': True,
+            'invoice': {
+                'id': str(invoice.id), 'invoice_number': invoice.invoice_number,
+                'total': float(invoice.total), 'amount_collected': float(invoice.amount_collected),
+                'balance': float(max(invoice.total - invoice.amount_collected, Decimal('0'))),
+                'invoice_type': invoice.invoice_type,
+            },
+        }
+
+    if request.method == 'GET':
+        invoice = Invoice.objects.filter(job_card=job, is_deleted=False).first()
+        return response_for(invoice) if invoice else JsonResponse({'success': True, 'invoice': None})
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Only GET and POST are allowed'}, status=405)
+
+    try:
+        data = json.loads(request.body or '{}')
+        amount_collected = Decimal(str(data.get('amount_collected') or 0))
+        payment_mode = (data.get('payment_mode') or 'cash').strip()
+        if amount_collected < 0:
+            return JsonResponse({'success': False, 'message': 'Collected amount cannot be negative'}, status=400)
+        if payment_mode not in dict(Receipt.PAYMENT_CHOICES):
+            return JsonResponse({'success': False, 'message': 'Select a valid payment mode'}, status=400)
+
+        with transaction.atomic():
+            job = JobCard.objects.select_for_update().select_related('customer', 'vehicle', 'branch').get(
+                id=job_card_id, company=company, is_deleted=False,
+            )
+            if branch and job.branch_id != branch.id:
+                return JsonResponse({'success': False, 'message': 'Job Card not found'}, status=404)
+            existing = Invoice.objects.filter(job_card=job, is_deleted=False).first()
+            if existing:
+                return response_for(existing)
+
+            lines = []
+            for item in job.service_items.filter(is_deleted=False):
+                rate, qty, discount = item.rate or 0, item.quantity or 0, item.discount or 0
+                taxable = max(Decimal('0'), rate * qty - discount)
+                tax = taxable * (item.vat_percentage or 0) / Decimal('100')
+                lines.append((item.service, None, item.service_name, qty, rate, discount, taxable, tax, item.remarks, None))
+            for item in job.reported_issues.filter(is_deleted=False):
+                rate, qty, discount = item.rate or 0, item.quantity or 0, item.discount or 0
+                taxable = max(Decimal('0'), rate * qty - discount)
+                label = f'{item.service.name}: {item.issue_text}'
+                lines.append((None, None, label, qty, rate, discount, taxable, Decimal('0'), item.remarks, None))
+                for activity in item.activities.filter(is_deleted=False):
+                    activity_rate = activity.cost or Decimal('0')
+                    activity_discount = activity.discount or Decimal('0')
+                    activity_taxable = max(Decimal('0'), activity_rate - activity_discount)
+                    lines.append((
+                        None, None, f'{item.service.name}: {activity.name}', Decimal('1'),
+                        activity_rate, activity_discount, activity_taxable, Decimal('0'), None, None,
+                    ))
+            for item in job.part_items.filter(is_deleted=False):
+                rate, qty, discount = item.rate or 0, item.quantity or 0, item.discount or 0
+                taxable = max(Decimal('0'), rate * qty - discount)
+                tax = taxable * (item.vat_percentage or 0) / Decimal('100')
+                lines.append((None, item.stock_item, item.product_name, qty, rate, discount, taxable, tax, item.remarks, item))
+            for item in job.labour_items.filter(is_deleted=False):
+                rate, qty, discount = item.rate or 0, item.quantity or 0, item.discount or 0
+                taxable = max(Decimal('0'), rate * qty - discount)
+                tax = taxable * (item.vat_percentage or 0) / Decimal('100')
+                lines.append((None, None, item.labour_particulars, qty, rate, discount, taxable, tax, item.remarks, None))
+            for item in job.extra_items.filter(is_deleted=False):
+                rate, qty, discount = item.rate or 0, item.quantity or 0, item.discount or 0
+                taxable = max(Decimal('0'), rate * qty - discount)
+                tax = taxable * (item.vat_percentage or 0) / Decimal('100')
+                lines.append((None, None, item.extra_details, qty, rate, discount, taxable, tax, item.remarks, None))
+
+            if not lines or not any(line[6] > 0 for line in lines):
+                return JsonResponse({'success': False, 'message': 'Add priced items to the Job Card before creating an invoice'}, status=400)
+            subtotal = sum((line[6] for line in lines), Decimal('0'))
+            tax_amount = sum((line[7] for line in lines), Decimal('0'))
+            total = subtotal + tax_amount
+            if amount_collected > total:
+                return JsonResponse({'success': False, 'message': 'Collected amount cannot exceed the invoice total'}, status=400)
+
+            from client_management.api_views import _resolve_branch_invoice_prefix
+            branch_obj = job.branch
+            prefix = _resolve_branch_invoice_prefix(branch_obj)
+            prefix_base = f'INV-{prefix}{branch_obj.auto_id}-'
+            last = Invoice.objects.filter(branch=branch_obj, invoice_number__startswith=prefix_base).order_by('-auto_id').first()
+            try:
+                next_number = int(last.invoice_number.rsplit('-', 1)[-1]) + 1 if last else 1
+            except (TypeError, ValueError):
+                next_number = Invoice.objects.filter(branch=branch_obj, invoice_number__startswith=prefix_base).count() + 1
+            invoice_number = f'{prefix_base}{next_number}'
+            while Invoice.objects.filter(invoice_number=invoice_number).exists():
+                next_number += 1
+                invoice_number = f'{prefix_base}{next_number}'
+
+            invoice = Invoice.objects.create(
+                invoice_number=invoice_number, customer=job.customer, vehicle=job.vehicle,
+                branch=branch_obj, job_card=job, subtotal=subtotal, discount=Decimal('0'),
+                tax_amount=tax_amount, total=total, amount_collected=amount_collected,
+                invoice_type='cashinvoice' if amount_collected >= total else 'creditinvoice',
+                remarks=(data.get('remarks') or '').strip() or f'Job Card {job.job_number}',
+                creator=user, auto_id=get_auto_id(Invoice),
+            )
+            for service, stock, name, qty, rate, discount, taxable, _tax, remarks, stock_row in lines:
+                InvoiceItem.objects.create(
+                    invoice=invoice, service=service, stock_item=stock, service_name=name,
+                    qty=qty, rate=rate, discount=discount, net_taxable_amount=taxable,
+                    remarks=remarks or None, creator=user, auto_id=get_auto_id(InvoiceItem),
+                )
+                if stock_row and stock:
+                    stock_row = Stock.objects.select_for_update().filter(id=stock.id).first()
+                    if stock_row:
+                        stock_row.quantity = max(Decimal('0'), Decimal(str(stock_row.quantity or 0)) - qty)
+                        stock_row.save(update_fields=['quantity'])
+            if amount_collected > 0:
+                receipt_id = get_auto_id(Receipt)
+                Receipt.objects.create(
+                    invoice=invoice, amount=amount_collected, payment_mode=payment_mode,
+                    remarks='Payment collected with Job Card invoice', creator=user,
+                    auto_id=receipt_id, receipt_number=f'RCPT-{str(receipt_id).zfill(5)}',
+                )
+            return response_for(invoice)
+    except (InvalidOperation, ValueError) as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=400)
     except Exception as exc:
         return JsonResponse({'success': False, 'message': str(exc)}, status=500)
 
