@@ -6441,6 +6441,7 @@ def api_job_card_issue_options(request):
     if not company:
         return JsonResponse({'success': False, 'message': 'Company not found'}, status=400)
     from service_management.models import JobCardCategory, JobCardService, JobCardIssue
+    from .models import JobCardActivityOption
     categories = JobCardCategory.objects.filter(is_deleted=False).order_by('name')
     services = JobCardService.objects.filter(is_deleted=False, category__in=categories).select_related('category').order_by('category__name', 'name')
     issues = JobCardIssue.objects.filter(is_deleted=False, service__in=services).select_related('category', 'service').order_by('name')
@@ -6449,6 +6450,7 @@ def api_job_card_issue_options(request):
         'categories': [{'id': str(item.id), 'name': item.name} for item in categories],
         'services': [{'id': str(item.id), 'name': item.name, 'category_id': str(item.category_id)} for item in services],
         'issues': [{'id': str(item.id), 'name': item.name, 'category_id': str(item.category_id), 'service_id': str(item.service_id)} for item in issues],
+        'activities': [{'id': str(item.id), 'name': item.name, 'service_id': str(item.service_id)} for item in JobCardActivityOption.objects.filter(service__in=services, is_deleted=False).order_by('name')],
     })
 
 
@@ -6478,6 +6480,42 @@ def api_job_card_issue_create(request):
         return JsonResponse({'success': True, 'created': created, 'issue': {'id': str(issue.id), 'name': issue.name, 'category_id': str(issue.category_id), 'service_id': str(issue.service_id)}})
     except (JobCardCategory.DoesNotExist, JobCardService.DoesNotExist):
         return JsonResponse({'success': False, 'message': 'Selected category or service is invalid'}, status=400)
+    except Exception as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=400)
+
+
+@csrf_exempt
+def api_job_card_activity_option_create(request):
+    from core.functions import get_auto_id
+    from service_management.models import JobCardService
+    from .models import JobCardActivityOption
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Only POST allowed'}, status=405)
+    company, _branch = _job_pipeline_scope(user)
+    if not company:
+        return JsonResponse({'success': False, 'message': 'Company not found'}, status=400)
+    try:
+        data = json.loads(request.body or '{}')
+        service = JobCardService.objects.get(id=data.get('service_id'), is_deleted=False)
+        name = (data.get('name') or '').strip()
+        if not name or len(name) > 200:
+            return JsonResponse({'success': False, 'message': 'Activity name is required and must be at most 200 characters'}, status=400)
+        option = JobCardActivityOption.objects.filter(
+            service=service, name__iexact=name, is_deleted=False,
+        ).first()
+        created = option is None
+        if created:
+            option = JobCardActivityOption.objects.create(
+                service=service, name=name, auto_id=get_auto_id(JobCardActivityOption), creator=user,
+            )
+        return JsonResponse({'success': True, 'created': created, 'activity': {
+            'id': str(option.id), 'name': option.name, 'service_id': str(option.service_id),
+        }})
+    except JobCardService.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Selected service is invalid'}, status=400)
     except Exception as exc:
         return JsonResponse({'success': False, 'message': str(exc)}, status=400)
 

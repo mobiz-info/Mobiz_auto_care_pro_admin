@@ -580,6 +580,20 @@ class JobCardActivity(BaseModel):
         ordering = ['sort_order', 'date_added']
 
 
+class JobCardActivityOption(BaseModel):
+    service = models.ForeignKey(
+        'service_management.JobCardService', on_delete=models.CASCADE,
+        related_name='activity_options',
+    )
+    name = models.CharField(max_length=200)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f'{self.service.name} - {self.name}'
+
+
 class JobCardReportedIssuePhoto(BaseModel):
     reported_issue = models.ForeignKey(JobCardReportedIssue, on_delete=models.CASCADE, related_name='photos')
     image = models.ImageField(upload_to='job_card_issues/%Y/%m/')

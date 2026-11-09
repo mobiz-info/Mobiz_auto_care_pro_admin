@@ -9,6 +9,7 @@ from django.test import RequestFactory, TestCase
 from service_management.models import JobCardCategory, JobCardService, JobCardIssue
 
 from . import api_views
+from .models import JobCardActivityOption
 
 
 class JobCardIssueApiTests(TestCase):
@@ -45,6 +46,28 @@ class JobCardIssueApiTests(TestCase):
         response = self._call_create(self.category, self.other_service, 'Wrong pairing')
         self.assertEqual(response.status_code, 400)
         self.assertFalse(JobCardIssue.objects.exists())
+
+    def _call_create_activity(self, service, name):
+        request = self.factory.post('/api/job-card-activities/create/', data=json.dumps({
+            'service_id': str(service.id), 'name': name,
+        }), content_type='application/json')
+        with patch('booking_management.api_views.get_user_from_token', return_value=self.user), patch(
+            'booking_management.api_views._job_pipeline_scope', return_value=(object(), None)
+        ):
+            return api_views.api_job_card_activity_option_create(request)
+
+    def test_activity_option_is_saved_and_reused_under_its_service(self):
+        response = self._call_create_activity(self.service, 'Change lube')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(json.loads(response.content)['created'])
+        duplicate = self._call_create_activity(self.service, 'change LUBE')
+        self.assertEqual(duplicate.status_code, 200)
+        self.assertFalse(json.loads(duplicate.content)['created'])
+        self.assertEqual(JobCardActivityOption.objects.filter(service=self.service).count(), 1)
+
+    def test_activity_option_rejects_empty_name(self):
+        response = self._call_create_activity(self.service, '   ')
+        self.assertEqual(response.status_code, 400)
 
 
 class JobQuotationPricingTests(TestCase):
