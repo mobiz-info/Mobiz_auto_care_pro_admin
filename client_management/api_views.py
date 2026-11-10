@@ -5529,14 +5529,24 @@ def api_get_stock_list(request):
             stocks = Stock.objects.filter(
                 company=company,
                 is_deleted=False
-            ).select_related('expense_head', 'group', 'sub_group').order_by('item_name')
+            ).select_related('expense_head', 'group', 'sub_group', 'supplier').order_by('item_name')
         else:
             stocks = Stock.objects.none()
-        
+
+        is_india = True
+        if company and company.country and company.country.name.strip().lower() != 'india':
+            is_india = False
+
         stock_list = [{
             'id': str(s.id),
             'item_name': s.item_name,
+            'product_code': s.product_code or '',
+            'part_number': s.part_number or '',
+            'alternate_part_number': s.alternate_part_number or '',
             'brand': s.brand or '',
+            'country_of_origin': s.country_of_origin or '',
+            'supplier_id': str(s.supplier.id) if s.supplier else None,
+            'supplier_name': s.supplier_name or (s.supplier.name if s.supplier else ''),
             'group_id': str(s.group.id) if s.group else None,
             'group_name': s.group.name if s.group else None,
             'sub_group_id': str(s.sub_group.id) if s.sub_group else None,
@@ -5547,19 +5557,24 @@ def api_get_stock_list(request):
             'main_unit': s.main_unit or s.unit,
             'conversion_count': float(s.conversion_count) if s.conversion_count else 1.0,
             'quantity': float(s.quantity) if s.quantity else 0.0,
+            'purchase_rate': float(s.purchase_rate or 0.0),
+            'selling_price': float(s.selling_price or 0.0),
+            'is_trading': bool(s.is_trading),
+            'is_operational': bool(s.is_operational),
             'critical_level': float(s.critical_level) if s.critical_level else 0.0,
             'is_low_stock': (float(s.quantity or 0) <= float(s.critical_level or 0)) if s.critical_level else False,
             'expense_head_id': str(s.expense_head.id) if s.expense_head else None,
             'expense_head_name': s.expense_head.name if s.expense_head else None,
             'hsn_code': s.hsn_code or '',
+            'barcode': s.barcode or '',
             'vat_percent': float(getattr(s, 'vat_percent', 0) or 0),
             'cgst_percent': float(s.cgst_percent) if s.cgst_percent else 0.0,
             'sgst_percent': float(s.sgst_percent) if s.sgst_percent else 0.0,
             'igst_percent': float(s.igst_percent) if s.igst_percent else 0.0,
             'tax_percent': float(getattr(s, 'vat_percent', 0) or 0) or (float((s.cgst_percent or 0) + (s.sgst_percent or 0)) if (s.cgst_percent or s.sgst_percent) else float(s.igst_percent or 0.0)),
         } for s in stocks]
-        
-        return JsonResponse({'success': True, 'stocks': stock_list})
+
+        return JsonResponse({'success': True, 'stocks': stock_list, 'is_india': is_india})
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
@@ -5768,7 +5783,13 @@ def api_create_stock(request):
         
         data = json.loads(request.body)
         item_name = data.get('item_name', '').strip()
+        product_code = data.get('product_code', '').strip()
+        part_number = data.get('part_number', '').strip()
+        alternate_part_number = data.get('alternate_part_number', '').strip()
         brand = data.get('brand', '').strip()
+        country_of_origin = data.get('country_of_origin', '').strip()
+        supplier_id = data.get('supplier_id')
+        supplier_name = data.get('supplier_name', '').strip()
         unit = data.get('unit', data.get('base_unit', 'Piece')).strip()
         expense_head_id = data.get('expense_head_id')
         
@@ -5776,21 +5797,48 @@ def api_create_stock(request):
         sub_group_id = data.get('sub_group_id')
         hsn_code = data.get('hsn_code', '').strip()
         barcode = data.get('barcode', '').strip()
-        is_trading = bool(data.get('is_trading', False))
+        is_trading = bool(data.get('is_trading', True))
         is_operational = bool(data.get('is_operational', False))
-        cgst_percent = Decimal(str(data.get('cgst_percent', 0)))
-        sgst_percent = Decimal(str(data.get('sgst_percent', 0)))
-        igst_percent = Decimal(str(data.get('igst_percent', 0)))
-        vat_percent = Decimal(str(data.get('vat_percent', data.get('tax_percent', 0)) or 0))
+
+        quantity = Decimal(str(data.get('quantity', 0) or 0))
+        purchase_rate = Decimal(str(data.get('purchase_rate', 0) or 0))
+        selling_price = Decimal(str(data.get('selling_price', 0) or 0))
+
+        if product_code and not part_number:
+            part_number = product_code
+        elif part_number and not product_code:
+            product_code = part_number
 
         is_india = True
         if company and company.country and company.country.name.strip().lower() != 'india':
             is_india = False
 
-        if not is_india and vat_percent > 0:
+        if is_india:
+            cgst_percent = Decimal(str(data.get('cgst_percent', 0) or 0))
+            sgst_percent = Decimal(str(data.get('sgst_percent', 0) or 0))
+            igst_percent = Decimal(str(data.get('igst_percent', 0) or 0))
+            tax_p = Decimal(str(data.get('tax_percent', 0) or 0))
+
+            if igst_percent > 0 and (cgst_percent == 0 and sgst_percent == 0):
+                cgst_percent = (igst_percent / Decimal('2.0')).quantize(Decimal('0.01'))
+                sgst_percent = igst_percent - cgst_percent
+            elif (cgst_percent > 0 or sgst_percent > 0) and igst_percent == 0:
+                igst_percent = cgst_percent + sgst_percent
+            elif igst_percent == 0 and cgst_percent == 0 and sgst_percent == 0 and tax_p > 0:
+                igst_percent = tax_p
+                cgst_percent = (tax_p / Decimal('2.0')).quantize(Decimal('0.01'))
+                sgst_percent = tax_p - cgst_percent
+
+            total_tax = igst_percent if igst_percent > 0 else (cgst_percent + sgst_percent)
+            vat_percent = Decimal('0.00')
+            tax_percent = total_tax
+        else:
+            tax_rate = Decimal(str(data.get('tax_percent', data.get('vat_percent', 0)) or 0))
             cgst_percent = Decimal('0.00')
             sgst_percent = Decimal('0.00')
-            igst_percent = vat_percent
+            igst_percent = tax_rate
+            vat_percent = tax_rate
+            tax_percent = tax_rate
 
         profit_margin_percent = Decimal(str(data.get('profit_margin_percent', 0)))
         critical_level = Decimal(str(data.get('critical_level', 0))) if data.get('critical_level') is not None else None
@@ -5800,7 +5848,15 @@ def api_create_stock(request):
             
         if company and Stock.objects.filter(company=company, item_name__iexact=item_name, is_deleted=False).exists():
             return JsonResponse({'success': False, 'message': 'Stock item already exists'}, status=400)
-            
+
+        supplier = None
+        if supplier_id:
+            from master.models import Supplier
+            from django.db.models import Q
+            supplier = Supplier.objects.filter(Q(company=company) | Q(company__isnull=True), id=supplier_id, is_deleted=False).first()
+            if supplier and not supplier_name:
+                supplier_name = supplier.name
+
         expense_head = None
         if expense_head_id:
             from master.models import ExpenseHead
@@ -5829,7 +5885,16 @@ def api_create_stock(request):
             group=group,
             sub_group=sub_group,
             item_name=item_name,
+            product_code=product_code,
+            part_number=part_number,
+            alternate_part_number=alternate_part_number,
             brand=brand,
+            country_of_origin=country_of_origin,
+            supplier=supplier,
+            supplier_name=supplier_name,
+            quantity=quantity,
+            purchase_rate=purchase_rate,
+            selling_price=selling_price,
             unit=unit,
             base_unit=unit,
             main_unit=unit,
@@ -5841,6 +5906,7 @@ def api_create_stock(request):
             sgst_percent=sgst_percent,
             igst_percent=igst_percent,
             vat_percent=vat_percent,
+            tax_percent=tax_percent,
             profit_margin_percent=profit_margin_percent,
             critical_level=critical_level,
             expense_head=expense_head,
@@ -5853,12 +5919,27 @@ def api_create_stock(request):
             'stock': {
                 'id': str(stock.id),
                 'item_name': stock.item_name,
+                'product_code': stock.product_code or '',
+                'part_number': stock.part_number or '',
+                'alternate_part_number': stock.alternate_part_number or '',
+                'brand': stock.brand or '',
+                'country_of_origin': stock.country_of_origin or '',
+                'supplier_id': str(stock.supplier.id) if stock.supplier else None,
+                'supplier_name': stock.supplier_name or '',
                 'unit': stock.unit,
                 'base_unit': stock.base_unit,
-                'hsn_code': stock.hsn_code,
-                'barcode': stock.barcode,
+                'quantity': float(stock.quantity or 0.0),
+                'purchase_rate': float(stock.purchase_rate or 0.0),
+                'selling_price': float(stock.selling_price or 0.0),
+                'hsn_code': stock.hsn_code or '',
+                'barcode': stock.barcode or '',
                 'is_trading': stock.is_trading,
                 'is_operational': stock.is_operational,
+                'cgst_percent': float(stock.cgst_percent or 0.0),
+                'sgst_percent': float(stock.sgst_percent or 0.0),
+                'igst_percent': float(stock.igst_percent or 0.0),
+                'tax_percent': float(stock.tax_percent or 0.0),
+                'vat_percent': float(stock.vat_percent or 0.0),
                 'critical_level': float(stock.critical_level or 0),
                 'expense_head_id': str(stock.expense_head.id) if stock.expense_head else None,
                 'expense_head_name': stock.expense_head.name if stock.expense_head else None,
@@ -5961,31 +6042,67 @@ def api_edit_stock(request, id):
 
         data = json.loads(request.body)
         item_name = data.get('item_name', '').strip()
-        unit = data.get('unit', '').strip()
-        expense_head_id = data.get('expense_head_id')
+        product_code = data.get('product_code', '').strip()
+        part_number = data.get('part_number', '').strip()
+        alternate_part_number = data.get('alternate_part_number', '').strip()
         brand = data.get('brand', '').strip()
+        country_of_origin = data.get('country_of_origin', '').strip()
+        supplier_id = data.get('supplier_id')
+        supplier_name = data.get('supplier_name', '').strip()
+        unit = data.get('unit', data.get('base_unit', '')).strip()
+        expense_head_id = data.get('expense_head_id')
         group_id = data.get('group_id')
         sub_group_id = data.get('sub_group_id')
         hsn_code = data.get('hsn_code', '').strip()
         barcode = data.get('barcode', '').strip()
         is_trading = bool(data.get('is_trading', True))
         is_operational = bool(data.get('is_operational', False))
-        cgst_percent = Decimal(str(data.get('cgst_percent', 0)))
-        sgst_percent = Decimal(str(data.get('sgst_percent', 0)))
-        igst_percent = Decimal(str(data.get('igst_percent', 0)))
-        vat_percent = Decimal(str(data.get('vat_percent', data.get('tax_percent', 0)) or 0))
+
+        if 'quantity' in data:
+            stock.quantity = Decimal(str(data.get('quantity', 0) or 0))
+        if 'purchase_rate' in data:
+            stock.purchase_rate = Decimal(str(data.get('purchase_rate', 0) or 0))
+        if 'selling_price' in data:
+            stock.selling_price = Decimal(str(data.get('selling_price', 0) or 0))
+
+        if product_code and not part_number:
+            part_number = product_code
+        elif part_number and not product_code:
+            product_code = part_number
 
         is_india = True
         if company and company.country and company.country.name.strip().lower() != 'india':
             is_india = False
 
-        if not is_india and vat_percent > 0:
-            cgst_percent = Decimal('0.00')
-            sgst_percent = Decimal('0.00')
-            igst_percent = vat_percent
-            stock.vat_percent = vat_percent
-        elif is_india:
+        if is_india:
+            cgst_percent = Decimal(str(data.get('cgst_percent', 0) or 0))
+            sgst_percent = Decimal(str(data.get('sgst_percent', 0) or 0))
+            igst_percent = Decimal(str(data.get('igst_percent', 0) or 0))
+            tax_p = Decimal(str(data.get('tax_percent', 0) or 0))
+
+            if igst_percent > 0 and (cgst_percent == 0 and sgst_percent == 0):
+                cgst_percent = (igst_percent / Decimal('2.0')).quantize(Decimal('0.01'))
+                sgst_percent = igst_percent - cgst_percent
+            elif (cgst_percent > 0 or sgst_percent > 0) and igst_percent == 0:
+                igst_percent = cgst_percent + sgst_percent
+            elif igst_percent == 0 and cgst_percent == 0 and sgst_percent == 0 and tax_p > 0:
+                igst_percent = tax_p
+                cgst_percent = (tax_p / Decimal('2.0')).quantize(Decimal('0.01'))
+                sgst_percent = tax_p - cgst_percent
+
+            total_tax = igst_percent if igst_percent > 0 else (cgst_percent + sgst_percent)
             stock.vat_percent = Decimal('0.00')
+            stock.cgst_percent = cgst_percent
+            stock.sgst_percent = sgst_percent
+            stock.igst_percent = igst_percent
+            stock.tax_percent = total_tax
+        else:
+            tax_rate = Decimal(str(data.get('tax_percent', data.get('vat_percent', 0)) or 0))
+            stock.cgst_percent = Decimal('0.00')
+            stock.sgst_percent = Decimal('0.00')
+            stock.igst_percent = tax_rate
+            stock.vat_percent = tax_rate
+            stock.tax_percent = tax_rate
 
         profit_margin_percent = Decimal(str(data.get('profit_margin_percent', 0)))
         critical_level = Decimal(str(data.get('critical_level', 0))) if data.get('critical_level') is not None else Decimal('0.00')
@@ -5999,6 +6116,14 @@ def api_edit_stock(request, id):
 
         if Stock.objects.filter(company=company, item_name__iexact=item_name, is_deleted=False).exclude(id=id).exists():
             return JsonResponse({'success': False, 'message': 'Stock item already exists'}, status=400)
+
+        supplier = None
+        if supplier_id:
+            from master.models import Supplier
+            from django.db.models import Q
+            supplier = Supplier.objects.filter(Q(company=company) | Q(company__isnull=True), id=supplier_id, is_deleted=False).first()
+            if supplier and not supplier_name:
+                supplier_name = supplier.name
 
         expense_head = None
         if expense_head_id:
@@ -6019,7 +6144,13 @@ def api_edit_stock(request, id):
             sub_group = StockSubGroup.objects.filter(Q(company=company) | Q(company__isnull=True), id=sub_group_id, is_deleted=False).first()
 
         stock.item_name = item_name
+        stock.product_code = product_code
+        stock.part_number = part_number
+        stock.alternate_part_number = alternate_part_number
         stock.brand = brand
+        stock.country_of_origin = country_of_origin
+        stock.supplier = supplier
+        stock.supplier_name = supplier_name
         stock.group = group
         stock.sub_group = sub_group
         stock.unit = unit
@@ -6029,9 +6160,6 @@ def api_edit_stock(request, id):
         stock.barcode = barcode
         stock.is_trading = is_trading
         stock.is_operational = is_operational
-        stock.cgst_percent = cgst_percent
-        stock.sgst_percent = sgst_percent
-        stock.igst_percent = igst_percent
         stock.profit_margin_percent = profit_margin_percent
         stock.critical_level = critical_level
         stock.expense_head = expense_head
@@ -6043,8 +6171,26 @@ def api_edit_stock(request, id):
             'stock': {
                 'id': str(stock.id),
                 'item_name': stock.item_name,
+                'product_code': stock.product_code or '',
+                'part_number': stock.part_number or '',
+                'alternate_part_number': stock.alternate_part_number or '',
+                'brand': stock.brand or '',
+                'country_of_origin': stock.country_of_origin or '',
+                'supplier_id': str(stock.supplier.id) if stock.supplier else None,
+                'supplier_name': stock.supplier_name or '',
                 'unit': stock.unit,
                 'unit_display': stock.get_unit_display(),
+                'base_unit': stock.base_unit,
+                'quantity': float(stock.quantity or 0.0),
+                'purchase_rate': float(stock.purchase_rate or 0.0),
+                'selling_price': float(stock.selling_price or 0.0),
+                'is_trading': stock.is_trading,
+                'is_operational': stock.is_operational,
+                'cgst_percent': float(stock.cgst_percent or 0.0),
+                'sgst_percent': float(stock.sgst_percent or 0.0),
+                'igst_percent': float(stock.igst_percent or 0.0),
+                'tax_percent': float(stock.tax_percent or 0.0),
+                'vat_percent': float(stock.vat_percent or 0.0),
                 'expense_head_id': str(stock.expense_head.id) if stock.expense_head else None,
                 'expense_head_name': stock.expense_head.name if stock.expense_head else None,
             }

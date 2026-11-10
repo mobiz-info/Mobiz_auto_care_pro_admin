@@ -853,6 +853,7 @@ class StockForm(forms.ModelForm):
             'company', 'group', 'sub_group', 'product_code', 'part_number', 'alternate_part_number', 'brand', 'item_name', 'country_of_origin',
             'supplier', 'supplier_name', 'quantity', 'base_unit',
             'purchase_rate', 'selling_price', 'tax_percent',
+            'cgst_percent', 'sgst_percent', 'igst_percent',
             'is_trading', 'is_operational'
         ]
         labels = {
@@ -871,6 +872,9 @@ class StockForm(forms.ModelForm):
             'purchase_rate': 'Purchase Rate',
             'selling_price': 'Selling Rate',
             'tax_percent': 'Tax (%)',
+            'cgst_percent': 'CGST (%)',
+            'sgst_percent': 'SGST (%)',
+            'igst_percent': 'IGST (%)',
             'is_trading': 'Trading Item',
             'is_operational': 'Operational Item',
         }
@@ -996,12 +1000,43 @@ class StockForm(forms.ModelForm):
         if is_new:
             self.fields['tax_percent'].initial = default_tax_rate
             self.initial['tax_percent'] = default_tax_rate
+            if self.is_india:
+                half_tax = (default_tax_rate / Decimal('2.0')).quantize(Decimal('0.01'))
+                self.fields['cgst_percent'].initial = half_tax
+                self.initial['cgst_percent'] = half_tax
+                self.fields['sgst_percent'].initial = half_tax
+                self.initial['sgst_percent'] = half_tax
+                self.fields['igst_percent'].initial = default_tax_rate
+                self.initial['igst_percent'] = default_tax_rate
+            else:
+                self.fields['cgst_percent'].initial = Decimal('0.00')
+                self.fields['sgst_percent'].initial = Decimal('0.00')
+                self.fields['igst_percent'].initial = default_tax_rate
             self.fields['is_trading'].initial = True
             self.fields['is_operational'].initial = False
         else:
             current_tax = self.instance.tax_percent or self.instance.vat_percent or self.instance.igst_percent or Decimal('0.00')
             self.fields['tax_percent'].initial = current_tax
             self.initial['tax_percent'] = current_tax
+
+            if self.is_india:
+                cgst = self.instance.cgst_percent or Decimal('0.00')
+                sgst = self.instance.sgst_percent or Decimal('0.00')
+                igst = self.instance.igst_percent or (cgst + sgst) or current_tax
+                if cgst == 0 and sgst == 0 and igst > 0:
+                    cgst = (igst / Decimal('2.0')).quantize(Decimal('0.01'))
+                    sgst = igst - cgst
+                self.fields['cgst_percent'].initial = cgst
+                self.initial['cgst_percent'] = cgst
+                self.fields['sgst_percent'].initial = sgst
+                self.initial['sgst_percent'] = sgst
+                self.fields['igst_percent'].initial = igst
+                self.initial['igst_percent'] = igst
+            else:
+                self.fields['cgst_percent'].initial = Decimal('0.00')
+                self.fields['sgst_percent'].initial = Decimal('0.00')
+                self.fields['igst_percent'].initial = current_tax
+
             if self.instance.base_unit:
                 self.fields['base_unit'].initial = self.instance.base_unit
             elif self.instance.unit:
@@ -1017,6 +1052,9 @@ class StockForm(forms.ModelForm):
         self.fields['purchase_rate'].required = False
         self.fields['selling_price'].required = True
         self.fields['tax_percent'].required = False
+        self.fields['cgst_percent'].required = False
+        self.fields['sgst_percent'].required = False
+        self.fields['igst_percent'].required = False
 
         for field_name, field in self.fields.items():
             if not isinstance(field.widget, (forms.CheckboxInput, forms.RadioSelect)):
@@ -1033,9 +1071,6 @@ class StockForm(forms.ModelForm):
         if sub_group and group and sub_group.group_id != group.id:
             self.add_error('sub_group', f'Sub Category "{sub_group.name}" does not belong to the selected category "{group.name}".')
 
-        tax_percent = cleaned_data.get('tax_percent') or Decimal('0.00')
-        cleaned_data['tax_percent'] = tax_percent
-
         supplier = cleaned_data.get('supplier')
         supplier_name = cleaned_data.get('supplier_name')
         if supplier and not supplier_name:
@@ -1044,22 +1079,56 @@ class StockForm(forms.ModelForm):
         base_unit = cleaned_data.get('base_unit')
         cleaned_data['unit'] = base_unit
 
+        if getattr(self, 'is_india', False):
+            cgst = cleaned_data.get('cgst_percent') or Decimal('0.00')
+            sgst = cleaned_data.get('sgst_percent') or Decimal('0.00')
+            igst = cleaned_data.get('igst_percent') or Decimal('0.00')
+            tax_p = cleaned_data.get('tax_percent') or Decimal('0.00')
+
+            if igst > 0 and (cgst == 0 and sgst == 0):
+                cgst = (igst / Decimal('2.0')).quantize(Decimal('0.01'))
+                sgst = igst - cgst
+            elif (cgst > 0 or sgst > 0) and igst == 0:
+                igst = cgst + sgst
+            elif igst == 0 and cgst == 0 and sgst == 0 and tax_p > 0:
+                igst = tax_p
+                cgst = (tax_p / Decimal('2.0')).quantize(Decimal('0.01'))
+                sgst = tax_p - cgst
+
+            total_tax = igst if igst > 0 else (cgst + sgst)
+            cleaned_data['cgst_percent'] = cgst
+            cleaned_data['sgst_percent'] = sgst
+            cleaned_data['igst_percent'] = igst
+            cleaned_data['tax_percent'] = total_tax
+            cleaned_data['vat_percent'] = Decimal('0.00')
+        else:
+            tax_percent = cleaned_data.get('tax_percent') or Decimal('0.00')
+            cleaned_data['tax_percent'] = tax_percent
+            cleaned_data['vat_percent'] = tax_percent
+            cleaned_data['cgst_percent'] = Decimal('0.00')
+            cleaned_data['sgst_percent'] = Decimal('0.00')
+            cleaned_data['igst_percent'] = tax_percent
+
         return cleaned_data
 
     def save(self, commit=True):
         stock = super().save(commit=False)
         from decimal import Decimal
 
-        tax_percent = self.cleaned_data.get('tax_percent') or Decimal('0.00')
-        stock.tax_percent = tax_percent
-        stock.vat_percent = tax_percent
-        stock.igst_percent = tax_percent
-
         if getattr(self, 'is_india', False):
-            half_tax = tax_percent / Decimal('2.0')
-            stock.cgst_percent = half_tax
-            stock.sgst_percent = half_tax
+            cgst = self.cleaned_data.get('cgst_percent') or Decimal('0.00')
+            sgst = self.cleaned_data.get('sgst_percent') or Decimal('0.00')
+            igst = self.cleaned_data.get('igst_percent') or (cgst + sgst)
+            stock.cgst_percent = cgst
+            stock.sgst_percent = sgst
+            stock.igst_percent = igst
+            stock.tax_percent = igst if igst > 0 else (cgst + sgst)
+            stock.vat_percent = Decimal('0.00')
         else:
+            tax_percent = self.cleaned_data.get('tax_percent') or Decimal('0.00')
+            stock.tax_percent = tax_percent
+            stock.vat_percent = tax_percent
+            stock.igst_percent = tax_percent
             stock.cgst_percent = Decimal('0.00')
             stock.sgst_percent = Decimal('0.00')
 

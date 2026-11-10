@@ -3429,7 +3429,16 @@ def stock_create(request):
             c_is_india = (c_name.strip().lower() == 'india')
             t_label = "VAT"
             t_rate = 0.0
-            if not c_is_india:
+            cgst_r = 0.0
+            sgst_r = 0.0
+            igst_r = 0.0
+            if c_is_india:
+                t_label = "GST"
+                t_rate = 18.0
+                cgst_r = 9.0
+                sgst_r = 9.0
+                igst_r = 18.0
+            else:
                 cts = CompanyTax.objects.filter(company=cl, is_enabled=True, is_deleted=False).select_related('tax')
                 if cts.exists():
                     t0 = cts.first().tax
@@ -3449,11 +3458,15 @@ def stock_create(request):
                     elif 'oman' in c_name.lower():
                         t_label = "VAT"
                         t_rate = 5.0
+                igst_r = t_rate
             company_tax_map[str(cl.id)] = {
                 'country_name': c_name,
                 'is_india': c_is_india,
                 'tax_label': t_label,
                 'default_tax_rate': t_rate,
+                'default_cgst_rate': cgst_r,
+                'default_sgst_rate': sgst_r,
+                'default_igst_rate': igst_r,
             }
 
     country = getattr(form, 'country', None)
@@ -3518,7 +3531,16 @@ def stock_edit(request, id):
             c_is_india = (c_name.strip().lower() == 'india')
             t_label = "VAT"
             t_rate = 0.0
-            if not c_is_india:
+            cgst_r = 0.0
+            sgst_r = 0.0
+            igst_r = 0.0
+            if c_is_india:
+                t_label = "GST"
+                t_rate = 18.0
+                cgst_r = 9.0
+                sgst_r = 9.0
+                igst_r = 18.0
+            else:
                 cts = CompanyTax.objects.filter(company=cl, is_enabled=True, is_deleted=False).select_related('tax')
                 if cts.exists():
                     t0 = cts.first().tax
@@ -3538,11 +3560,15 @@ def stock_edit(request, id):
                     elif 'oman' in c_name.lower():
                         t_label = "VAT"
                         t_rate = 5.0
+                igst_r = t_rate
             company_tax_map[str(cl.id)] = {
                 'country_name': c_name,
                 'is_india': c_is_india,
                 'tax_label': t_label,
                 'default_tax_rate': t_rate,
+                'default_cgst_rate': cgst_r,
+                'default_sgst_rate': sgst_r,
+                'default_igst_rate': igst_r,
             }
 
     country = getattr(form, 'country', None)

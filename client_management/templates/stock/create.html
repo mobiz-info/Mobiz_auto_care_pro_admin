@@ -304,17 +304,50 @@
             </div>
         </div>
 
-        <!-- Row 6: Tax % -->
-        <div class="form-grid-2">
-            <div class="form-group">
-                <label for="{{ form.tax_percent.id_for_label }}" id="tax_percent_label">{{ tax_label }} (%)</label>
-                {{ form.tax_percent }}
-                {% if form.tax_percent.errors %}<div class="error-text">{{ form.tax_percent.errors.0 }}</div>{% endif %}
+        <!-- Row 6: Tax Section (Country-Specific) -->
+        <div id="tax_section_india" style="{% if not is_india %}display: none;{% endif %} margin-bottom: 20px;">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px 20px; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+                    <div style="font-weight: 700; font-size: 0.92rem; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                        <i class="ph ph-percent" style="color: #2563eb; font-size: 1.1rem;"></i>
+                        <span>GST Details (India)</span>
+                    </div>
+                    <span style="font-size: 0.78rem; color: #64748b;">
+                        CGST + SGST (Intra-state) or IGST (Inter-state)
+                    </span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="{{ form.cgst_percent.id_for_label }}">CGST (%)</label>
+                        {{ form.cgst_percent }}
+                        {% if form.cgst_percent.errors %}<div class="error-text">{{ form.cgst_percent.errors.0 }}</div>{% endif %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.sgst_percent.id_for_label }}">SGST (%)</label>
+                        {{ form.sgst_percent }}
+                        {% if form.sgst_percent.errors %}<div class="error-text">{{ form.sgst_percent.errors.0 }}</div>{% endif %}
+                    </div>
+                    <div class="form-group">
+                        <label for="{{ form.igst_percent.id_for_label }}">IGST (%)</label>
+                        {{ form.igst_percent }}
+                        {% if form.igst_percent.errors %}<div class="error-text">{{ form.igst_percent.errors.0 }}</div>{% endif %}
+                    </div>
+                </div>
             </div>
-            <div class="form-group" style="justify-content: flex-end; padding-bottom: 8px;">
-                <span style="font-size: 0.8rem; color: #64748b;">
-                    <i class="ph ph-info"></i> Tax applied automatically during billing and invoice generation.
-                </span>
+        </div>
+
+        <div id="tax_section_generic" style="{% if is_india %}display: none;{% endif %} margin-bottom: 20px;">
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label for="{{ form.tax_percent.id_for_label }}" id="tax_percent_label">{{ tax_label }} (%)</label>
+                    {{ form.tax_percent }}
+                    {% if form.tax_percent.errors %}<div class="error-text">{{ form.tax_percent.errors.0 }}</div>{% endif %}
+                </div>
+                <div class="form-group" style="justify-content: flex-end; padding-bottom: 8px;">
+                    <span style="font-size: 0.8rem; color: #64748b;">
+                        <i class="ph ph-info"></i> Tax applied automatically during billing and invoice generation.
+                    </span>
+                </div>
             </div>
         </div>
 
@@ -399,6 +432,38 @@
         });
     }
 
+    // Tax Auto-sync for India GST
+    const cgstInput = document.getElementById("id_cgst_percent");
+    const sgstInput = document.getElementById("id_sgst_percent");
+    const igstInput = document.getElementById("id_igst_percent");
+    const taxPercentInput = document.getElementById("id_tax_percent");
+
+    if (cgstInput && sgstInput && igstInput) {
+        cgstInput.addEventListener("input", function() {
+            const val = parseFloat(this.value) || 0;
+            sgstInput.value = val;
+            const total = (val * 2).toFixed(2).replace(/\.00$/, '');
+            igstInput.value = total;
+            if (taxPercentInput) taxPercentInput.value = total;
+        });
+
+        sgstInput.addEventListener("input", function() {
+            const cVal = parseFloat(cgstInput.value) || 0;
+            const sVal = parseFloat(this.value) || 0;
+            const total = (cVal + sVal).toFixed(2).replace(/\.00$/, '');
+            igstInput.value = total;
+            if (taxPercentInput) taxPercentInput.value = total;
+        });
+
+        igstInput.addEventListener("input", function() {
+            const val = parseFloat(this.value) || 0;
+            const half = (val / 2).toFixed(2).replace(/\.00$/, '');
+            cgstInput.value = half;
+            sgstInput.value = half;
+            if (taxPercentInput) taxPercentInput.value = this.value;
+        });
+    }
+
     // Dynamic tax rate and country badge for superuser company selector
     const companyTaxMap = {{ company_tax_map_json|default:"{}"|safe }};
     const companySelect = document.getElementById("id_company");
@@ -409,6 +474,8 @@
             const badgeText = document.getElementById("country_badge_text");
             const taxLabel = document.getElementById("tax_percent_label");
             const taxInput = document.getElementById("id_tax_percent");
+            const indiaSection = document.getElementById("tax_section_india");
+            const genericSection = document.getElementById("tax_section_generic");
 
             if (!compId || !companyTaxMap[compId]) {
                 if (badgeText) badgeText.textContent = "Global";
@@ -417,9 +484,27 @@
 
             const info = companyTaxMap[compId];
             if (badgeText) badgeText.textContent = `${info.country_name} (${info.tax_label})`;
-            if (taxLabel) taxLabel.textContent = `${info.tax_label} (%)`;
-            if (taxInput && (!taxInput.value || taxInput.value === "0.00" || taxInput.value === "0")) {
-                taxInput.value = info.default_tax_rate;
+
+            if (info.is_india) {
+                if (indiaSection) indiaSection.style.display = "block";
+                if (genericSection) genericSection.style.display = "none";
+                if (cgstInput && (!cgstInput.value || cgstInput.value === "0.00" || cgstInput.value === "0")) {
+                    cgstInput.value = info.default_cgst_rate || "9.00";
+                }
+                if (sgstInput && (!sgstInput.value || sgstInput.value === "0.00" || sgstInput.value === "0")) {
+                    sgstInput.value = info.default_sgst_rate || "9.00";
+                }
+                if (igstInput && (!igstInput.value || igstInput.value === "0.00" || igstInput.value === "0")) {
+                    igstInput.value = info.default_igst_rate || "18.00";
+                }
+                if (taxInput) taxInput.value = info.default_tax_rate || "18.00";
+            } else {
+                if (indiaSection) indiaSection.style.display = "none";
+                if (genericSection) genericSection.style.display = "block";
+                if (taxLabel) taxLabel.textContent = `${info.tax_label} (%)`;
+                if (taxInput && (!taxInput.value || taxInput.value === "0.00" || taxInput.value === "0")) {
+                    taxInput.value = info.default_tax_rate;
+                }
             }
         });
     }
