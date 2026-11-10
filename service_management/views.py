@@ -10,7 +10,7 @@ from django.http import JsonResponse
 from decimal import Decimal
 from django.db.models import Q
 
-from .models import ServiceType, Service, BranchService, BranchVehiclePrice, ServiceVehicleTypePrice, CompanyService, SmokeTestPrice, JobCardCategory, JobCardService, JobCardIssue
+from .models import ServiceType, Service, BranchService, BranchVehiclePrice, ServiceVehicleTypePrice, CompanyService, SmokeTestPrice, JobCardCategory, JobCardService, JobCardIssue, BranchServiceCategory
 from master.models import VehicleType, VehicleTypeModel, EmissionStandard
 from client_management.models import Branch
 from .forms import ServiceTypeForm, ServiceForm, JobCardCategoryForm, JobCardServiceForm, JobCardIssueForm
@@ -619,35 +619,43 @@ def service_vehicle_price_manage(request, branch_id):
         if company:
             company_branches = Branch.objects.filter(company=company, is_deleted=False).order_by('name')
 
-    company_enabled_ids = CompanyService.objects.filter(
-        company=branch.company,
-        is_enabled=True
-    ).values_list('service_id', flat=True)
-
-    enabled_service_ids = BranchService.objects.filter(
-        branch=branch,
-        service_id__in=company_enabled_ids,
-        is_enabled=True,
-        is_deleted=False
-    ).values_list('service_id', flat=True)
-
-    services_qs = Service.objects.filter(
-        id__in=enabled_service_ids,
-        is_active=True,
-        is_deleted=False
-    ).select_related('service_type')
-
-    # Service categories (ServiceTypes) for enabled branch services
-    categories = ServiceType.objects.filter(
-        id__in=services_qs.values_list('service_type_id', flat=True)
-    ).order_by('name')
+    # Only show categories enabled for this branch in BranchServiceCategory
+    bsc_qs = BranchServiceCategory.objects.filter(branch=branch, is_deleted=False)
+    if bsc_qs.filter(is_enabled=True).exists():
+        enabled_category_ids = bsc_qs.filter(is_enabled=True).values_list('service_type_id', flat=True)
+        categories = ServiceType.objects.filter(id__in=enabled_category_ids, is_deleted=False).order_by('name')
+    else:
+        # Fallback if no categories explicitly marked enabled yet: exclude explicitly disabled ones
+        disabled_category_ids = bsc_qs.filter(is_enabled=False).values_list('service_type_id', flat=True)
+        categories = ServiceType.objects.filter(is_deleted=False).exclude(id__in=disabled_category_ids).order_by('name')
 
     selected_category_id = request.GET.get('category')
     selected_category = None
     if selected_category_id:
-        selected_category = ServiceType.objects.filter(id=selected_category_id).first()
-        if selected_category:
-            services_qs = services_qs.filter(service_type=selected_category)
+        selected_category = categories.filter(id=selected_category_id).first()
+
+    # Active services belonging to the branch's enabled categories
+    if selected_category:
+        services_qs = Service.objects.filter(
+            service_type=selected_category,
+            is_active=True,
+            is_deleted=False
+        ).select_related('service_type')
+    else:
+        services_qs = Service.objects.filter(
+            service_type__in=categories,
+            is_active=True,
+            is_deleted=False
+        ).select_related('service_type')
+
+    # Exclude any services explicitly disabled for this branch in BranchService
+    explicitly_disabled_ids = BranchService.objects.filter(
+        branch=branch,
+        is_enabled=False,
+        is_deleted=False
+    ).values_list('service_id', flat=True)
+    if explicitly_disabled_ids.exists():
+        services_qs = services_qs.exclude(id__in=explicitly_disabled_ids)
 
     services = services_qs.order_by(
         'service_type__name',
@@ -711,6 +719,33 @@ def service_vehicle_price_manage(request, branch_id):
     if request.method == 'POST':
 
         for service in services:
+            # Auto-ensure CompanyService and BranchService are enabled for priced services
+            if branch.company:
+                cs_obj, _ = CompanyService.objects.get_or_create(
+                    company=branch.company,
+                    service=service,
+                    defaults={
+                        'auto_id': get_auto_id(CompanyService),
+                        'creator': request.user,
+                        'is_enabled': True,
+                    }
+                )
+                if not cs_obj.is_enabled:
+                    cs_obj.is_enabled = True
+                    cs_obj.save()
+
+            bs_obj, _ = BranchService.objects.get_or_create(
+                branch=branch,
+                service=service,
+                defaults={
+                    'auto_id': get_auto_id(BranchService),
+                    'creator': request.user,
+                    'is_enabled': True,
+                }
+            )
+            if not bs_obj.is_enabled:
+                bs_obj.is_enabled = True
+                bs_obj.save()
 
             for model in vehicle_models:
 

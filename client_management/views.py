@@ -681,7 +681,7 @@ def branch_services_configure(request, id=None):
         messages.error(request, "No branch found. Please create a branch first.")
         return redirect('branch_create')
 
-    from service_management.models import ServiceType, BranchServiceCategory
+    from service_management.models import ServiceType, BranchServiceCategory, Service, BranchService, CompanyService
 
     categories = ServiceType.objects.filter(is_deleted=False).order_by('name')
 
@@ -707,6 +707,32 @@ def branch_services_configure(request, id=None):
             bsc.is_enabled = should_enable
             bsc.updater = request.user
             bsc.save()
+
+            # Synchronize services under this category to BranchService & CompanyService
+            cat_services = Service.objects.filter(service_type=st, is_active=True, is_deleted=False)
+            if should_enable:
+                for svc in cat_services:
+                    if instance.company:
+                        cs, _ = CompanyService.objects.get_or_create(
+                            company=instance.company,
+                            service=svc,
+                            defaults={'auto_id': get_auto_id(CompanyService), 'creator': request.user, 'is_enabled': True}
+                        )
+                        if not cs.is_enabled:
+                            cs.is_enabled = True
+                            cs.save()
+
+                    bs, _ = BranchService.objects.get_or_create(
+                        branch=instance,
+                        service=svc,
+                        defaults={'auto_id': get_auto_id(BranchService), 'creator': request.user, 'is_enabled': True}
+                    )
+                    if not bs.is_enabled:
+                        bs.is_enabled = True
+                        bs.save()
+            else:
+                for svc in cat_services:
+                    BranchService.objects.filter(branch=instance, service=svc).update(is_enabled=False)
 
         messages.success(request, f"Service categories for branch '{instance.name}' configured successfully.")
         return redirect(f"{reverse('enable_categories')}?branch_id={instance.id}")
