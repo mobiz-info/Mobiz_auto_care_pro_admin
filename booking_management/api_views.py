@@ -6607,7 +6607,13 @@ def api_job_quotation_create(request):
             discount = Decimal(str(row.get('discount') or 0))
             if rate < 0 or quantity <= 0 or discount < 0:
                 return JsonResponse({'success': False, 'message': f'Issue row {index + 1} has an invalid rate, quantity, or discount'}, status=400)
-            prepared_issues.append((category, service, issue, issue_text, photos, rate, quantity, discount))
+            activities = row.get('activities') or []
+            if not isinstance(activities, list) or any(
+                not isinstance(activity, dict) or not (activity.get('name') or '').strip()
+                for activity in activities
+            ):
+                return JsonResponse({'success': False, 'message': f'Issue row {index + 1} has invalid activities'}, status=400)
+            prepared_issues.append((category, service, issue, issue_text, photos, rate, quantity, discount, activities))
         company, branch = _job_pipeline_scope(user)
         if not company:
             return JsonResponse({'success': False, 'message': 'Company not found'}, status=400)
@@ -6736,6 +6742,7 @@ def api_job_quotation_create(request):
                 customer_comments=data.get('customer_comments') or '',
                 internal_notes=data.get('internal_notes') or '',
                 inspection_at=parse_datetime(data['inspection_at']) if data.get('inspection_at') else None,
+                inspection_details=data.get('inspection_details') or {},
                 tentative_delivery_at=parse_datetime(data['tentative_delivery_at']) if data.get('tentative_delivery_at') else None,
                 prepared_by=prepared_by,
                 additional_services=data.get('additional_services') or '', additional_days_needed=int(data.get('additional_days_needed') or 0),
@@ -6790,10 +6797,11 @@ def api_job_quotation_create(request):
                     discount_percentage=Decimal('0'), total=max(Decimal('0'), price - discount),
                     remarks=row.get('remarks') or '', auto_id=get_auto_id(JobQuotationExtra), creator=user,
                 )
-            for index, (category, issue_service, issue, issue_text, photos, rate, quantity, discount) in enumerate(prepared_issues):
+            for index, (category, issue_service, issue, issue_text, photos, rate, quantity, discount, activities) in enumerate(prepared_issues):
                 reported_issue = JobQuotationIssue.objects.create(
                     quotation=quotation, category=category, service=issue_service, issue=issue,
-                    issue_text=issue_text, sort_order=index, auto_id=get_auto_id(JobQuotationIssue), creator=user,
+                    issue_text=issue_text, activities=activities, sort_order=index,
+                    auto_id=get_auto_id(JobQuotationIssue), creator=user,
                 )
                 JobQuotationItem.objects.create(
                     quotation=quotation, reported_issue=reported_issue,
@@ -6874,6 +6882,7 @@ def _job_quotation_data(quotation, include_lines=False, request=None):
         'date': quotation.date_added.date().isoformat() if quotation.date_added else '',
         'customer_comments': quotation.customer_comments or '',
         'inspection_at': quotation.inspection_at.isoformat() if quotation.inspection_at else '',
+        'inspection_details': quotation.inspection_details or {},
         'tentative_delivery_at': quotation.tentative_delivery_at.isoformat() if quotation.tentative_delivery_at else '',
         'internal_notes': quotation.internal_notes or '',
         'prepared_by_id': str(quotation.prepared_by_id or ''),
@@ -6899,6 +6908,7 @@ def _job_quotation_data(quotation, include_lines=False, request=None):
                 'id': str(item.id), 'category_id': str(item.category_id), 'category_name': item.category.name,
                 'service_id': str(item.service_id), 'service_name': item.service.name,
                 'issue_id': str(item.issue_id or ''), 'issue_text': item.issue_text,
+                'activities': item.activities or [],
                 'pricing': ({'rate': float(item.priced_item.rate), 'quantity': float(item.priced_item.quantity), 'discount': float(item.priced_item.discount), 'total': float(_job_quotation_item_total(item.priced_item))} if hasattr(item, 'priced_item') and not item.priced_item.is_deleted else {'rate': 0, 'quantity': 1, 'discount': 0, 'total': 0}),
                 'photos': [request.build_absolute_uri(photo.image.url) if request else photo.image.url for photo in item.photos.filter(is_deleted=False).order_by('sort_order')],
                 'photo_records': [{'id': str(photo.id), 'url': request.build_absolute_uri(photo.image.url) if request else photo.image.url} for photo in item.photos.filter(is_deleted=False).order_by('sort_order')],
@@ -7054,6 +7064,8 @@ def api_job_quotation_update(request, quotation_id):
                 quotation.internal_notes = data.get('internal_notes') or ''
             if 'inspection_at' in data:
                 quotation.inspection_at = parse_datetime(data['inspection_at']) if data.get('inspection_at') else None
+            if 'inspection_details' in data:
+                quotation.inspection_details = data.get('inspection_details') or {}
             if 'tentative_delivery_at' in data:
                 quotation.tentative_delivery_at = parse_datetime(data['tentative_delivery_at']) if data.get('tentative_delivery_at') else None
             if 'prepared_by_id' in data:
@@ -7187,6 +7199,14 @@ def api_job_quotation_update(request, quotation_id):
                     report.service = service
                     report.issue = issue
                     report.issue_text = issue_text
+                    activities = row.get('activities') or []
+                    if not isinstance(activities, list) or any(
+                        not isinstance(activity, dict) or not (activity.get('name') or '').strip()
+                        for activity in activities
+                    ):
+                        transaction.set_rollback(True)
+                        return JsonResponse({'success': False, 'message': f'Issue row {index + 1} has invalid activities'}, status=400)
+                    report.activities = activities
                     report.sort_order = index
                     report.updater = user if report.pk else None
                     report.save()
@@ -7308,6 +7328,7 @@ def api_job_card_from_job_quotation(request, quotation_id):
     from .models import (
         JobQuotation, JobCard, JobCardServiceItem, JobCardPartItem,
         JobCardExtraItem, JobCardReportedIssue, JobCardReportedIssuePhoto,
+        JobCardActivity,
     )
     user = get_user_from_token(request)
     if not user:
@@ -7351,6 +7372,7 @@ def api_job_card_from_job_quotation(request, quotation_id):
                 additional_remarks=quote.customer_comments or quote.additional_services or None,
                 internal_notes=quote.internal_notes or None,
                 inspection_at=quote.inspection_at,
+                inspection_details=quote.inspection_details or {},
                 prepared_by=quote.prepared_by,
                 expected_delivery_date=quote.tentative_delivery_at, creator=user,
             )
@@ -7418,6 +7440,18 @@ def api_job_card_from_job_quotation(request, quotation_id):
                         image=photo.image.name,
                         sort_order=photo.sort_order,
                         auto_id=get_auto_id(JobCardReportedIssuePhoto),
+                        creator=user,
+                    )
+                for activity_index, activity_data in enumerate(report.activities or []):
+                    name = (activity_data.get('name') or '').strip()
+                    if not name:
+                        continue
+                    JobCardActivity.objects.create(
+                        reported_issue=job_report,
+                        name=name,
+                        status=JobCardActivity.STATUS_PENDING,
+                        sort_order=activity_index,
+                        auto_id=get_auto_id(JobCardActivity),
                         creator=user,
                     )
             job.estimated_cost = quote.grand_total

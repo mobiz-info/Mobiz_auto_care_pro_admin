@@ -473,6 +473,7 @@ class JobQuotation(BaseModel):
     customer_comments = models.TextField(blank=True, null=True)
     internal_notes = models.TextField(blank=True, null=True)
     inspection_at = models.DateTimeField(null=True, blank=True)
+    inspection_details = models.JSONField(default=dict, blank=True)
     tentative_delivery_at = models.DateTimeField(null=True, blank=True)
     prepared_by = models.ForeignKey('client_management.Staff', on_delete=models.SET_NULL, null=True, blank=True, related_name='prepared_job_quotations')
     additional_services = models.TextField(blank=True, null=True)
@@ -522,6 +523,7 @@ class JobQuotationIssue(BaseModel):
     service = models.ForeignKey('service_management.JobCardService', on_delete=models.PROTECT, related_name='quotation_reports')
     issue = models.ForeignKey('service_management.JobCardIssue', on_delete=models.SET_NULL, null=True, blank=True, related_name='quotation_reports')
     issue_text = models.CharField(max_length=200)
+    activities = models.JSONField(default=list, blank=True)
     sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
