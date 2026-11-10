@@ -7303,12 +7303,6 @@ def api_accept_job_quotation(request, quotation_id):
     quotation = JobQuotation.objects.filter(id=quotation_id, customer__company=company, is_deleted=False).select_related('lead').first()
     if not quotation or (branch and quotation.branch_id != branch.id):
         return JsonResponse({'success': False, 'message': 'Quotation not found'}, status=404)
-    has_priced_items = any(
-        _job_quotation_item_total(item) > 0
-        for item in quotation.items.filter(is_deleted=False)
-    ) or quotation.extras.filter(is_deleted=False, total__gt=0).exists()
-    if not has_priced_items:
-        return JsonResponse({'success': False, 'message': 'A quotation needs at least one priced item before acceptance'}, status=409)
     if not quotation.is_accepted:
         quotation.is_accepted, quotation.accepted_at, quotation.accepted_by = True, timezone.now(), user
         quotation.save(update_fields=['is_accepted', 'accepted_at', 'accepted_by', 'date_updated'])
@@ -7345,12 +7339,6 @@ def api_job_card_from_job_quotation(request, quotation_id):
                 return JsonResponse({'success': False, 'message': 'Forbidden'}, status=403)
             if not quote.is_accepted:
                 return JsonResponse({'success': False, 'message': 'Accept the quotation before conversion'}, status=409)
-            has_priced_items = any(
-                _job_quotation_item_total(item) > 0
-                for item in quote.items.filter(is_deleted=False)
-            ) or quote.extras.filter(is_deleted=False, total__gt=0).exists()
-            if not has_priced_items:
-                return JsonResponse({'success': False, 'message': 'A quotation needs at least one priced item before conversion'}, status=409)
             if quote.lead_id:
                 existing_lead_job = JobCard.objects.filter(lead_id=quote.lead_id).first()
                 if existing_lead_job:
