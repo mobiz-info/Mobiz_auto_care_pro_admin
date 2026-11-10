@@ -6067,6 +6067,7 @@ def _job_lead_data(lead):
         'id': str(lead.id), 'customer_name': lead.customer_name, 'phone_number': lead.phone_number,
         'branch_id': str(lead.branch_id or ''),
         'lead_number': f'JL-{lead.auto_id}', 'lead_date': lead.lead_date.isoformat() if lead.lead_date else (lead.date_added.date().isoformat() if lead.date_added else ''),
+        'date_updated': lead.date_updated.isoformat() if lead.date_updated else '',
         'whatsapp_number': lead.whatsapp_number or '', 'lead_generation_mode': lead.lead_generation_mode or '',
         'reference': lead.reference or '', 'state': lead.state or '', 'city': lead.city or '', 'email': lead.email or '', 'expected_value': float(lead.expected_value or 0),
         'status': lead.status, 'success_chance': float(lead.success_chance) if lead.success_chance is not None else None,
@@ -6418,14 +6419,44 @@ def api_job_lead_history(request, lead_id):
     lead = JobLead.objects.filter(id=lead_id, company=company, is_deleted=False).first()
     if not lead or (branch and lead.branch_id != branch.id):
         return JsonResponse({'success': False, 'message': 'Lead not found'}, status=404)
-    events = [{'type': 'lead_created', 'title': 'Lead created', 'date': lead.date_added.isoformat(), 'description': f"{lead.customer_name} · {lead.lead_generation_mode or ''}"}]
+    assigned_staff = lead.staff.name if lead.staff_id else (lead.staff_name or '')
+
+    def event_staff(user):
+        profile = getattr(user, 'staff_profile', None) if user else None
+        return profile.name if profile else ''
+
+    events = [{
+        'type': 'lead_created', 'title': 'Lead created',
+        'date': lead.date_added.isoformat(),
+        'description': f"{lead.customer_name} · {lead.lead_generation_mode or ''}",
+        'incharge_staff_name': assigned_staff,
+        'recorded_by': event_staff(lead.creator),
+    }]
     for f in lead.follow_ups.filter(is_deleted=False):
-        events.append({'type': 'follow_up', 'title': 'Follow-up', 'date': f.date_added.isoformat(), 'description': f.remarks, 'status': f.status, 'next_follow_up_date': f.next_follow_up_date.isoformat() if f.next_follow_up_date else ''})
+        events.append({
+            'type': 'follow_up', 'title': 'Follow-up',
+            'date': f.date_added.isoformat(), 'description': f.remarks,
+            'status': f.status,
+            'next_follow_up_date': f.next_follow_up_date.isoformat() if f.next_follow_up_date else '',
+            'incharge_staff_name': assigned_staff,
+            'recorded_by': event_staff(f.creator),
+        })
     for q in lead.quotations.filter(is_deleted=False):
         title = 'Quotation revised' if q.revised_from_id else 'Quotation created'
-        events.append({'type': 'quotation_created', 'title': title, 'date': q.date_added.isoformat(), 'description': f'{q.quotation_number} · {q.grand_total}'})
+        events.append({
+            'type': 'quotation_created', 'title': title,
+            'date': q.date_added.isoformat(),
+            'description': f'{q.quotation_number} · {q.grand_total}',
+            'incharge_staff_name': assigned_staff,
+            'recorded_by': event_staff(q.creator),
+        })
         if q.is_accepted and q.accepted_at:
-            events.append({'type': 'quotation_accepted', 'title': 'Quotation accepted', 'date': q.accepted_at.isoformat(), 'description': q.quotation_number})
+            events.append({
+                'type': 'quotation_accepted', 'title': 'Quotation accepted',
+                'date': q.accepted_at.isoformat(), 'description': q.quotation_number,
+                'incharge_staff_name': assigned_staff,
+                'recorded_by': event_staff(q.accepted_by),
+            })
     events.sort(key=lambda event: event['date'])
     return JsonResponse({'success': True, 'events': events})
 
