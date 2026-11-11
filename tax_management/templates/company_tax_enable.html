@@ -268,8 +268,7 @@
                         </td>
                         <td style="text-align:center;">
                             <label class="toggle-switch">
-                                <input type="checkbox" name="taxes" value="{{ tax.id }}" class="tax-checkbox" {% if
-                                    tax.id|stringformat:"s" in enabled_tax_ids %}checked{% endif %}>
+                                <input type="checkbox" name="taxes" value="{{ tax.id }}" class="tax-checkbox" {% if tax.id|stringformat:"s" in enabled_tax_ids %}checked{% endif %}>
                                 <span class="toggle-slider"></span>
                             </label>
                         </td>
