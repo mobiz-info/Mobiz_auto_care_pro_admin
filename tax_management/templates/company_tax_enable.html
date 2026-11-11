@@ -12,13 +12,15 @@
         align-items: center;
         margin-bottom: 24px;
     }
+
     .tax-card {
         background: white;
         border-radius: 12px;
         border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
         overflow: hidden;
     }
+
     .tax-card-header {
         padding: 20px 28px;
         border-bottom: 1px solid #f1f5f9;
@@ -27,6 +29,7 @@
         align-items: center;
         background: #f8fafc;
     }
+
     .tax-card-header h5 {
         font-size: 1rem;
         font-weight: 600;
@@ -36,6 +39,7 @@
         align-items: center;
         gap: 8px;
     }
+
     .badge-count {
         background: #3b82f6;
         color: white;
@@ -44,10 +48,12 @@
         font-size: 0.75rem;
         font-weight: 600;
     }
+
     .tax-table {
         width: 100%;
         border-collapse: collapse;
     }
+
     .tax-table th {
         padding: 12px 24px;
         font-size: 0.72rem;
@@ -59,14 +65,21 @@
         background: #f8fafc;
         border-bottom: 1px solid #e2e8f0;
     }
+
     .tax-table td {
         padding: 14px 24px;
         border-bottom: 1px solid #f1f5f9;
         font-size: 0.9rem;
         color: #1e293b;
     }
-    .tax-table tr:last-child td { border-bottom: none; }
-    .tax-table tr:hover { background: #f8fafc; }
+
+    .tax-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .tax-table tr:hover {
+        background: #f8fafc;
+    }
 
     /* Toggle switch */
     .toggle-switch {
@@ -75,26 +88,42 @@
         width: 44px;
         height: 24px;
     }
-    .toggle-switch input { display: none; }
+
+    .toggle-switch input {
+        display: none;
+    }
+
     .toggle-slider {
         position: absolute;
         cursor: pointer;
-        top: 0; left: 0; right: 0; bottom: 0;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
         background: #cbd5e1;
         border-radius: 24px;
         transition: 0.3s;
     }
+
     .toggle-slider:before {
         content: "";
         position: absolute;
-        width: 18px; height: 18px;
-        left: 3px; bottom: 3px;
+        width: 18px;
+        height: 18px;
+        left: 3px;
+        bottom: 3px;
         background: white;
         border-radius: 50%;
         transition: 0.3s;
     }
-    .toggle-switch input:checked + .toggle-slider { background: #3b82f6; }
-    .toggle-switch input:checked + .toggle-slider:before { transform: translateX(20px); }
+
+    .toggle-switch input:checked+.toggle-slider {
+        background: #3b82f6;
+    }
+
+    .toggle-switch input:checked+.toggle-slider:before {
+        transform: translateX(20px);
+    }
 
     .btn-save {
         padding: 10px 26px;
@@ -110,7 +139,11 @@
         gap: 8px;
         transition: 0.2s;
     }
-    .btn-save:hover { opacity: 0.9; }
+
+    .btn-save:hover {
+        opacity: 0.9;
+    }
+
     .select-all-bar {
         padding: 10px 24px;
         background: #eff6ff;
@@ -124,11 +157,13 @@
         cursor: pointer;
         user-select: none;
     }
+
     .empty-state {
         text-align: center;
         padding: 50px;
         color: #94a3b8;
     }
+
     .mode-card {
         border: 2px solid #e2e8f0;
         border-radius: 10px;
@@ -138,15 +173,18 @@
         background: #ffffff;
         display: block;
     }
+
     .mode-card:hover {
         border-color: #93c5fd;
         background: #f8fafc;
     }
+
     .mode-card.active {
         border-color: #3b82f6;
         background: #f0f7ff;
         box-shadow: 0 2px 8px rgba(59, 130, 246, 0.12);
     }
+
     .mode-card input[type="radio"] {
         margin-top: 3px;
         width: 18px;
@@ -172,17 +210,14 @@
                 <!-- Exclusive Option -->
                 <label class="mode-card {% if not is_tax_inclusive %}active{% endif %}" id="modeCardExclusive">
                     <div style="display: flex; align-items: flex-start; gap: 14px;">
-                        <input type="radio" name="is_tax_inclusive" value="0" {% if not is_tax_inclusive %}checked{% endif %} onchange="updateModeCardSelection(this)">
+                        <input type="radio" name="is_tax_inclusive" value="0" {% if not is_tax_inclusive %}checked{%
+                            endif %} onchange="updateModeCardSelection(this)">
                         <div>
                             <div style="font-weight: 700; color: #1e293b; font-size: 0.95rem; margin-bottom: 4px;">
                                 Tax Exclusive (Standard)
                             </div>
-                            <div style="font-size: 0.82rem; color: #64748b; line-height: 1.4;">
-                                Service & product rates do <strong>not</strong> include tax. Tax is calculated and added on top of the subtotal.
-                            </div>
-                            <div style="margin-top: 8px; font-size: 0.78rem; color: #0284c7; background: #e0f2fe; padding: 4px 8px; border-radius: 6px; display: inline-block;">
-                                Example: Rate ₹100 + 18% Tax = Total ₹118
-                            </div>
+
+
                         </div>
                     </div>
                 </label>
@@ -190,17 +225,14 @@
                 <!-- Inclusive Option -->
                 <label class="mode-card {% if is_tax_inclusive %}active{% endif %}" id="modeCardInclusive">
                     <div style="display: flex; align-items: flex-start; gap: 14px;">
-                        <input type="radio" name="is_tax_inclusive" value="1" {% if is_tax_inclusive %}checked{% endif %} onchange="updateModeCardSelection(this)">
+                        <input type="radio" name="is_tax_inclusive" value="1" {% if is_tax_inclusive %}checked{% endif
+                            %} onchange="updateModeCardSelection(this)">
                         <div>
                             <div style="font-weight: 700; color: #1e293b; font-size: 0.95rem; margin-bottom: 4px;">
                                 Tax Inclusive (MRP / Final Price)
                             </div>
-                            <div style="font-size: 0.82rem; color: #64748b; line-height: 1.4;">
-                                Service & product rates <strong>already include</strong> tax. Base taxable amount and tax are extracted backwards.
-                            </div>
-                            <div style="margin-top: 8px; font-size: 0.78rem; color: #16a34a; background: #dcfce7; padding: 4px 8px; border-radius: 6px; display: inline-block;">
-                                Example: Total ₹100 (Base ₹84.75 + 18% Tax ₹15.25)
-                            </div>
+
+
                         </div>
                     </div>
                 </label>
@@ -219,7 +251,8 @@
 
         <!-- Select All -->
         <div class="select-all-bar" onclick="toggleAll()">
-            <input type="checkbox" id="selectAllCheck" style="width:16px;height:16px;cursor:pointer;" onclick="event.stopPropagation(); toggleAll()">
+            <input type="checkbox" id="selectAllCheck" style="width:16px;height:16px;cursor:pointer;"
+                onclick="event.stopPropagation(); toggleAll()">
             <label for="selectAllCheck" style="cursor:pointer; margin:0;">Select / Deselect All</label>
         </div>
 
@@ -245,11 +278,8 @@
                         </td>
                         <td style="text-align:center;">
                             <label class="toggle-switch">
-                                <input type="checkbox"
-                                    name="taxes"
-                                    value="{{ tax.id }}"
-                                    class="tax-checkbox"
-                                    {% if tax.id|stringformat:"s" in enabled_tax_ids %}checked{% endif %}>
+                                <input type="checkbox" name="taxes" value="{{ tax.id }}" class="tax-checkbox" {% if
+                                    tax.id|stringformat:"s" in enabled_tax_ids %}checked{% endif %}>
                                 <span class="toggle-slider"></span>
                             </label>
                         </td>
@@ -291,14 +321,14 @@
     function toggleAll() {
         const selectAllCheck = document.getElementById('selectAllCheck');
         const checkboxes = document.querySelectorAll('.tax-checkbox');
-        const isChecked = !selectAllCheck.checked; 
-        
+        const isChecked = !selectAllCheck.checked;
+
         selectAllCheck.checked = isChecked;
-        
+
         checkboxes.forEach(cb => {
             cb.checked = isChecked;
         });
-        
+
         updateSelectedCount();
     }
 
@@ -316,7 +346,7 @@
         checkboxes.forEach(cb => {
             cb.addEventListener('change', updateSelectedCount);
         });
-        
+
         // Initial count
         updateSelectedCount();
     });
