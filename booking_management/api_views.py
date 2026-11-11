@@ -4462,6 +4462,7 @@ def api_job_card_list(request):
             'current_section': jc.current_section or 'General Inspection',
             'current_service': jc.current_service or '',
             'status': effective_status,
+            'workflow_status': jc.status,
             'status_display': dict(JobCard.STATUS_CHOICES).get(effective_status, effective_status.title()),
         })
 

@@ -2467,6 +2467,9 @@ def api_get_form_data(request):
             'profit_margin_percent': profit_margin,
             'is_trading': s.is_trading,
             'is_operational': s.is_operational,
+            'product_code': s.product_code or '',
+            'part_number': s.part_number or '',
+            'alternate_part_number': s.alternate_part_number or '',
             'rate': calculated_rate,
         })
 
