@@ -858,13 +858,16 @@
             <div>
                 <!-- Tax Section (Matching App _taxSelectionSection - Only show if tax enabled) -->
                 <div class="app-card" id="tax_card_container" style="{% if not company_taxes %}display: none;{% endif %}">
-                    <div class="app-card-header">
+                    <div class="app-card-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
                             <input type="checkbox" id="apply_tax_checkbox" style="width: 18px; height: 18px;"
                                 {% if company_taxes %}checked{% endif %}
                                 onchange="toggleTaxSection(this)">
                             <span class="app-card-title" style="margin: 0;"><i class="ph ph-percent"></i> TAX</span>
                         </label>
+                        <span id="tax_mode_pill" style="font-size: 0.72rem; padding: 2px 8px; border-radius: 12px; font-weight: 600; background: {% if is_tax_inclusive %}#dcfce7; color: #166534;{% else %}#e0f2fe; color: #0369a1;{% endif %};">
+                            {% if is_tax_inclusive %}Tax Inclusive{% else %}Tax Exclusive{% endif %}
+                        </span>
                     </div>
                     <div id="tax_sub_section" style="{% if company_taxes %}display: block;{% else %}display: none;{% endif %}">
                         <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 4px;" id="tax_checkboxes_list">
@@ -1157,6 +1160,7 @@
 
 <script>
     const CURRENCY = "{{ currency_symbol }}";
+    let isCompanyTaxInclusive = {% if is_tax_inclusive %}true{% else %}false{% endif %};
     let searchType = 'mobile';
     let currentCustomer = null;
     let currentVehicleData = null;
@@ -1514,6 +1518,17 @@
                     if (currentVehicleData) {
                         if (data.current_odometer_km) currentVehicleData.current_odometer_km = data.current_odometer_km;
                         if (data.emission_standard) currentVehicleData.emission_standard = data.emission_standard;
+                    }
+
+                    // Update tax inclusive preference if returned
+                    if (data.is_tax_inclusive !== undefined) {
+                        isCompanyTaxInclusive = Boolean(data.is_tax_inclusive);
+                        const taxPill = document.getElementById('tax_mode_pill');
+                        if (taxPill) {
+                            taxPill.textContent = isCompanyTaxInclusive ? 'Tax Inclusive' : 'Tax Exclusive';
+                            taxPill.style.background = isCompanyTaxInclusive ? '#dcfce7' : '#e0f2fe';
+                            taxPill.style.color = isCompanyTaxInclusive ? '#166534' : '#0369a1';
+                        }
                     }
 
                     // Dynamically toggle Tax section: only show if taxes are enabled
@@ -2428,32 +2443,74 @@
         }
 
         const totalDiscount = servicesDiscount + tradingDiscount + addDiscount;
-        const netTaxable = Math.max(0, grossSubtotal - totalDiscount);
+        const netAfterDiscount = Math.max(0, grossSubtotal - totalDiscount);
 
         // Taxes breakdown
         let totalTaxAmount = 0;
+        let totalTaxPercent = 0;
         const taxesContainer = document.getElementById('summary_taxes_container');
         taxesContainer.innerHTML = '';
 
-        if (document.getElementById('apply_tax_checkbox').checked) {
+        const isTaxApplied = document.getElementById('apply_tax_checkbox')?.checked;
+        if (isTaxApplied) {
+            document.querySelectorAll('.tax-checkbox:checked').forEach(cb => {
+                totalTaxPercent += parseFloat(cb.getAttribute('data-percent')) || 0;
+            });
+        }
+
+        let taxableSubtotal = grossSubtotal;
+        let discountDisplay = totalDiscount;
+        let grandTotal = netAfterDiscount;
+
+        if (isCompanyTaxInclusive && isTaxApplied && totalTaxPercent > 0) {
+            // Tax Inclusive:
+            // The entered rates and net total already include tax.
+            grandTotal = netAfterDiscount;
+            const factor = 1 + (totalTaxPercent / 100);
+            const baseTaxableAfterDiscount = grandTotal / factor;
+            totalTaxAmount = grandTotal - baseTaxableAfterDiscount;
+
+            taxableSubtotal = grossSubtotal / factor;
+            discountDisplay = totalDiscount / factor;
+
             document.querySelectorAll('.tax-checkbox:checked').forEach(cb => {
                 const pct = parseFloat(cb.getAttribute('data-percent')) || 0;
                 const tName = cb.getAttribute('data-name') || 'Tax';
-                const tAmt = netTaxable * (pct / 100);
-                totalTaxAmount += tAmt;
+                const tAmt = baseTaxableAfterDiscount * (pct / 100);
 
                 const taxLine = document.createElement('div');
                 taxLine.className = 'summary-line';
                 taxLine.style.color = '#64748b';
                 taxLine.innerHTML = `
-                    <span>+ ${tName} (${pct.toFixed(1)}%)</span>
+                    <span>+ ${tName} (${pct.toFixed(1)}%) <em style="font-size:0.75rem; color:#10b981; font-style:normal;">(incl.)</em></span>
                     <span>${CURRENCY}${tAmt.toFixed(2)}</span>
                 `;
                 taxesContainer.appendChild(taxLine);
             });
+        } else {
+            // Tax Exclusive:
+            taxableSubtotal = grossSubtotal;
+            discountDisplay = totalDiscount;
+            if (isTaxApplied) {
+                document.querySelectorAll('.tax-checkbox:checked').forEach(cb => {
+                    const pct = parseFloat(cb.getAttribute('data-percent')) || 0;
+                    const tName = cb.getAttribute('data-name') || 'Tax';
+                    const tAmt = netAfterDiscount * (pct / 100);
+                    totalTaxAmount += tAmt;
+
+                    const taxLine = document.createElement('div');
+                    taxLine.className = 'summary-line';
+                    taxLine.style.color = '#64748b';
+                    taxLine.innerHTML = `
+                        <span>+ ${tName} (${pct.toFixed(1)}%)</span>
+                        <span>${CURRENCY}${tAmt.toFixed(2)}</span>
+                    `;
+                    taxesContainer.appendChild(taxLine);
+                });
+            }
+            grandTotal = netAfterDiscount + totalTaxAmount;
         }
 
-        const grandTotal = netTaxable + totalTaxAmount;
         const collectedInput = document.getElementById('amount_collected_input');
         const isCashInvoice = document.getElementById('sales_type_select').value === 'cash';
         collectedInput.value = isCashInvoice ? grandTotal.toFixed(2) : '0.00';
@@ -2461,8 +2518,8 @@
         const balanceDue = Math.max(0, grandTotal - collected);
 
         // Update Summary Elements
-        document.getElementById('summary_subtotal').innerText = `${CURRENCY}${grossSubtotal.toFixed(2)}`;
-        document.getElementById('summary_discount').innerText = `-${CURRENCY}${totalDiscount.toFixed(2)}`;
+        document.getElementById('summary_subtotal').innerText = `${CURRENCY}${taxableSubtotal.toFixed(2)}`;
+        document.getElementById('summary_discount').innerText = `-${CURRENCY}${discountDisplay.toFixed(2)}`;
         document.getElementById('summary_grand_total').innerText = `${CURRENCY}${grandTotal.toFixed(2)}`;
         document.getElementById('summary_collected').innerText = `${CURRENCY}${collected.toFixed(2)}`;
         document.getElementById('summary_balance_due').innerText = `${CURRENCY}${balanceDue.toFixed(2)}`;
@@ -2678,6 +2735,7 @@
             discount: discountVal,
             tax_amount: taxAmt,
             total: grandTotalVal,
+            is_tax_inclusive: isCompanyTaxInclusive,
             tax_ids: selectedTaxIds,
             remarks: remarks,
             reminders_enabled: remindersPayload.length > 0,

@@ -123,6 +123,12 @@ def company_tax_enable(request):
     from .models import CompanyTax
 
     if request.method == 'POST':
+        # Update Tax Inclusive / Exclusive setting
+        is_inclusive_val = request.POST.get('is_tax_inclusive') in ['1', 'true', 'True']
+        if company.is_tax_inclusive != is_inclusive_val:
+            company.is_tax_inclusive = is_inclusive_val
+            company.save(update_fields=['is_tax_inclusive'])
+
         enabled_tax_ids = request.POST.getlist('taxes')
         
         from core.functions import get_auto_id
@@ -150,7 +156,7 @@ def company_tax_enable(request):
         username = request.user.username
         log_activity(
             created_by=request.user,
-            description=f"{username} updated company tax settings."
+            description=f"{username} updated company tax settings (inclusive={is_inclusive_val})."
         )
         
         messages.success(request, 'Tax settings updated successfully.')
@@ -164,4 +170,5 @@ def company_tax_enable(request):
         'title': 'Tax Enable',
         'available_taxes': available_taxes,
         'enabled_tax_ids': enabled_tax_ids_str,
+        'is_tax_inclusive': getattr(company, 'is_tax_inclusive', False),
     })

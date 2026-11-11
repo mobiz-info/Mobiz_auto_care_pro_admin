@@ -2866,6 +2866,8 @@ def invoice_create(request):
 
     company = getattr(user.profile, 'company', None) if hasattr(user, 'profile') else None
     managed_branch = getattr(user, 'managed_branch', None)
+    if not company and managed_branch:
+        company = managed_branch.company
 
     branches_qs = Branch.objects.filter(is_deleted=False)
     if role == 'COMPANY_ADMIN' and company:
@@ -2977,6 +2979,7 @@ def invoice_create(request):
         'invoice_vehicle_colors': VehicleColor.objects.filter(is_deleted=False).order_by('name'),
         'invoice_emission_standards': EmissionStandard.objects.filter(is_deleted=False).order_by('name'),
         'company_taxes': company_taxes,
+        'is_tax_inclusive': bool(getattr(company, 'is_tax_inclusive', False)),
         'whatsapp_invoice_enabled': whatsapp_invoice_enabled,
         'phone_countries': Country.objects.filter(is_deleted=False).exclude(phone_dial_code__isnull=True).exclude(phone_dial_code='').order_by('name'),
         'phone_country_iso': (company.country.phone_iso_code if company and company.country and company.country.phone_iso_code else 'IN'),

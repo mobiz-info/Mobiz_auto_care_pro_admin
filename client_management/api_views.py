@@ -872,6 +872,7 @@ def api_get_services(request):
             'success': True,
             'services': services_data,
             'taxes': taxes_data,
+            'is_tax_inclusive': bool(getattr(company, 'is_tax_inclusive', False)),
             'vehicle_type': vehicle_type.name if vehicle_type else '',
             'wheel_type': vehicle.wheel_type if hasattr(vehicle, 'wheel_type') else 'normal_wheel',
             'current_odometer_km': getattr(vehicle, 'current_odometer_km', None) or 0 if vehicle else 0,
@@ -2502,6 +2503,7 @@ def api_get_form_data(request):
 
     return JsonResponse({
         'success': True,
+        'is_tax_inclusive': bool(getattr(company, 'is_tax_inclusive', False)) if company else False,
         'customer_types': [{'id': str(ct.id), 'name': ct.name} for ct in customer_types],
         # New hierarchy data
         'vehicle_types': [{'id': str(vt.id), 'name': vt.name} for vt in vehicle_types_qs],
@@ -10504,6 +10506,7 @@ def api_insurance_services(request):
             'success': True,
             'services': services_data,
             'taxes': taxes_data,
+            'is_tax_inclusive': bool(getattr(branch.company, 'is_tax_inclusive', False)) if (branch and branch.company) else False,
             'customer_category': customer.customer_category or 'motor',
         })
 
