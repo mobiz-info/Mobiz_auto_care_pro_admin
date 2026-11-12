@@ -81,6 +81,7 @@ urlpatterns = [
     path('api/job-quotations/<uuid:quotation_id>/update/', api_views.api_job_quotation_update, name='api_job_quotation_update'),
     path('api/job-quotations/<uuid:quotation_id>/delete/', api_views.api_job_quotation_delete, name='api_job_quotation_delete'),
     path('api/job-quotations/<uuid:quotation_id>/', api_views.api_job_quotation_detail, name='api_job_quotation_detail'),
+    path('api/job-quotations/<uuid:quotation_id>/pdf/', api_views.api_job_quotation_pdf, name='api_job_quotation_pdf'),
     path('api/job-quotations/<uuid:quotation_id>/accept/', api_views.api_accept_job_quotation, name='api_accept_job_quotation'),
     path('api/job-cards/<uuid:job_card_id>/', api_views.api_job_card_detail, name='api_job_card_detail'),
     path('api/job-cards/<uuid:job_card_id>/update/', api_views.api_job_card_update, name='api_job_card_update'),

@@ -175,10 +175,15 @@ urlpatterns = [
 
     # Company Web Settings (WhatsApp & Template & Other Integrations)
     path('settings/whatsapp/', views.whatsapp_settings, name='whatsapp_settings'),
+    path('settings/whatsapp/deploy-templates/', views.company_whatsapp_deploy, name='company_whatsapp_deploy'),
     path('settings/templates/', views.whatsapp_template_list, name='whatsapp_template_list'),
     path('settings/templates/create/', views.whatsapp_template_create, name='whatsapp_template_create'),
     path('settings/templates/edit/<uuid:id>/', views.whatsapp_template_edit, name='whatsapp_template_edit'),
     path('settings/templates/delete/<uuid:id>/', views.whatsapp_template_delete, name='whatsapp_template_delete'),
+    
+    # Superadmin WhatsApp Template Automation
+    path('superadmin/whatsapp-automation/', views.superadmin_whatsapp_hub, name='superadmin_whatsapp_hub'),
+    path('superadmin/whatsapp-automation/deploy/', views.superadmin_whatsapp_deploy, name='superadmin_whatsapp_deploy'),
     path('settings/whatsapp/types/', views.whatsapp_type_list, name='whatsapp_type_list'),
     path('settings/whatsapp/types/create/', views.whatsapp_type_create, name='whatsapp_type_create'),
     path('settings/whatsapp/types/edit/<uuid:id>/', views.whatsapp_type_edit, name='whatsapp_type_edit'),

@@ -788,20 +788,44 @@ class WhatsAppTypeForm(forms.ModelForm):
 
 
 class WhatsAppTemplateForm(forms.ModelForm):
+    category = forms.ChoiceField(
+        choices=[
+            ('12', 'UTILITY / TRANSACTIONAL'),
+            ('13', 'PROMOTIONAL / MARKETING'),
+        ],
+        initial='12',
+        required=False,
+        label='Template Category'
+    )
+    msgtype = forms.ChoiceField(
+        choices=[
+            ('1', 'TEXT (Plain text with variables)'),
+            ('2', 'DOCUMENT (PDF Attachment)'),
+        ],
+        initial='1',
+        required=False,
+        label='Message Type'
+    )
+    sync_to_wawy = forms.BooleanField(
+        initial=True,
+        required=False,
+        label='Automatically submit to Wawy & Meta WhatsApp'
+    )
+
     class Meta:
         model = WhatsAppTemplate
         fields = ['template_name', 'wawy_template_name', 'content']
         widgets = {
-            'template_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter template name'}),
-            'wawy_template_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. festivalgreeting (leave blank for plain text)'}),
-            'content': forms.Textarea(attrs={'class': 'form-control', 'placeholder': 'Enter template content', 'rows': 4}),
+            'template_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter template name (e.g. Service Alert)'}),
+            'wawy_template_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. servicealert (lowercase, no spaces)'}),
+            'content': forms.Textarea(attrs={'class': 'form-control', 'placeholder': 'Enter template content with {{1}}, {{2}} variables...', 'rows': 4}),
         }
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         for field_name, field in self.fields.items():
-            if 'class' not in field.widget.attrs:
+            if field_name != 'sync_to_wawy' and 'class' not in field.widget.attrs:
                 field.widget.attrs['class'] = 'form-control'
 
 

@@ -2568,12 +2568,164 @@ def generate_quotation_pdf_file(quotation, base_url):
     from weasyprint import HTML
     
     currency = '₹'
-    if quotation.branch and quotation.branch.company and quotation.branch.company.country:
-        currency = getattr(quotation.branch.company.country, 'currency_symbol', '₹') or '₹'
-        
+    company = None
+    if quotation.branch and quotation.branch.company:
+        company = quotation.branch.company
+    elif hasattr(quotation, 'customer') and quotation.customer and quotation.customer.company:
+        company = quotation.customer.company
+
+    if company and company.country:
+        currency = getattr(company.country, 'currency_symbol', '₹') or '₹'
+
+    # Company logo handling with local absolute path or url fallback
+    company_logo = None
+    if company:
+        logo_field = getattr(company, 'logo_color', None) or getattr(company, 'logo_bw', None) or getattr(company, 'logo', None)
+        if logo_field:
+            try:
+                if hasattr(logo_field, 'path') and os.path.exists(logo_field.path):
+                    company_logo = 'file://' + os.path.abspath(logo_field.path)
+                elif hasattr(logo_field, 'url'):
+                    company_logo = logo_field.url
+            except Exception:
+                company_logo = getattr(logo_field, 'url', None)
+    if not company_logo and quotation.branch and getattr(quotation.branch, 'logo', None):
+        try:
+            if hasattr(quotation.branch.logo, 'path') and os.path.exists(quotation.branch.logo.path):
+                company_logo = 'file://' + os.path.abspath(quotation.branch.logo.path)
+            elif hasattr(quotation.branch.logo, 'url'):
+                company_logo = quotation.branch.logo.url
+        except Exception:
+            company_logo = getattr(quotation.branch.logo, 'url', None)
+
+    services = []
+    accessories = []
+    labour = []
+    extras_list = []
+
+    # 1. Check reported issues (JobQuotation)
+    handled_priced_item_ids = set()
+    if hasattr(quotation, 'reported_issues'):
+        for issue in quotation.reported_issues.filter(is_deleted=False).select_related('category', 'service'):
+            priced = getattr(issue, 'priced_item', None)
+            rate = 0.0
+            qty = 1.0
+            disc = 0.0
+            total = 0.0
+            if priced and not priced.is_deleted:
+                handled_priced_item_ids.add(priced.id)
+                rate = float(priced.rate or 0)
+                qty = float(priced.quantity or 1)
+                disc = float(priced.discount or 0)
+                total = max(0.0, (rate * qty) - disc)
+
+            services.append({
+                'name': issue.service.name if issue.service else 'Service',
+                'category': issue.category.name if issue.category else '',
+                'issue_text': issue.issue_text or '',
+                'warranty': '',
+                'quantity': qty,
+                'rate': rate,
+                'discount': disc,
+                'total': total,
+                'remarks': '',
+            })
+
+    # 2. Check quotation items (Accessories, standalone Services/Issues, or legacy items)
+    if hasattr(quotation, 'items'):
+        for item in quotation.items.filter(is_deleted=False):
+            if item.id in handled_priced_item_ids:
+                continue
+            line_type = getattr(item, 'line_type', None)
+            rate = float(item.rate or 0)
+            qty = float(item.quantity or 1)
+            disc = float(getattr(item, 'discount', 0) or 0)
+            total = max(0.0, (rate * qty) - disc)
+            warranty = f"{item.warranty_years} yrs" if (item.warranty_years and item.warranty_years > 0) else ''
+
+            if line_type == 'accessory':
+                name = item.stock_item_name or (item.stock_item.name if item.stock_item else item.service_name)
+                accessories.append({
+                    'name': name,
+                    'warranty': warranty,
+                    'quantity': qty,
+                    'rate': rate,
+                    'discount': disc,
+                    'total': total,
+                    'remarks': getattr(item, 'remarks', '') or '',
+                    'free_topup': getattr(item, 'free_topup', '') or '',
+                })
+            else:
+                services.append({
+                    'name': item.service_name or (item.service.name if item.service else 'Service'),
+                    'category': '',
+                    'issue_text': item.stock_item_name or getattr(item, 'remarks', '') or '',
+                    'warranty': warranty,
+                    'quantity': qty,
+                    'rate': rate,
+                    'discount': disc,
+                    'total': total,
+                    'remarks': getattr(item, 'remarks', '') or '',
+                })
+
+    # 3. Check quotation extras (Labour Charges vs Custom Extras)
+    if hasattr(quotation, 'extras'):
+        for extra in quotation.extras.filter(is_deleted=False):
+            line_type = getattr(extra, 'line_type', None)
+            rate = float(extra.price or 0)
+            qty = float(extra.quantity or 1)
+            disc = float(extra.discount or 0)
+            total = float(extra.total or max(0.0, (rate * qty) - disc))
+
+            if line_type == 'labour':
+                labour.append({
+                    'name': extra.name,
+                    'quantity': qty,
+                    'rate': rate,
+                    'discount': disc,
+                    'total': total,
+                    'remarks': extra.remarks or '',
+                })
+            else:
+                extras_list.append({
+                    'name': extra.name,
+                    'quantity': qty,
+                    'rate': rate,
+                    'discount': disc,
+                    'total': total,
+                    'remarks': extra.remarks or '',
+                })
+
+    services_subtotal = sum(s['total'] for s in services)
+    accessories_subtotal = sum(a['total'] for a in accessories)
+    labour_subtotal = sum(l['total'] for l in labour)
+    extras_subtotal = sum(e['total'] for e in extras_list)
+    calc_subtotal = services_subtotal + accessories_subtotal + labour_subtotal + extras_subtotal
+
+    subtotal = float(quotation.subtotal) if quotation.subtotal else calc_subtotal
+    discount = float(quotation.discount or 0)
+    tax_percentage = float(quotation.tax_percentage or 0)
+    tax_amount = float(quotation.tax_amount or 0)
+    grand_total = float(quotation.grand_total) if quotation.grand_total else max(0.0, subtotal - discount + tax_amount)
+
     context = {
         'quotation': quotation,
+        'company': company,
+        'company_logo': company_logo,
         'currency': currency,
+        'services': services,
+        'accessories': accessories,
+        'labour': labour,
+        'extras': extras_list,
+        'services_subtotal': services_subtotal,
+        'accessories_subtotal': accessories_subtotal,
+        'labour_subtotal': labour_subtotal,
+        'extras_subtotal': extras_subtotal,
+        'subtotal': subtotal,
+        'discount': discount,
+        'tax_percentage': tax_percentage,
+        'tax_amount': tax_amount,
+        'grand_total': grand_total,
     }
     
     html_string = render_to_string('quotation/quotation_pdf.html', context)
@@ -2581,7 +2733,8 @@ def generate_quotation_pdf_file(quotation, base_url):
     media_dir = os.path.join(settings.BASE_DIR, 'media', 'quotations')
     os.makedirs(media_dir, exist_ok=True)
     
-    pdf_filename = f"quotation-{quotation.quotation_number}.pdf"
+    clean_no = str(quotation.quotation_number).replace('/', '_')
+    pdf_filename = f"quotation-{clean_no}.pdf"
     pdf_path = os.path.join(media_dir, pdf_filename)
     
     html = HTML(string=html_string, base_url=base_url)

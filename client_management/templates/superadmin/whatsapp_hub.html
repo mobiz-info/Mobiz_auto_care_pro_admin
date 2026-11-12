@@ -1,0 +1,723 @@
+{% extends 'base.html' %}
+
+{% block title %}WhatsApp Template Automation - Superadmin{% endblock %}
+{% block page_title %}WhatsApp Automation Hub{% endblock %}
+{% block breadcrumb_active %}WhatsApp Automation{% endblock %}
+
+{% block content %}
+<style>
+    .hub-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .status-card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+    }
+    
+    .stat-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    
+    .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        flex-shrink: 0;
+    }
+    
+    .stat-green { background: #dcfce7; color: #16a34a; }
+    .stat-blue { background: #dbeafe; color: #2563eb; }
+    .stat-purple { background: #f3e8ff; color: #9333ea; }
+    .stat-amber { background: #fef3c7; color: #d97706; }
+    
+    .stat-title {
+        font-size: 0.82rem;
+        color: #64748b;
+        font-weight: 500;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    
+    .stat-value {
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .hub-nav-tabs {
+        display: flex;
+        gap: 8px;
+        border-bottom: 2px solid #e2e8f0;
+        margin-bottom: 4px;
+    }
+    
+    .hub-tab-btn {
+        padding: 10px 18px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #64748b;
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s;
+        margin-bottom: -2px;
+    }
+    
+    .hub-tab-btn.active {
+        color: #000080;
+        border-bottom-color: #000080;
+    }
+    
+    .hub-tab-btn:hover:not(.active) {
+        color: #1e293b;
+    }
+    
+    .tab-content {
+        display: none;
+    }
+    
+    .tab-content.active {
+        display: block;
+    }
+    
+    .list-container {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+    
+    .list-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+    
+    .search-input {
+        padding: 9px 16px 9px 36px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 0.88rem;
+        outline: none;
+        width: 300px;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .search-input:focus {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .search-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+    
+    .search-icon {
+        position: absolute;
+        left: 12px;
+        color: #94a3b8;
+        font-size: 1.1rem;
+    }
+    
+    .btn-deploy {
+        background: #000080;
+        color: white;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .btn-deploy:hover {
+        background: #1e1e9a;
+        transform: translateY(-1px);
+    }
+    
+    .btn-deploy:disabled {
+        background: #94a3b8;
+        cursor: not-allowed;
+        transform: none;
+    }
+    
+    .btn-bulk-deploy {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: white;
+        padding: 9px 18px;
+        border-radius: 8px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 2px 4px rgba(37,99,235,0.25);
+        transition: all 0.2s;
+    }
+    
+    .btn-bulk-deploy:hover {
+        background: linear-gradient(135deg, #1d4ed8, #1e40af);
+    }
+    
+    .badge-synced {
+        background: #dcfce7;
+        color: #166534;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .badge-pending {
+        background: #fef3c7;
+        color: #92400e;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    
+    .template-card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+        gap: 16px;
+        padding: 20px;
+    }
+    
+    .template-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 12px;
+        transition: all 0.2s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    
+    .template-card:hover {
+        border-color: #93c5fd;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
+    }
+    
+    .tmpl-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .tmpl-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #0f172a;
+    }
+    
+    .tmpl-code {
+        font-family: monospace;
+        font-size: 0.78rem;
+        color: #000080;
+        background: #eff6ff;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+    
+    .tmpl-content {
+        font-size: 0.84rem;
+        color: #475569;
+        line-height: 1.5;
+        background: #f8fafc;
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #f1f5f9;
+        white-space: pre-wrap;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .var-highlight {
+        color: #2563eb;
+        font-weight: 700;
+        background: #dbeafe;
+        padding: 1px 4px;
+        border-radius: 4px;
+    }
+    
+    /* Modal styles */
+    .deploy-modal-backdrop {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(4px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+    
+    .deploy-modal {
+        background: white;
+        border-radius: 16px;
+        max-width: 640px;
+        width: 90%;
+        max-height: 85vh;
+        overflow-y: auto;
+        padding: 24px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+    }
+    
+    .spinner {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(255,255,255,0.3);
+        border-radius: 50%;
+        border-top-color: white;
+        animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+<div class="hub-container">
+
+    <!-- KPI / Status Cards -->
+    <div class="status-card-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-green">
+                <i class="ph-bold ph-whatsapp-logo"></i>
+            </div>
+            <div>
+                <div class="stat-title">Wawy Portal Status</div>
+                <div class="stat-value">
+                    {% if wawy_connected %}
+                        <span style="color:#16a34a; font-size:1.1rem; display:flex; align-items:center; gap:6px;">
+                            <i class="ph-fill ph-check-circle"></i> Connected
+                        </span>
+                    {% else %}
+                        <span style="color:#dc2626; font-size:1.1rem; display:flex; align-items:center; gap:6px;">
+                            <i class="ph-fill ph-x-circle"></i> Offline
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon stat-blue">
+                <i class="ph-bold ph-chats-circle"></i>
+            </div>
+            <div>
+                <div class="stat-title">Active System Templates</div>
+                <div class="stat-value">
+                    {{ active_templates|length }} <span style="font-size:0.8rem; color:#64748b; font-weight:normal;">(Filtered / Active Only)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon stat-purple">
+                <i class="ph-bold ph-buildings"></i>
+            </div>
+            <div>
+                <div class="stat-title">Companies on System</div>
+                <div class="stat-value">
+                    {{ page_obj.paginator.count }}
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon stat-amber">
+                <i class="ph-bold ph-sim-card"></i>
+            </div>
+            <div>
+                <div class="stat-title">Wawy Sender Numbers</div>
+                <div class="stat-value">
+                    {{ senders_count }} <span style="font-size:0.8rem; color:#64748b; font-weight:normal;">Registered</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="hub-nav-tabs">
+        <button class="hub-tab-btn active" onclick="switchHubTab('clientsTab', this)">
+            <i class="ph ph-buildings"></i> Client Deployments
+        </button>
+        <button class="hub-tab-btn" onclick="switchHubTab('templatesTab', this)">
+            <i class="ph ph-file-text"></i> 12 Active System Templates
+        </button>
+    </div>
+
+    <!-- TAB 1: CLIENTS DEPLOYMENT -->
+    <div id="clientsTab" class="tab-content active">
+        <div class="list-container">
+            <div class="list-header">
+                <form method="GET" class="search-wrapper">
+                    <i class="ph ph-magnifying-glass search-icon"></i>
+                    <input type="text" name="search" value="{{ search }}" placeholder="Search company, phone, code..." class="search-input">
+                    {% if search %}
+                    <a href="{% url 'superadmin_whatsapp_hub' %}" style="position: absolute; right: 12px; color: #94a3b8; text-decoration: none;">
+                        <i class="ph ph-x-circle"></i>
+                    </a>
+                    {% endif %}
+                </form>
+
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="btn-bulk-deploy" onclick="deployAllClients()">
+                        <i class="ph-bold ph-lightning"></i> Deploy to All Clients
+                    </button>
+                </div>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table class="premium-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">#</th>
+                            <th>Company / Client</th>
+                            <th>WhatsApp Number</th>
+                            <th>Wawy Sender ID</th>
+                            <th>Templates Deployed</th>
+                            <th>Sync Status</th>
+                            <th style="text-align: right; width: 220px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in page_obj %}
+                        <tr id="row-{{ item.client.id }}">
+                            <td style="color:#94a3b8; font-weight:500;">{{ forloop.counter }}</td>
+                            <td>
+                                <div style="font-weight: 700; color: #1e293b;">{{ item.client.company_name }}</div>
+                                <div style="font-size: 0.75rem; color: #64748b; font-family: monospace;">{{ item.client.display_client_id }}</div>
+                            </td>
+                            <td>
+                                {% if item.clean_phone %}
+                                    <span style="font-weight: 600; color: #000080;">{{ item.clean_phone }}</span>
+                                {% else %}
+                                    <span style="color:#94a3b8; font-style:italic;">Not set</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.sender_id %}
+                                    <span style="background:#eff6ff; color:#1d4ed8; padding:3px 8px; border-radius:6px; font-weight:600; font-size:0.8rem;">
+                                        {{ item.sender_id }}
+                                    </span>
+                                {% else %}
+                                    <span style="color:#94a3b8; font-size:0.8rem;">Auto-assigned</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong style="color: {% if item.is_fully_synced %}#16a34a{% else %}#d97706{% endif %}; font-size: 0.95rem;">
+                                    {{ item.templates_synced }} / {{ item.total_templates }}
+                                </strong>
+                            </td>
+                            <td>
+                                {% if item.is_fully_synced %}
+                                    <span class="badge-synced">
+                                        <i class="ph-fill ph-check-circle"></i> Fully Synced
+                                    </span>
+                                {% else %}
+                                    <span class="badge-pending">
+                                        <i class="ph-fill ph-clock"></i> Setup Required
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: right;">
+                                <div style="display:flex; gap:6px; justify-content:flex-end;">
+                                    <button class="btn-deploy" onclick="deploySingleClient('{{ item.client.id }}', '{{ item.client.company_name|escapejs }}', this)">
+                                        <i class="ph-bold ph-lightning"></i> Deploy (12)
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 40px; color: #94a3b8;">
+                                <i class="ph ph-folder-open" style="font-size: 2.5rem; display: block; margin-bottom: 8px;"></i>
+                                No companies found.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if page_obj.paginator.num_pages > 1 %}
+            <div class="pagination" style="padding: 16px 20px; display:flex; justify-content:center; align-items:center; gap:12px; border-top:1px solid #e2e8f0;">
+                {% if page_obj.has_previous %}
+                    <a href="?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}" class="page-link">Previous</a>
+                {% endif %}
+                <span style="font-weight: 500; font-size: 0.85rem; color:#64748b;">
+                    Page <strong style="color:#1e293b;">{{ page_obj.number }}</strong> of {{ page_obj.paginator.num_pages }}
+                </span>
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}" class="page-link">Next</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- TAB 2: ACTIVE SYSTEM TEMPLATES CATALOG -->
+    <div id="templatesTab" class="tab-content">
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; display:flex; align-items:center; gap:12px;">
+            <i class="ph-fill ph-info" style="color: #2563eb; font-size: 1.5rem; flex-shrink:0;"></i>
+            <div style="font-size: 0.88rem; color: #1e40af; line-height: 1.4;">
+                <strong>Only Active Templates Deployed:</strong> Out of all templates in Wawy, only these <strong>12 active templates</strong> actually called by the Mobiz software are deployed. All 13+ unused/junk test templates in Wawy are completely filtered out!
+            </div>
+        </div>
+
+        <div class="template-card-grid">
+            {% for tmpl in active_templates %}
+            <div class="template-card">
+                <div>
+                    <div class="tmpl-header">
+                        <div>
+                            <div class="tmpl-title">{{ tmpl.template_name }}</div>
+                            <span class="tmpl-code">{{ tmpl.wawy_template_name }}</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; {% if tmpl.category == '13' %}background:#fce7f3; color:#be185d;{% else %}background:#e0f2fe; color:#0369a1;{% endif %}">
+                                {{ tmpl.category_name }}
+                            </span>
+                            <div style="font-size: 0.72rem; color: #64748b; margin-top: 3px;">
+                                {% if tmpl.msgtype == '2' %}📄 PDF Document{% else %}💬 Text Message{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <p style="font-size: 0.8rem; color: #64748b; margin: 8px 0;">{{ tmpl.description }}</p>
+                    <div class="tmpl-content">{{ tmpl.content }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+
+<!-- Deploy Results Modal -->
+<div id="deployModal" class="deploy-modal-backdrop">
+    <div class="deploy-modal">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:14px; margin-bottom:16px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div style="width:36px; height:36px; border-radius:8px; background:#dcfce7; color:#16a34a; display:flex; align-items:center; justify-content:center; font-size:1.3rem;">
+                    <i class="ph-bold ph-lightning"></i>
+                </div>
+                <div>
+                    <h3 id="modalTitle" style="font-size:1.15rem; font-weight:700; color:#1e293b; margin:0;">Deployment Status</h3>
+                    <span id="modalSubtitle" style="font-size:0.8rem; color:#64748b;">Deploying 12 templates...</span>
+                </div>
+            </div>
+            <button onclick="closeDeployModal()" style="background:none; border:none; font-size:1.4rem; color:#94a3b8; cursor:pointer;">
+                <i class="ph ph-x"></i>
+            </button>
+        </div>
+
+        <div id="modalLoading" style="text-align:center; padding:30px;">
+            <div style="font-size:2rem; color:#000080; animation:spin 1s linear infinite; display:inline-block;">
+                <i class="ph ph-spinner-gap"></i>
+            </div>
+            <div style="margin-top:12px; font-weight:600; color:#1e293b;">Connecting to Wawy & Deploying Active Templates...</div>
+            <div style="font-size:0.85rem; color:#64748b; margin-top:4px;">Submitting 12 templates to Meta WhatsApp Business API</div>
+        </div>
+
+        <div id="modalContent" style="display:none;">
+            <div id="modalSummary" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:0.9rem;"></div>
+            
+            <div style="max-height:300px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px;">
+                <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+                    <thead>
+                        <tr style="background:#f1f5f9; text-align:left; color:#475569;">
+                            <th style="padding:8px 12px;">Template</th>
+                            <th style="padding:8px 12px;">Wawy Status</th>
+                            <th style="padding:8px 12px;">Mobiz DB</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modalTableBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="margin-top:20px; display:flex; justify-content:flex-end;">
+                <button onclick="closeDeployModal(); window.location.reload();" class="btn-deploy" style="padding:10px 20px;">
+                    Done
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function switchHubTab(tabId, btn) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.hub-tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    btn.classList.add('active');
+}
+
+function openDeployModal(title, subtitle) {
+    document.getElementById('modalTitle').innerText = title;
+    document.getElementById('modalSubtitle').innerText = subtitle;
+    document.getElementById('modalLoading').style.display = 'block';
+    document.getElementById('modalContent').style.display = 'none';
+    document.getElementById('deployModal').style.display = 'flex';
+}
+
+function closeDeployModal() {
+    document.getElementById('deployModal').style.display = 'none';
+}
+
+function deploySingleClient(companyId, companyName, btn) {
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Deploying...';
+    }
+
+    openDeployModal('Deploying Templates: ' + companyName, 'Syncing 12 active templates to Wawy & Local DB');
+
+    const formData = new FormData();
+    formData.append('company_id', companyId);
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+    fetch("{% url 'superadmin_whatsapp_deploy' %}", {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ph-bold ph-lightning"></i> Deploy (12)';
+        }
+        document.getElementById('modalLoading').style.display = 'none';
+        document.getElementById('modalContent').style.display = 'block';
+
+        if (data.status === 'success') {
+            const res = data.results;
+            document.getElementById('modalSummary').innerHTML = `
+                <div style="color:#166534; font-weight:700; margin-bottom:4px;">✓ ${data.message}</div>
+                <div style="font-size:0.82rem; color:#475569;">
+                    Local DB: <strong>${res.saved_to_db}/12 saved</strong> | 
+                    Wawy: <strong>${res.deployed_to_wawy} submitted</strong>, <strong>${res.already_in_wawy} verified</strong>
+                </div>
+            `;
+
+            let tbody = '';
+            res.details.forEach(item => {
+                const badgeColor = item.wawy_status === 'APPROVED' ? '#16a34a' : (item.wawy_status === 'SUBMITTED' ? '#2563eb' : '#d97706');
+                tbody += `
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:8px 12px; font-weight:600;">${item.name} <br><span style="color:#64748b; font-size:0.75rem; font-family:monospace;">${item.wawy_name}</span></td>
+                        <td style="padding:8px 12px;">
+                            <span style="font-weight:700; color:${badgeColor}; font-size:0.78rem;">${item.wawy_status}</span>
+                            <div style="font-size:0.72rem; color:#64748b;">${item.wawy_message}</div>
+                        </td>
+                        <td style="padding:8px 12px; font-weight:600; color:#16a34a;">${item.db_status}</td>
+                    </tr>
+                `;
+            });
+            document.getElementById('modalTableBody').innerHTML = tbody;
+        } else {
+            document.getElementById('modalSummary').innerHTML = `
+                <div style="color:#dc2626; font-weight:700;">✗ Failed: ${data.message}</div>
+            `;
+        }
+    })
+    .catch(err => {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ph-bold ph-lightning"></i> Deploy (12)';
+        }
+        document.getElementById('modalLoading').style.display = 'none';
+        document.getElementById('modalContent').style.display = 'block';
+        document.getElementById('modalSummary').innerHTML = `
+            <div style="color:#dc2626; font-weight:700;">✗ Error connecting to server: ${err}</div>
+        `;
+    });
+}
+
+function deployAllClients() {
+    if (!confirm('Are you sure you want to deploy the 12 active templates to ALL companies? This will submit missing templates to Wawy and save all 12 in the database for each company.')) {
+        return;
+    }
+
+    openDeployModal('Bulk Deploying Templates', 'Processing all active companies in background...');
+
+    const formData = new FormData();
+    formData.append('deploy_all', 'true');
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+    fetch("{% url 'superadmin_whatsapp_deploy' %}", {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('modalLoading').style.display = 'none';
+        document.getElementById('modalContent').style.display = 'block';
+        document.getElementById('modalSummary').innerHTML = `
+            <div style="color:#166534; font-weight:700; font-size:1rem;">✓ ${data.message}</div>
+        `;
+        document.getElementById('modalTableBody').innerHTML = `
+            <tr><td colspan="3" style="padding:16px; text-align:center; color:#64748b;">All companies processed successfully.</td></tr>
+        `;
+    })
+    .catch(err => {
+        document.getElementById('modalLoading').style.display = 'none';
+        document.getElementById('modalContent').style.display = 'block';
+        document.getElementById('modalSummary').innerHTML = `
+            <div style="color:#dc2626; font-weight:700;">✗ Bulk deployment failed: ${err}</div>
+        `;
+    });
+}
+</script>
+{% endblock %}

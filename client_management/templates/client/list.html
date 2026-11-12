@@ -216,7 +216,10 @@
                         {% endif %}
                     </td>
                     <td style="text-align: right;">
-                        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                        <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center;">
+                            <a href="{% url 'superadmin_whatsapp_hub' %}?search={{ obj.company_name|urlencode }}" class="action-btn" style="color: #16a34a;" title="Deploy & Manage WhatsApp Templates">
+                                <i class="ph-bold ph-whatsapp-logo" style="font-size: 1.25rem;"></i>
+                            </a>
                             <a href="{% url 'client_edit' obj.pk %}" class="action-btn edit" title="Edit">
                                 <i class="ph ph-pencil-simple" style="font-size: 1.2rem;"></i>
                             </a>

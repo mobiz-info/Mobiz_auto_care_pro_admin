@@ -178,18 +178,21 @@
         /* Summary section */
         .summary-wrapper {
             width: 100%;
-            margin-top: 10px;
+            margin-top: 15px;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
         }
         .summary-table {
-            width: 280px;
+            width: 330px;
             margin-left: auto;
             border-collapse: collapse;
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
         }
         .summary-table td {
             padding: 5px 12px;
-            font-size: 9.5pt;
+            font-size: 9pt;
         }
         .summary-label {
             color: #64748b;
@@ -200,16 +203,37 @@
             color: #1e293b;
             text-align: right;
         }
+        .summary-sub-line td {
+            color: #475569;
+            font-size: 8.5pt;
+            padding: 3px 12px;
+        }
         .summary-total {
             font-size: 11pt;
             font-weight: 700;
             color: #1e3a8a;
-            border-top: 1px solid #bfdbfe;
-            border-bottom: 2px double #bfdbfe;
+            border-top: 2px solid #1e3a8a;
+            border-bottom: 2px double #1e3a8a;
             background-color: #eff6ff;
         }
         .summary-total td {
             padding: 8px 12px;
+        }
+        .section-header {
+            margin-top: 18px;
+            margin-bottom: 6px;
+            font-weight: 700;
+            color: #1e3a8a;
+            font-size: 9.5pt;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #bfdbfe;
+            padding-bottom: 3px;
+        }
+        .issue-desc {
+            font-size: 8pt;
+            color: #64748b;
+            margin-top: 2px;
         }
 
         /* Footer block */
@@ -304,7 +328,7 @@
                     </tr>
                     <tr>
                         <td class="meta-label">Date:</td>
-                        <td class="meta-value">{{ quotation.date_added|date:"d M Y" }}</td>
+                        <td class="meta-value">{{ quotation.date_added|date:"d-m-Y H:i" }}</td>
                     </tr>
                 </table>
             </td>
@@ -379,95 +403,252 @@
         </tr>
     </table>
 
-    <!-- Services & Items Table -->
-    <table class="items-table">
-        <thead>
-            <tr>
-                <th style="width: 8%;" class="align-center">#</th>
-                <th style="width: 52%;">Service / Item Description</th>
-                <th style="width: 15%;" class="align-center">Warranty</th>
-                <th style="width: 25%;" class="align-right">Rate</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for item in quotation.items.all %}
-                {% if not item.is_deleted %}
+    {% if services or accessories or labour or extras %}
+        <!-- Services & Reported Issues -->
+        {% if services %}
+        <div class="section-header">Services &amp; Reported Issues</div>
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 6%;" class="align-center">#</th>
+                    <th style="width: 44%;">Service / Issue Description</th>
+                    <th style="width: 8%;" class="align-center">Qty</th>
+                    <th style="width: 14%;" class="align-right">Rate</th>
+                    <th style="width: 12%;" class="align-right">Discount</th>
+                    <th style="width: 16%;" class="align-right">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in services %}
                 <tr>
                     <td class="align-center">{{ forloop.counter }}</td>
                     <td>
-                        <div style="font-weight: 600;">{{ item.service_name }}</div>
-                        {% if item.stock_item_name %}
-                            <div style="font-size: 8.5pt; color: #64748b;">Stock: {{ item.stock_item_name }}</div>
+                        <div style="font-weight: 600; color: #0f172a;">{{ item.name }}</div>
+                        {% if item.category or item.issue_text %}
+                            <div class="issue-desc">
+                                {% if item.category %}<strong>{{ item.category }}</strong> &bull; {% endif %}{{ item.issue_text }}
+                            </div>
+                        {% endif %}
+                        {% if item.warranty %}
+                            <div style="font-size: 8pt; color: #1e3a8a;">Warranty: {{ item.warranty }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="align-center">{{ item.quantity|floatformat:"-2" }}</td>
+                    <td class="align-right">{{ currency }}{{ item.rate|floatformat:2 }}</td>
+                    <td class="align-right">{% if item.discount > 0 %}{{ currency }}{{ item.discount|floatformat:2 }}{% else %}-{% endif %}</td>
+                    <td class="align-right" style="font-weight: 600;">{{ currency }}{{ item.total|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        <!-- Accessories & Spare Parts -->
+        {% if accessories %}
+        <div class="section-header">Accessories &amp; Spare Parts</div>
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 6%;" class="align-center">#</th>
+                    <th style="width: 42%;">Part / Item Description</th>
+                    <th style="width: 10%;" class="align-center">Warranty</th>
+                    <th style="width: 8%;" class="align-center">Qty</th>
+                    <th style="width: 12%;" class="align-right">Rate</th>
+                    <th style="width: 10%;" class="align-right">Discount</th>
+                    <th style="width: 12%;" class="align-right">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in accessories %}
+                <tr>
+                    <td class="align-center">{{ forloop.counter }}</td>
+                    <td>
+                        <div style="font-weight: 600; color: #0f172a;">{{ item.name }}</div>
+                        {% if item.remarks %}
+                            <div class="issue-desc">{{ item.remarks }}</div>
                         {% endif %}
                         {% if item.free_topup and item.free_topup != '0' %}
-                            <div style="font-size: 8.5pt; color: #64748b;">Topup: {{ item.free_topup }}</div>
+                            <div style="font-size: 8pt; color: #64748b;">Topup: {{ item.free_topup }}</div>
                         {% endif %}
                     </td>
-                    <td class="align-center">
-                        {% if item.warranty_years > 0 %}{{ item.warranty_years }} yrs{% else %}-{% endif %}
-                    </td>
-                    <td class="align-right">{{ currency }}{{ item.rate }}</td>
+                    <td class="align-center">{% if item.warranty %}{{ item.warranty }}{% else %}-{% endif %}</td>
+                    <td class="align-center">{{ item.quantity|floatformat:"-2" }}</td>
+                    <td class="align-right">{{ currency }}{{ item.rate|floatformat:2 }}</td>
+                    <td class="align-right">{% if item.discount > 0 %}{{ currency }}{{ item.discount|floatformat:2 }}{% else %}-{% endif %}</td>
+                    <td class="align-right" style="font-weight: 600;">{{ currency }}{{ item.total|floatformat:2 }}</td>
                 </tr>
-                {% endif %}
-            {% empty %}
-                <tr>
-                    <td colspan="4" class="align-center" style="color: #64748b;">No items listed.</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
 
-    <!-- Particulars Table -->
-    {% if quotation.extras.all %}
-    <div style="margin-top: 15px; margin-bottom: 5px; font-weight: 700; color: #1e3a8a; font-size: 10pt;">
-        PARTICULARS
-    </div>
-    <table class="items-table">
-        <thead>
-            <tr>
-                <th style="width: 8%;" class="align-center">#</th>
-                <th style="width: 42%;">Particular Description</th>
-                <th style="width: 10%;" class="align-center">Qty</th>
-                <th style="width: 14%;" class="align-right">Rate</th>
-                <th style="width: 12%;" class="align-right">Discount</th>
-                <th style="width: 14%;" class="align-right">Total</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for extra in quotation.extras.all %}
-                {% if not extra.is_deleted %}
+        <!-- Labour Charges -->
+        {% if labour %}
+        <div class="section-header">Labour Charges</div>
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 6%;" class="align-center">#</th>
+                    <th style="width: 52%;">Labour Particulars</th>
+                    <th style="width: 8%;" class="align-center">Qty</th>
+                    <th style="width: 14%;" class="align-right">Rate</th>
+                    <th style="width: 10%;" class="align-right">Discount</th>
+                    <th style="width: 10%;" class="align-right">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in labour %}
                 <tr>
                     <td class="align-center">{{ forloop.counter }}</td>
                     <td>
-                        <div style="font-weight: 600;">{{ extra.name }}</div>
-                        {% if extra.remarks %}
-                            <div style="font-size: 8.5pt; color: #64748b;">{{ extra.remarks }}</div>
+                        <div style="font-weight: 600; color: #0f172a;">{{ item.name }}</div>
+                        {% if item.remarks %}
+                            <div class="issue-desc">{{ item.remarks }}</div>
                         {% endif %}
                     </td>
-                    <td class="align-center">{{ extra.quantity|floatformat:"-2" }}</td>
-                    <td class="align-right">{{ currency }}{{ extra.price }}</td>
-                    <td class="align-right">
-                        {% if extra.discount > 0 %}
-                            {% if extra.discount_type == 'percentage' %}
-                                {{ extra.discount_percentage|floatformat:"-2" }}% ({{ currency }}{{ extra.discount }})
-                            {% else %}
-                                {{ currency }}{{ extra.discount }}
-                            {% endif %}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td class="align-right">{{ currency }}{{ extra.total }}</td>
+                    <td class="align-center">{{ item.quantity|floatformat:"-2" }}</td>
+                    <td class="align-right">{{ currency }}{{ item.rate|floatformat:2 }}</td>
+                    <td class="align-right">{% if item.discount > 0 %}{{ currency }}{{ item.discount|floatformat:2 }}{% else %}-{% endif %}</td>
+                    <td class="align-right" style="font-weight: 600;">{{ currency }}{{ item.total|floatformat:2 }}</td>
                 </tr>
-                {% endif %}
-            {% endfor %}
-        </tbody>
-    </table>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        <!-- Extras -->
+        {% if extras %}
+        <div class="section-header">Extras</div>
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 6%;" class="align-center">#</th>
+                    <th style="width: 52%;">Extra Particulars</th>
+                    <th style="width: 8%;" class="align-center">Qty</th>
+                    <th style="width: 14%;" class="align-right">Rate</th>
+                    <th style="width: 10%;" class="align-right">Discount</th>
+                    <th style="width: 10%;" class="align-right">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in extras %}
+                <tr>
+                    <td class="align-center">{{ forloop.counter }}</td>
+                    <td>
+                        <div style="font-weight: 600; color: #0f172a;">{{ item.name }}</div>
+                        {% if item.remarks %}
+                            <div class="issue-desc">{{ item.remarks }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="align-center">{{ item.quantity|floatformat:"-2" }}</td>
+                    <td class="align-right">{{ currency }}{{ item.rate|floatformat:2 }}</td>
+                    <td class="align-right">{% if item.discount > 0 %}{{ currency }}{{ item.discount|floatformat:2 }}{% else %}-{% endif %}</td>
+                    <td class="align-right" style="font-weight: 600;">{{ currency }}{{ item.total|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+    {% else %}
+        <!-- Legacy Services & Items Table -->
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 8%;" class="align-center">#</th>
+                    <th style="width: 52%;">Service / Item Description</th>
+                    <th style="width: 15%;" class="align-center">Warranty</th>
+                    <th style="width: 25%;" class="align-right">Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in quotation.items.all %}
+                    {% if not item.is_deleted %}
+                    <tr>
+                        <td class="align-center">{{ forloop.counter }}</td>
+                        <td>
+                            <div style="font-weight: 600;">{{ item.service_name }}</div>
+                            {% if item.stock_item_name %}
+                                <div style="font-size: 8.5pt; color: #64748b;">Stock: {{ item.stock_item_name }}</div>
+                            {% endif %}
+                            {% if item.free_topup and item.free_topup != '0' %}
+                                <div style="font-size: 8.5pt; color: #64748b;">Topup: {{ item.free_topup }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="align-center">
+                            {% if item.warranty_years > 0 %}{{ item.warranty_years }} yrs{% else %}-{% endif %}
+                        </td>
+                        <td class="align-right">{{ currency }}{{ item.rate }}</td>
+                    </tr>
+                    {% endif %}
+                {% empty %}
+                    <tr>
+                        <td colspan="4" class="align-center" style="color: #64748b;">No items listed.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Legacy Particulars Table -->
+        {% if quotation.extras.all %}
+        <div style="margin-top: 15px; margin-bottom: 5px; font-weight: 700; color: #1e3a8a; font-size: 10pt;">
+            PARTICULARS
+        </div>
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th style="width: 8%;" class="align-center">#</th>
+                    <th style="width: 42%;">Particular Description</th>
+                    <th style="width: 10%;" class="align-center">Qty</th>
+                    <th style="width: 14%;" class="align-right">Rate</th>
+                    <th style="width: 12%;" class="align-right">Discount</th>
+                    <th style="width: 14%;" class="align-right">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for extra in quotation.extras.all %}
+                    {% if not extra.is_deleted %}
+                    <tr>
+                        <td class="align-center">{{ forloop.counter }}</td>
+                        <td>
+                            <div style="font-weight: 600;">{{ extra.name }}</div>
+                            {% if extra.remarks %}
+                                <div style="font-size: 8.5pt; color: #64748b;">{{ extra.remarks }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="align-center">{{ extra.quantity|floatformat:"-2" }}</td>
+                        <td class="align-right">{{ currency }}{{ extra.price }}</td>
+                        <td class="align-right">
+                            {% if extra.discount > 0 %}
+                                {% if extra.discount_type == 'percentage' %}
+                                    {{ extra.discount_percentage|floatformat:"-2" }}% ({{ currency }}{{ extra.discount }})
+                                {% else %}
+                                    {{ currency }}{{ extra.discount }}
+                                {% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="align-right">{{ currency }}{{ extra.total }}</td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    {% endif %}
+
+    <!-- Customer Comments -->
+    {% if quotation.customer_comments %}
+        <div style="margin-top: 12px; margin-bottom: 10px; padding: 10px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+            <strong style="color: #1e3a8a; font-size: 9pt;">CUSTOMER COMMENTS:</strong>
+            <p style="margin: 4px 0 0 0; font-size: 9pt; color: #334155;">{{ quotation.customer_comments|linebreaksbr }}</p>
+        </div>
     {% endif %}
 
     <!-- Additional Services Notes -->
     {% if quotation.additional_services %}
-        <div style="margin-top: 15px; margin-bottom: 15px; padding: 10px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+        <div style="margin-top: 12px; margin-bottom: 12px; padding: 10px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
             <strong style="color: #1e3a8a; font-size: 9pt;">ADDITIONAL SERVICE NOTES:</strong>
             <p style="margin: 4px 0 0 0; font-size: 9pt; color: #334155;">{{ quotation.additional_services|linebreaksbr }}</p>
         </div>
@@ -477,31 +658,57 @@
     {% if quotation.is_grand_total %}
     <div class="summary-wrapper">
         <table class="summary-table">
-            <tr>
-                <td class="summary-label">Subtotal</td>
-                <td class="summary-value">{{ currency }}{{ quotation.subtotal }}</td>
+            {% if services_subtotal > 0 %}
+            <tr class="summary-sub-line">
+                <td class="summary-label">Services Subtotal:</td>
+                <td class="summary-value">{{ currency }}{{ services_subtotal|floatformat:2 }}</td>
             </tr>
-            {% if quotation.discount > 0 %}
+            {% endif %}
+            {% if accessories_subtotal > 0 %}
+            <tr class="summary-sub-line">
+                <td class="summary-label">Parts &amp; Accessories:</td>
+                <td class="summary-value">{{ currency }}{{ accessories_subtotal|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+            {% if labour_subtotal > 0 %}
+            <tr class="summary-sub-line">
+                <td class="summary-label">Labour Charges:</td>
+                <td class="summary-value">{{ currency }}{{ labour_subtotal|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+            {% if extras_subtotal > 0 %}
+            <tr class="summary-sub-line">
+                <td class="summary-label">Extras:</td>
+                <td class="summary-value">{{ currency }}{{ extras_subtotal|floatformat:2 }}</td>
+            </tr>
+            {% endif %}
+            <tr style="border-top: 1px solid #cbd5e1;">
+                <td class="summary-label" style="font-weight: 600; color: #1e293b;">Subtotal:</td>
+                <td class="summary-value" style="font-weight: 600;">{{ currency }}{% if subtotal %}{{ subtotal|floatformat:2 }}{% else %}{{ quotation.subtotal|floatformat:2 }}{% endif %}</td>
+            </tr>
+            {% if discount > 0 or quotation.discount > 0 %}
                 <tr>
                     <td class="summary-label">
                         {% if quotation.discount_type == 'percentage' and quotation.discount_percentage > 0 %}
-                            Discount ({{ quotation.discount_percentage }}%)
+                            Discount ({{ quotation.discount_percentage|floatformat:"-2" }}%):
                         {% else %}
-                            Discount
+                            Discount:
                         {% endif %}
                     </td>
-                    <td class="summary-value">- {{ currency }}{{ quotation.discount }}</td>
+                    <td class="summary-value" style="color: #16a34a;">- {{ currency }}{% if discount %}{{ discount|floatformat:2 }}{% else %}{{ quotation.discount|floatformat:2 }}{% endif %}</td>
                 </tr>
             {% endif %}
-            {% if quotation.tax_amount > 0 %}
+            {% if tax_amount > 0 or quotation.tax_amount > 0 %}
                 <tr>
-                    <td class="summary-label">Tax ({{ quotation.tax_percentage }}%)</td>
-                    <td class="summary-value">{{ currency }}{{ quotation.tax_amount }}</td>
+                    <td class="summary-label">
+                        Tax {% if tax_percentage %}({{ tax_percentage|floatformat:"-2" }}%){% elif quotation.tax_percentage %}({{ quotation.tax_percentage|floatformat:"-2" }}%){% endif %}:
+                    </td>
+                    <td class="summary-value">{{ currency }}{% if tax_amount %}{{ tax_amount|floatformat:2 }}{% else %}{{ quotation.tax_amount|floatformat:2 }}{% endif %}</td>
                 </tr>
             {% endif %}
             <tr class="summary-total">
-                <td class="summary-label" style="color: #1e3a8a;">Grand Total</td>
-                <td class="summary-value" style="color: #1e3a8a;">{{ currency }}{{ quotation.grand_total }}</td>
+                <td class="summary-label" style="color: #1e3a8a; font-weight: 700;">Grand Total:</td>
+                <td class="summary-value" style="color: #1e3a8a; font-weight: 800;">{{ currency }}{% if grand_total %}{{ grand_total|floatformat:2 }}{% else %}{{ quotation.grand_total|floatformat:2 }}{% endif %}</td>
             </tr>
         </table>
     </div>

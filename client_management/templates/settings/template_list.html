@@ -13,6 +13,12 @@
             <input type="text" name="search" value="{{ search }}" placeholder="Search templates..." class="search-input">
         </form>
         <div style="display:flex; gap: 8px;">
+            <form method="POST" action="{% url 'company_whatsapp_deploy' %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" onclick="return confirm('Deploy/Update all 12 active templates to Wawy and local database?');" class="btn-create" style="background:#16a34a; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; border:none; cursor:pointer;">
+                    <i class="ph-bold ph-lightning"></i> Deploy Active Templates (12)
+                </button>
+            </form>
             <a href="{% url 'whatsapp_template_create' %}" class="btn-create" style="background:#000080; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
                 <i class="ph-bold ph-plus"></i> Add Template
             </a>

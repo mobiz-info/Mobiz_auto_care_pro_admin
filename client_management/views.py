@@ -2849,6 +2849,52 @@ def whatsapp_template_create(request):
             template.auto_id = get_auto_id(WhatsAppTemplate)
             template.creator = request.user
             template.save()
+
+            sync_wawy = form.cleaned_data.get('sync_to_wawy', True)
+            wawy_name = (template.wawy_template_name or template.template_name).strip().lower().replace(' ', '')
+            if sync_wawy and wawy_name:
+                from .wawy_service import WawyClient, clean_phone_for_wawy
+                setting = WhatsAppSetting.objects.filter(company=company).first()
+                wawy_user = (setting.username if setting and setting.username else 'mobiz').strip()
+                wawy_pass = (setting.password if setting and setting.password else 'Mobiz123@').strip()
+                wc = WawyClient(username=wawy_user, password=wawy_pass)
+                ok, _ = wc.login()
+                if not ok and wawy_user != 'mobiz':
+                    wc = WawyClient(username='mobiz', password='Mobiz123@')
+                    ok, _ = wc.login()
+                if ok:
+                    senders = wc.get_senders()
+                    sender_id = None
+                    if setting and setting.sender_id:
+                        for s in senders:
+                            if s['sender_id'] == setting.sender_id or s['number'] == setting.sender_id:
+                                sender_id = s['sender_id']
+                                break
+                    if not sender_id and company.phone:
+                        c_clean = clean_phone_for_wawy(company.phone)
+                        for s in senders:
+                            if s['number'] == c_clean:
+                                sender_id = s['sender_id']
+                                break
+                    if not sender_id and senders:
+                        sender_id = senders[0]['sender_id']
+
+                    if sender_id:
+                        cat = form.cleaned_data.get('category', '12')
+                        mtype = form.cleaned_data.get('msgtype', '1')
+                        succ, w_msg = wc.submit_template(sender_id, {
+                            'wawy_template_name': wawy_name,
+                            'template_name': template.template_name,
+                            'content': template.content,
+                            'category': cat,
+                            'msgtype': mtype,
+                        })
+                        if succ:
+                            messages.success(request, f"WhatsApp template created in Mobiz and submitted to Wawy & Meta ({w_msg}).")
+                        else:
+                            messages.warning(request, f"WhatsApp template saved, but Wawy returned: {w_msg}")
+                        return redirect('whatsapp_template_list')
+
             messages.success(request, "WhatsApp template created successfully.")
             return redirect('whatsapp_template_list')
     else:
@@ -2898,6 +2944,139 @@ def whatsapp_template_delete(request, id):
     template.save()
     messages.success(request, "WhatsApp template deleted successfully.")
     return redirect('whatsapp_template_list')
+
+
+@login_required
+def superadmin_whatsapp_hub(request):
+    is_superadmin = request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.role and request.user.profile.role.name == 'SUPER_ADMIN')
+    if not is_superadmin:
+        messages.error(request, "Permission denied. Only Super Admin can access WhatsApp Automation Hub.")
+        return redirect('dashboard')
+
+    from .wawy_service import WawyClient, ACTIVE_SYSTEM_TEMPLATES, clean_phone_for_wawy
+
+    # Test master Wawy connection
+    client = WawyClient(username='mobiz', password='Mobiz123@')
+    wawy_connected, wawy_msg = client.login()
+    senders = client.get_senders() if wawy_connected else []
+    senders_map = {s['number']: s['sender_id'] for s in senders}
+
+    search = request.GET.get('search', '').strip()
+    selected_company_id = request.GET.get('company_id', '').strip()
+
+    clients_qs = Client.objects.filter(is_deleted=False).order_by('-date_added')
+    if search:
+        clients_qs = clients_qs.filter(
+            Q(company_name__icontains=search) |
+            Q(phone__icontains=search) |
+            Q(client_code__icontains=search)
+        )
+
+    client_data = []
+    active_keys = [t['wawy_template_name'].lower() for t in ACTIVE_SYSTEM_TEMPLATES]
+
+    for c in clients_qs:
+        setting = WhatsAppSetting.objects.filter(company=c).first()
+        c_phone = clean_phone_for_wawy(c.phone) if c.phone else ''
+        sender_id = setting.sender_id if setting and setting.sender_id else senders_map.get(c_phone, '')
+
+        # Count synced templates in DB
+        db_count = WhatsAppTemplate.objects.filter(
+            company=c,
+            is_deleted=False,
+            wawy_template_name__in=active_keys
+        ).count()
+
+        client_data.append({
+            'client': c,
+            'setting': setting,
+            'clean_phone': c_phone,
+            'sender_id': sender_id,
+            'templates_synced': db_count,
+            'total_templates': len(ACTIVE_SYSTEM_TEMPLATES),
+            'is_fully_synced': db_count >= len(ACTIVE_SYSTEM_TEMPLATES),
+        })
+
+    paginator = Paginator(client_data, 15)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    return render(request, 'superadmin/whatsapp_hub.html', {
+        'page_obj': page_obj,
+        'search': search,
+        'selected_company_id': selected_company_id,
+        'wawy_connected': wawy_connected,
+        'wawy_msg': wawy_msg,
+        'senders_count': len(senders),
+        'active_templates': ACTIVE_SYSTEM_TEMPLATES,
+        'title': 'WhatsApp Automation Hub - Superadmin',
+    })
+
+
+@login_required
+def superadmin_whatsapp_deploy(request):
+    is_superadmin = request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.role and request.user.profile.role.name == 'SUPER_ADMIN')
+    if not is_superadmin:
+        return JsonResponse({'status': 'error', 'message': 'Permission denied. Super Admin only.'}, status=403)
+
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'POST method required.'}, status=405)
+
+    from .wawy_service import deploy_active_templates_for_company
+
+    company_id = request.POST.get('company_id')
+    deploy_all = request.POST.get('deploy_all') == 'true'
+
+    if deploy_all:
+        clients = Client.objects.filter(is_deleted=False)
+        total = clients.count()
+        success_count = 0
+        for c in clients:
+            try:
+                deploy_active_templates_for_company(c)
+                success_count += 1
+            except Exception:
+                pass
+        return JsonResponse({
+            'status': 'success',
+            'message': f"Templates successfully deployed to {success_count} of {total} companies."
+        })
+
+    if not company_id:
+        return JsonResponse({'status': 'error', 'message': 'Company ID is required.'}, status=400)
+
+    company = get_object_or_404(Client, id=company_id, is_deleted=False)
+    sender_id = request.POST.get('sender_id') or None
+
+    try:
+        results = deploy_active_templates_for_company(company, sender_id=sender_id)
+        return JsonResponse({
+            'status': 'success',
+            'message': f"Successfully deployed for {company.company_name}! ({results['saved_to_db']} templates active in Mobiz DB, {results['deployed_to_wawy']} deployed to Wawy, {results['already_in_wawy']} verified)",
+            'results': results
+        })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+def company_whatsapp_deploy(request):
+    company, err = get_company_for_admin_view(request)
+    if err:
+        messages.error(request, err)
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        from .wawy_service import deploy_active_templates_for_company
+        try:
+            results = deploy_active_templates_for_company(company)
+            messages.success(
+                request,
+                f"Successfully synced {results['saved_to_db']} active templates! ({results['deployed_to_wawy']} submitted to Wawy, {results['already_in_wawy']} verified in Wawy)"
+            )
+        except Exception as e:
+            messages.error(request, f"Deployment failed: {str(e)}")
+
+    return redirect('whatsapp_settings')
 
 
 @login_required
