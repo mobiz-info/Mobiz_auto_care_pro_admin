@@ -6694,17 +6694,24 @@ def api_job_quotation_create(request):
                 wheel = vehicle_data.get('wheel_type') or CustomerVehicle.WHEEL_TYPE_NORMAL
                 if wheel not in dict(CustomerVehicle.WHEEL_TYPE_CHOICES):
                     wheel = CustomerVehicle.WHEEL_TYPE_NORMAL
+                engine_num = (vehicle_data.get('engine_number') or data.get('engine_number') or '').strip() or None
+                chassis_num = (vehicle_data.get('chassis_number') or data.get('chassis_number') or '').strip() or None
                 if vehicle is None:
                     vehicle = CustomerVehicle.objects.create(
                         customer=customer, vehicle_number=plate, vehicle_type=segment.vehicle_type,
                         vehicle_type_model=segment, make=make, brand_model=brand_model,
                         color=color, emission_standard=emission, fuel_type=fuel, wheel_type=wheel,
+                        engine_number=engine_num, chassis_number=chassis_num,
                         creator=user, auto_id=get_auto_id(CustomerVehicle),
                     )
                 else:
                     for field, value in {'vehicle_type': segment.vehicle_type, 'vehicle_type_model': segment, 'make': make, 'brand_model': brand_model, 'color': color, 'emission_standard': emission, 'fuel_type': fuel, 'wheel_type': wheel}.items():
                         if not getattr(vehicle, f'{field}_id', None) and value:
                             setattr(vehicle, field, value)
+                    if engine_num and not vehicle.engine_number:
+                        vehicle.engine_number = engine_num
+                    if chassis_num and not vehicle.chassis_number:
+                        vehicle.chassis_number = chassis_num
                     vehicle.save()
         else:
             customer = Customer.objects.get(id=data.get('customer_id'), company=company, is_deleted=False)
@@ -6868,6 +6875,8 @@ def _job_quotation_data(quotation, include_lines=False, request=None):
         'tax_number': quotation.customer.tax_number or '', 'tin_number': quotation.customer.tin_number or '',
         'pan_number': quotation.customer.pan_number or '',
         'vehicle_number': quotation.vehicle.vehicle_number, 'branch_name': quotation.branch.name if quotation.branch else '',
+        'engine_number': quotation.vehicle.engine_number or '',
+        'chassis_number': quotation.vehicle.chassis_number or '',
         'vehicle_type_id': str(quotation.vehicle.vehicle_type_id or ''),
         'segment_id': str(quotation.vehicle.vehicle_type_model_id or ''),
         'make_id': str(quotation.vehicle.make_id or ''), 'brand_model_id': str(quotation.vehicle.brand_model_id or ''),
@@ -7054,6 +7063,10 @@ def api_job_quotation_update(request, quotation_id):
                 vehicle.emission_standard = EmissionStandard.objects.filter(id=vehicle_data.get('emission_standard_id'), is_deleted=False).first() if vehicle_data.get('emission_standard_id') else None
                 vehicle.fuel_type = vehicle_data.get('fuel_type') or ''
                 vehicle.wheel_type = vehicle_data.get('wheel_type') or 'normal_wheel'
+                if 'engine_number' in vehicle_data or 'engine_number' in data:
+                    vehicle.engine_number = (vehicle_data.get('engine_number') or data.get('engine_number') or '').strip() or None
+                if 'chassis_number' in vehicle_data or 'chassis_number' in data:
+                    vehicle.chassis_number = (vehicle_data.get('chassis_number') or data.get('chassis_number') or '').strip() or None
                 vehicle.save()
             if customer_updates is not None:
                 for field, value in customer_updates.items():
