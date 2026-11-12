@@ -1,7 +1,7 @@
 import io
 import re
+import html
 import requests
-from bs4 import BeautifulSoup
 from django.utils import timezone
 
 # 12 Active templates used in Mobiz Car Wash codebase
@@ -265,13 +265,12 @@ class WawyClient:
 
         try:
             r = self.session.get(f"{self.BASE_URL}/processes/linkcheck/wa_meta_template_l.php", timeout=15)
-            soup = BeautifulSoup(r.text, 'html.parser')
-            sender_sel = soup.find('select', {'name': 'param1'})
             senders = []
-            if sender_sel:
-                for opt in sender_sel.find_all('option'):
-                    val = opt.get('value', '').strip()
-                    txt = opt.get_text(strip=True)
+            sender_match = re.search(r'<select[^>]*name=["\']param1["\'][^>]*>(.*?)</select>', r.text, re.DOTALL | re.IGNORECASE)
+            if sender_match:
+                for opt_val, opt_text in re.findall(r'<option[^>]*value=["\']([^"\']+)["\'][^>]*>(.*?)</option>', sender_match.group(1), re.DOTALL | re.IGNORECASE):
+                    val = opt_val.strip()
+                    txt = html.unescape(re.sub(r'<[^>]+>', '', opt_text)).strip()
                     if val and val != '-1':
                         clean_num = clean_phone_for_wawy(txt)
                         senders.append({
@@ -295,27 +294,24 @@ class WawyClient:
 
         try:
             r = self.session.get(f"{self.BASE_URL}/processes/linkcheck/wa_meta_template_l.php", timeout=15)
-            soup = BeautifulSoup(r.text, 'html.parser')
-            table = soup.find('table')
             templates = {}
-            if table:
-                for tr in table.find_all('tr'):
-                    tds = [td.get_text(strip=True) for td in tr.find_all(['td', 'th'])]
-                    if len(tds) >= 3:
-                        name_cell = tds[1]
-                        # Name format e.g.: "welcome1(TRANSACTIONAL)[APPROVED]{View API}*Quality: Not Rated*"
-                        m = re.match(r'^([a-zA-Z0-9_\-]+)\s*\((.*?)\)\s*\[(.*?)\]', name_cell)
-                        if m:
-                            t_name = m.group(1).lower()
-                            t_cat = m.group(2)
-                            t_status = m.group(3)
-                            templates[t_name] = {
-                                'name': t_name,
-                                'category': t_cat,
-                                'status': t_status,
-                                'content': tds[2] if len(tds) > 2 else '',
-                                'sender_number': tds[0] if len(tds) > 0 else ''
-                            }
+            for row_html in re.findall(r'<tr[^>]*>(.*?)</tr>', r.text, re.DOTALL | re.IGNORECASE):
+                cells = re.findall(r'<t[dh][^>]*>(.*?)</t[dh]>', row_html, re.DOTALL | re.IGNORECASE)
+                tds = [html.unescape(re.sub(r'<[^>]+>', '', c)).strip() for c in cells]
+                if len(tds) >= 3:
+                    name_cell = tds[1]
+                    m = re.match(r'^([a-zA-Z0-9_\-]+)\s*\((.*?)\)\s*\[(.*?)\]', name_cell)
+                    if m:
+                        t_name = m.group(1).lower()
+                        t_cat = m.group(2)
+                        t_status = m.group(3)
+                        templates[t_name] = {
+                            'name': t_name,
+                            'category': t_cat,
+                            'status': t_status,
+                            'content': tds[2] if len(tds) > 2 else '',
+                            'sender_number': tds[0] if len(tds) > 0 else ''
+                        }
             return templates
         except Exception:
             return {}
@@ -379,9 +375,8 @@ class WawyClient:
             elif "alertsuccess" in resp_text or "successfully" in resp_text.lower():
                 return True, "Submitted successfully to Meta for approval"
             elif "alertinfo" in resp_text:
-                soup = BeautifulSoup(resp_text, 'html.parser')
-                alert = soup.find('div', {'class': 'alertinfo'})
-                msg = alert.get_text(strip=True) if alert else "Validation notice from Wawy"
+                alert_match = re.search(r'<div[^>]*class=["\']alertinfo["\'][^>]*>(.*?)</div>', resp_text, re.DOTALL | re.IGNORECASE)
+                msg = html.unescape(re.sub(r'<[^>]+>', '', alert_match.group(1))).strip() if alert_match else "Validation notice from Wawy"
                 if "Already Exist" in msg:
                     return True, "Already exists in Wawy"
                 return False, msg
