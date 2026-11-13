@@ -4454,6 +4454,15 @@ def api_job_card_list(request):
             'quotation_id': str(jc.quotation_id or jc.job_quotation_id or ''),
             'quotation_number': jc.quotation.quotation_number if jc.quotation_id else (jc.job_quotation.quotation_number if jc.job_quotation_id else ''),
             'job_quotation_id': str(jc.job_quotation_id or ''),
+            'days_needed': jc.delivery_lead_time or '',
+            'invoice': ({
+                'id': str(inv.id),
+                'invoice_number': inv.invoice_number,
+                'total': float(inv.total),
+                'amount_collected': float(inv.amount_collected),
+                'balance': float(max(inv.total - inv.amount_collected, Decimal('0'))),
+                'pdf_url': f'/media/invoices/invoice-{inv.invoice_number.replace("/", "_")}.pdf',
+            } if (inv := Invoice.objects.filter(job_card=jc, is_deleted=False).first()) else None),
             'lead_id': str(jc.lead_id or ''),
             'vehicle_type': v_type,
             'vehicle_make': v_make,
@@ -4700,6 +4709,15 @@ def api_job_card_detail(request, job_card_id):
             'quotation_id': str(jc.quotation_id or jc.job_quotation_id or ''),
             'quotation_number': jc.quotation.quotation_number if jc.quotation_id else (jc.job_quotation.quotation_number if jc.job_quotation_id else ''),
             'job_quotation_id': str(jc.job_quotation_id or ''),
+            'days_needed': jc.delivery_lead_time or '',
+            'invoice': ({
+                'id': str(inv.id),
+                'invoice_number': inv.invoice_number,
+                'total': float(inv.total),
+                'amount_collected': float(inv.amount_collected),
+                'balance': float(max(inv.total - inv.amount_collected, Decimal('0'))),
+                'pdf_url': f'/media/invoices/invoice-{inv.invoice_number.replace("/", "_")}.pdf',
+            } if (inv := Invoice.objects.filter(job_card=jc, is_deleted=False).first()) else None),
         }
     })
 
@@ -5560,6 +5578,18 @@ def api_job_card_invoice(request, job_card_id):
         return JsonResponse({'success': False, 'message': 'Job Card not found'}, status=404)
 
     def response_for(invoice):
+        pdf_url = ''
+        if invoice:
+            try:
+                from finance_management.views import generate_invoice_pdf_file
+                base_url = request.build_absolute_uri('/')
+                if not base_url or '127.0.0.1' in base_url or 'localhost' in base_url:
+                    base_url = 'http://68.183.94.11:78'
+                pdf_url = generate_invoice_pdf_file(invoice, base_url)
+            except Exception:
+                clean_no = invoice.invoice_number.replace('/', '_')
+                pdf_url = f'http://68.183.94.11:78/media/invoices/invoice-{clean_no}.pdf'
+
         return {
             'success': True,
             'invoice': {
@@ -5567,7 +5597,8 @@ def api_job_card_invoice(request, job_card_id):
                 'total': float(invoice.total), 'amount_collected': float(invoice.amount_collected),
                 'balance': float(max(invoice.total - invoice.amount_collected, Decimal('0'))),
                 'invoice_type': invoice.invoice_type,
-            },
+                'pdf_url': pdf_url,
+            } if invoice else None,
         }
 
     if request.method == 'GET':
@@ -6985,7 +7016,7 @@ def _job_quotation_data(quotation, include_lines=False, request=None):
         data.update({
             'customer_id': str(quotation.customer_id), 'vehicle_id': str(quotation.vehicle_id),
             'customer_pan_number': quotation.customer.pan_number or '',
-            'additional_services': quotation.additional_services or '', 'additional_days_needed': quotation.additional_days_needed,
+            'additional_services': quotation.additional_services or '', 'additional_days_needed': quotation.additional_days_needed, 'days_needed': f'{quotation.additional_days_needed} Days' if quotation.additional_days_needed else '',
             'subtotal': float(quotation.subtotal), 'tax_percentage': float(quotation.tax_percentage), 'tax_amount': float(quotation.tax_amount),
             'discount': float(quotation.discount), 'discount_type': quotation.discount_type,
             'discount_percentage': float(quotation.discount_percentage), 'is_grand_total': quotation.is_grand_total,
@@ -7553,7 +7584,7 @@ def api_job_card_from_job_quotation(request, quotation_id):
                 inspection_at=quote.inspection_at,
                 inspection_details=quote.inspection_details or {},
                 prepared_by=quote.prepared_by,
-                expected_delivery_date=quote.tentative_delivery_at, creator=user,
+                expected_delivery_date=quote.tentative_delivery_at, delivery_lead_time=f'{quote.additional_days_needed} Days' if quote.additional_days_needed else '', creator=user,
             )
             for item in items:
                 # Report-linked service pricing is stored on the Job Card issue row.

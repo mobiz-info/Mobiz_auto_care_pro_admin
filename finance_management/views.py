@@ -2373,7 +2373,6 @@ def invoice_whatsapp_share(request, pk):
     return redirect(whatsapp_url)
 
 
-@login_required
 def invoice_pdf_view(request, pk):
     from finance_management.models import Invoice
     invoice = get_object_or_404(Invoice, pk=pk, is_deleted=False)
