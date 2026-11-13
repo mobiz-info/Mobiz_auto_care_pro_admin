@@ -8676,6 +8676,46 @@ def api_accept_quotation(request, quotation_id):
 
 
 @csrf_exempt
+def api_delete_quotation(request, quotation_id=None):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Only POST method is allowed'}, status=405)
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+    try:
+        from .models import Quotation, QuotationItem, QuotationExtra
+        if not quotation_id:
+            try:
+                body = json.loads(request.body)
+                quotation_id = body.get('id') or body.get('quotation_id')
+            except Exception:
+                quotation_id = request.POST.get('id') or request.POST.get('quotation_id')
+
+        quotation = Quotation.objects.filter(id=quotation_id, is_deleted=False).first()
+        if not quotation:
+            return JsonResponse({'success': False, 'message': 'Quotation not found'}, status=404)
+
+        company, branch = _resolve_lead_user(user)
+        quote_company = (quotation.branch.company if quotation.branch else None) or quotation.customer.company
+        quote_company_id = getattr(quote_company, 'id', None)
+        if company and quote_company_id and str(company.id) != str(quote_company_id):
+            return JsonResponse({'success': False, 'message': 'Forbidden'}, status=403)
+
+        with transaction.atomic():
+            quotation.items.filter(is_deleted=False).update(is_deleted=True, updater=user)
+            quotation.extras.filter(is_deleted=False).update(is_deleted=True, updater=user)
+            quotation.is_deleted = True
+            quotation.updater = user
+            quotation.save(update_fields=['is_deleted', 'updater', 'date_updated'])
+
+        return JsonResponse({'success': True, 'quotation_id': str(quotation.id), 'message': 'Quotation deleted successfully'})
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'message': str(exc)}, status=500)
+
+
+@csrf_exempt
 def api_insurance_companies(request):
     """GET: List active insurance companies for app dropdown."""
     if request.method != 'GET':

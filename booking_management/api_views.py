@@ -4732,7 +4732,7 @@ def api_job_card_delete(request, job_card_id):
             if lead and not lead.is_deleted:
                 from .models import JobLead
                 has_quotes = lead.quotations.filter(is_deleted=False).exists()
-                lead.status = JobLead.STATUS_QUOTED if has_quotes else JobLead.STATUS_IN_PROGRESS
+                lead.status = JobLead.STATUS_QUOTED if has_quotes else JobLead.STATUS_FOLLOW_UP
                 lead.success_chance = 75 if has_quotes else 50
                 lead.save(update_fields=['status', 'success_chance', 'date_updated'])
 
@@ -7037,50 +7037,58 @@ def api_job_quotation_pdf(request, quotation_id):
 @csrf_exempt
 def api_job_quotation_delete(request, quotation_id):
     from django.db import transaction
-    from .models import JobQuotation, JobQuotationItem, JobQuotationExtra, JobQuotationIssue, JobQuotationIssuePhoto, JobCard
+    from .models import (
+        JobQuotation, JobQuotationItem, JobQuotationExtra,
+        JobQuotationIssue, JobQuotationIssuePhoto, JobCard, JobLead
+    )
 
     if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Only POST allowed'}, status=405)
-    user = get_user_from_token(request)
-    if not user:
-        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
-    company, branch = _job_pipeline_scope(user)
-    if not company:
-        return JsonResponse({'success': False, 'message': 'Company not found'}, status=400)
+    try:
+        user = get_user_from_token(request)
+        if not user:
+            return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+        company, branch = _job_pipeline_scope(user)
+        if not company:
+            return JsonResponse({'success': False, 'message': 'Company not found'}, status=400)
 
-    with transaction.atomic():
-        quotation = JobQuotation.objects.select_for_update().filter(
-            id=quotation_id, customer__company=company, is_deleted=False
-        ).first()
-        if not quotation or (branch and quotation.branch_id != branch.id):
-            return JsonResponse({'success': False, 'message': 'Quotation not found'}, status=404)
-        active_job = JobCard.objects.filter(job_quotation=quotation, is_deleted=False).first()
-        if active_job:
-            return JsonResponse({
-                'success': False,
-                'message': f'Cannot delete quotation linked to active Job Order {active_job.job_number}. Please delete the Job Order first.'
-            }, status=409)
+        with transaction.atomic():
+            quotation = JobQuotation.objects.select_for_update().filter(
+                id=quotation_id, customer__company=company, is_deleted=False
+            ).first()
+            if not quotation or (branch and quotation.branch_id != branch.id):
+                return JsonResponse({'success': False, 'message': 'Quotation not found'}, status=404)
+            active_job = JobCard.objects.filter(job_quotation=quotation, is_deleted=False).first()
+            if active_job:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Cannot delete quotation linked to active Job Order {active_job.job_number}. Please delete the Job Order first.'
+                }, status=409)
 
-        # If quotation was linked to a lead, update lead status if no other active quotes
-        if quotation.lead_id:
-            lead = quotation.lead
-            other_quotes = lead.quotations.filter(is_deleted=False).exclude(id=quotation.id)
-            if not other_quotes.exists() and lead.status in (JobLead.STATUS_QUOTED, JobLead.STATUS_SUCCESS):
-                lead.status = JobLead.STATUS_IN_PROGRESS
-                lead.success_chance = 50
-                lead.save(update_fields=['status', 'success_chance', 'date_updated'])
+            # If quotation was linked to a lead, update lead status if no other active quotes
+            if quotation.lead_id:
+                lead = quotation.lead
+                other_quotes = lead.quotations.filter(is_deleted=False).exclude(id=quotation.id)
+                if not other_quotes.exists() and lead.status in (JobLead.STATUS_QUOTED, JobLead.STATUS_SUCCESS):
+                    lead.status = JobLead.STATUS_FOLLOW_UP
+                    lead.success_chance = 50
+                    lead.save(update_fields=['status', 'success_chance', 'date_updated'])
 
-        reports = quotation.reported_issues.filter(is_deleted=False)
-        report_ids = list(reports.values_list('id', flat=True))
-        JobQuotationIssuePhoto.objects.filter(reported_issue_id__in=report_ids, is_deleted=False).update(is_deleted=True, updater=user)
-        reports.update(is_deleted=True, updater=user)
-        JobQuotationItem.objects.filter(quotation=quotation, is_deleted=False).update(is_deleted=True, updater=user)
-        JobQuotationExtra.objects.filter(quotation=quotation, is_deleted=False).update(is_deleted=True, updater=user)
-        quotation.is_deleted = True
-        quotation.updater = user
-        quotation.save(update_fields=['is_deleted', 'updater', 'date_updated'])
+            reports = quotation.reported_issues.filter(is_deleted=False)
+            report_ids = list(reports.values_list('id', flat=True))
+            JobQuotationIssuePhoto.objects.filter(reported_issue_id__in=report_ids, is_deleted=False).update(is_deleted=True, updater=user)
+            reports.update(is_deleted=True, updater=user)
+            JobQuotationItem.objects.filter(quotation=quotation, is_deleted=False).update(is_deleted=True, updater=user)
+            JobQuotationExtra.objects.filter(quotation=quotation, is_deleted=False).update(is_deleted=True, updater=user)
+            quotation.is_deleted = True
+            quotation.updater = user
+            quotation.save(update_fields=['is_deleted', 'updater', 'date_updated'])
 
-    return JsonResponse({'success': True, 'quotation_id': str(quotation.id)})
+        return JsonResponse({'success': True, 'quotation_id': str(quotation.id)})
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'message': str(exc)}, status=500)
 
 
 @csrf_exempt
