@@ -2442,10 +2442,20 @@ def api_get_form_data(request):
     else:
         stock_items_qs = stock_items_qs.none()
 
+    stock_items_list = list(stock_items_qs.select_related('group', 'sub_group').order_by('item_name'))
+    
+    # Efficiently load latest purchase rates for stock items in a single query
+    latest_purchases = {}
+    if company and stock_items_list:
+        pi_items = PurchaseInvoiceItem.objects.filter(
+            stock_item__company=company, is_deleted=False
+        ).order_by('date_added').values_list('stock_item_id', 'rate')
+        for s_id, r in pi_items:
+            latest_purchases[s_id] = float(r or 0.0)
+
     stock_items_data = []
-    for s in stock_items_qs.select_related('group', 'sub_group').order_by('item_name'):
-        last_purchase = PurchaseInvoiceItem.objects.filter(stock_item=s, is_deleted=False).order_by('-date_added').first()
-        purchase_price = float(last_purchase.rate) if last_purchase else 0.0
+    for s in stock_items_list:
+        purchase_price = latest_purchases.get(s.id, 0.0)
         profit_margin = float(s.profit_margin_percent or 0.0)
         
         if purchase_price > 0:
