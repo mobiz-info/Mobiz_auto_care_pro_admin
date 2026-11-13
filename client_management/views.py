@@ -3045,13 +3045,25 @@ def superadmin_whatsapp_deploy(request):
         return JsonResponse({'status': 'error', 'message': 'Company ID is required.'}, status=400)
 
     company = get_object_or_404(Client, id=company_id, is_deleted=False)
-    sender_id = request.POST.get('sender_id') or None
+    wawy_username = (request.POST.get('wawy_username') or '').strip()
+    wawy_password = (request.POST.get('wawy_password') or '').strip()
+    sender_id = (request.POST.get('sender_id') or '').strip() or None
+    save_setting = request.POST.get('save_setting') != 'false'
 
     try:
-        results = deploy_active_templates_for_company(company, sender_id=sender_id)
+        results = deploy_active_templates_for_company(
+            company,
+            sender_id=sender_id,
+            wawy_username=wawy_username or None,
+            wawy_password=wawy_password or None,
+            save_setting=save_setting
+        )
+        if not results.get('success', True):
+            return JsonResponse({'status': 'error', 'message': results.get('error', 'Deployment failed.')}, status=400)
+
         return JsonResponse({
             'status': 'success',
-            'message': f"Successfully deployed for {company.company_name}! ({results['saved_to_db']} templates active in Mobiz DB, {results['deployed_to_wawy']} deployed to Wawy, {results['already_in_wawy']} verified)",
+            'message': f"Successfully deployed for {company.company_name}! ({results['saved_to_db']} saved in Mobiz DB, {results['deployed_to_wawy']} pushed to Wawy, {results['already_in_wawy']} verified)",
             'results': results
         })
     except Exception as e:

@@ -386,34 +386,51 @@ class WawyClient:
             return False, f"Error submitting to Wawy: {str(e)}"
 
 
-def deploy_active_templates_for_company(company, sender_id=None, override_wawy_client=None):
+def deploy_active_templates_for_company(company, sender_id=None, override_wawy_client=None, wawy_username=None, wawy_password=None, save_setting=True):
     """
     Deploys the 12 active system templates for a given company:
-    1. Submits templates to Wawy under the company's sender number (if not already existing).
+    1. Submits templates to Wawy under the company's specific Wawy account.
     2. Inserts or updates all 12 templates into Django WhatsAppTemplate table for that company.
     """
     from client_management.models import WhatsAppSetting, WhatsAppTemplate
     from core.functions import get_auto_id
 
-    # Find company setting
+    # Find or create company setting
     setting = WhatsAppSetting.objects.filter(company=company).first()
-    wawy_user = (setting.username if setting and setting.username else 'mobiz').strip()
-    wawy_pass = (setting.password if setting and setting.password else 'Mobiz123@').strip()
+
+    # Determine username and password to use:
+    # 1. Explicitly passed in call
+    # 2. Existing setting for this company
+    # 3. Master default mobiz/Mobiz123@ as fallback
+    wawy_user = (wawy_username or (setting.username if setting and setting.username else '')).strip()
+    wawy_pass = (wawy_password or (setting.password if setting and setting.password else '')).strip()
+
+    if not wawy_user or not wawy_pass:
+        # Fall back to master mobiz account if no client-specific account provided
+        wawy_user = wawy_user or 'mobiz'
+        wawy_pass = wawy_pass or 'Mobiz123@'
 
     client = override_wawy_client
     ok = False
+    login_msg = ''
     if not client:
-        # Try custom credentials first if not the API token
-        if wawy_user and wawy_pass and wawy_pass != 'e36981wr6npxjbv7f':
-            client = WawyClient(username=wawy_user, password=wawy_pass)
-            ok, login_msg = client.login()
-        # Fallback to master Wawy portal login
-        if not ok:
-            client = WawyClient(username='mobiz', password='Mobiz123@')
-            ok, login_msg = client.login()
+        client = WawyClient(username=wawy_user, password=wawy_pass)
+        ok, login_msg = client.login()
 
-    senders = client.get_senders() if ok else []
-    existing_wawy_templates = client.get_existing_templates() if ok else {}
+    if not ok:
+        return {
+            'company_id': str(company.id),
+            'company_name': company.company_name,
+            'success': False,
+            'error': f"Failed to log in to Wawy with user '{wawy_user}': {login_msg}",
+            'deployed_to_wawy': 0,
+            'already_in_wawy': 0,
+            'saved_to_db': 0,
+            'details': []
+        }
+
+    senders = client.get_senders()
+    existing_wawy_templates = client.get_existing_templates()
 
     # Determine sender_id
     chosen_sender_id = sender_id
@@ -433,15 +450,26 @@ def deploy_active_templates_for_company(company, sender_id=None, override_wawy_c
         if not chosen_sender_id and senders:
             chosen_sender_id = senders[0]['sender_id']
 
-    # Update WhatsAppSetting with sender_id if missing
-    if chosen_sender_id and setting and not setting.sender_id:
-        setting.sender_id = chosen_sender_id
+    # Save settings for this company if requested
+    if save_setting:
+        if not setting:
+            setting = WhatsAppSetting(company=company, auto_id=get_auto_id(WhatsAppSetting))
+        setting.username = wawy_user
+        setting.password = wawy_pass
+        if chosen_sender_id:
+            setting.sender_id = chosen_sender_id
+        if not setting.whatsapp_number and company.phone:
+            setting.whatsapp_number = clean_phone_for_wawy(company.phone)
+        if not setting.url:
+            setting.url = 'http://wawy.org/pushwhatsapp.php'
         setting.save()
 
     results = {
         'company_id': str(company.id),
         'company_name': company.company_name,
         'sender_id': chosen_sender_id,
+        'wawy_user': wawy_user,
+        'success': True,
         'wawy_logged_in': ok,
         'deployed_to_wawy': 0,
         'already_in_wawy': 0,

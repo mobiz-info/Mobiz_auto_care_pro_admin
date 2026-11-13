@@ -424,10 +424,11 @@
                             <th style="width: 50px;">#</th>
                             <th>Company / Client</th>
                             <th>WhatsApp Number</th>
-                            <th>Wawy Sender ID</th>
+                            <th>Wawy Account</th>
+                            <th>Sender ID</th>
                             <th>Templates Deployed</th>
                             <th>Sync Status</th>
-                            <th style="text-align: right; width: 220px;">Actions</th>
+                            <th style="text-align: right; width: 200px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -443,6 +444,17 @@
                                     <span style="font-weight: 600; color: #000080;">{{ item.clean_phone }}</span>
                                 {% else %}
                                     <span style="color:#94a3b8; font-style:italic;">Not set</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.setting and item.setting.username %}
+                                    <span style="background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; padding:3px 8px; border-radius:6px; font-weight:600; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px;">
+                                        <i class="ph ph-user"></i> {{ item.setting.username }}
+                                    </span>
+                                {% else %}
+                                    <span style="background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:3px 8px; border-radius:6px; font-weight:600; font-size:0.78rem; display:inline-flex; align-items:center; gap:4px;">
+                                        <i class="ph ph-warning-circle"></i> Not Set
+                                    </span>
                                 {% endif %}
                             </td>
                             <td>
@@ -471,16 +483,14 @@
                                 {% endif %}
                             </td>
                             <td style="text-align: right;">
-                                <div style="display:flex; gap:6px; justify-content:flex-end;">
-                                    <button class="btn-deploy" onclick="deploySingleClient('{{ item.client.id }}', '{{ item.client.company_name|escapejs }}', this)">
-                                        <i class="ph-bold ph-lightning"></i> Deploy (12)
-                                    </button>
-                                </div>
+                                <button class="btn-deploy" onclick="openClientConfigModal('{{ item.client.id }}', '{{ item.client.company_name|escapejs }}', '{{ item.setting.username|default:''|escapejs }}', '{{ item.setting.password|default:''|escapejs }}', '{{ item.sender_id|default:''|escapejs }}', '{{ item.clean_phone|default:''|escapejs }}')">
+                                    <i class="ph-bold ph-lightning"></i> Deploy / Setup
+                                </button>
                             </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="7" style="text-align: center; padding: 40px; color: #94a3b8;">
+                            <td colspan="8" style="text-align: center; padding: 40px; color: #94a3b8;">
                                 <i class="ph ph-folder-open" style="font-size: 2.5rem; display: block; margin-bottom: 8px;"></i>
                                 No companies found.
                             </td>
@@ -544,7 +554,7 @@
 
 </div>
 
-<!-- Deploy Results Modal -->
+<!-- Deploy / Configure Modal -->
 <div id="deployModal" class="deploy-modal-backdrop">
     <div class="deploy-modal">
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:14px; margin-bottom:16px;">
@@ -553,8 +563,8 @@
                     <i class="ph-bold ph-lightning"></i>
                 </div>
                 <div>
-                    <h3 id="modalTitle" style="font-size:1.15rem; font-weight:700; color:#1e293b; margin:0;">Deployment Status</h3>
-                    <span id="modalSubtitle" style="font-size:0.8rem; color:#64748b;">Deploying 12 templates...</span>
+                    <h3 id="modalTitle" style="font-size:1.15rem; font-weight:700; color:#1e293b; margin:0;">Deploy WhatsApp Templates</h3>
+                    <span id="modalSubtitle" style="font-size:0.8rem; color:#64748b;">Configure Wawy credentials & deploy</span>
                 </div>
             </div>
             <button onclick="closeDeployModal()" style="background:none; border:none; font-size:1.4rem; color:#94a3b8; cursor:pointer;">
@@ -562,16 +572,76 @@
             </button>
         </div>
 
-        <div id="modalLoading" style="text-align:center; padding:30px;">
+        <!-- STAGE 1: CREDENTIALS CONFIGURATION FORM -->
+        <div id="modalConfig">
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:16px;">
+                <div style="font-size:0.95rem; font-weight:700; color:#1e293b;" id="cfgCompanyName"></div>
+                <div style="font-size:0.8rem; color:#64748b; margin-top:2px;">
+                    Registered Phone: <strong id="cfgCompanyPhone" style="color:#000080;"></strong>
+                </div>
+            </div>
+
+            <div style="font-size:0.84rem; color:#475569; margin-bottom:16px; line-height:1.4;">
+                ഓരോ ക്ലയന്റിന്റെയും പ്രത്യേക <strong>Wawy Username & Password</strong> താഴെ നൽകുക. 'Deploy' ക്ലിക്ക് ചെയ്യുമ്പോൾ ആ അക്കൗണ്ടിലേക്ക് 12 ആക്ടീവ് ടെംപ്ലേറ്റുകളും സബ്മിറ്റ് ആകും.
+            </div>
+
+            <input type="hidden" id="cfgCompanyId" value="">
+
+            <div style="margin-bottom:14px;">
+                <label style="display:block; font-size:0.85rem; font-weight:600; color:#334155; margin-bottom:6px;">
+                    Wawy Portal Username <span style="color:#ef4444;">*</span>
+                </label>
+                <input type="text" id="cfgWawyUser" placeholder="e.g. client_username or mobiz" class="search-input" style="width:100%; padding-left:14px;">
+            </div>
+
+            <div style="margin-bottom:14px;">
+                <label style="display:block; font-size:0.85rem; font-weight:600; color:#334155; margin-bottom:6px;">
+                    Wawy Portal Password <span style="color:#ef4444;">*</span>
+                </label>
+                <div style="position:relative;">
+                    <input type="password" id="cfgWawyPass" placeholder="Enter client's Wawy password" class="search-input" style="width:100%; padding-left:14px; padding-right:40px;">
+                    <button type="button" onclick="togglePassVisibility()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;">
+                        <i id="passToggleIcon" class="ph ph-eye"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <label style="display:block; font-size:0.85rem; font-weight:600; color:#334155; margin-bottom:6px;">
+                    Sender Number / ID <span style="font-size:0.75rem; color:#64748b; font-weight:normal;">(Optional - auto-detected if left empty)</span>
+                </label>
+                <input type="text" id="cfgSenderId" placeholder="e.g. 919496007007 or 1-139" class="search-input" style="width:100%; padding-left:14px;">
+            </div>
+
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:20px;">
+                <input type="checkbox" id="cfgSaveSetting" checked style="width:16px; height:16px; cursor:pointer;">
+                <label for="cfgSaveSetting" style="font-size:0.85rem; color:#334155; cursor:pointer; font-weight:500;">
+                    Save credentials to this client's WhatsApp Settings
+                </label>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button type="button" onclick="closeDeployModal()" class="btn-deploy" style="background:#f1f5f9; color:#475569;">
+                    Cancel
+                </button>
+                <button type="button" onclick="executeClientDeploy()" class="btn-deploy" style="background:#000080; padding:10px 20px;">
+                    <i class="ph-bold ph-lightning"></i> Deploy 12 Active Templates
+                </button>
+            </div>
+        </div>
+
+        <!-- STAGE 2: LOADING -->
+        <div id="modalLoading" style="display:none; text-align:center; padding:30px;">
             <div style="font-size:2rem; color:#000080; animation:spin 1s linear infinite; display:inline-block;">
                 <i class="ph ph-spinner-gap"></i>
             </div>
-            <div style="margin-top:12px; font-weight:600; color:#1e293b;">Connecting to Wawy & Deploying Active Templates...</div>
-            <div style="font-size:0.85rem; color:#64748b; margin-top:4px;">Submitting 12 templates to Meta WhatsApp Business API</div>
+            <div id="loadingStatusText" style="margin-top:12px; font-weight:600; color:#1e293b;">Connecting to Wawy & Deploying...</div>
+            <div style="font-size:0.85rem; color:#64748b; margin-top:4px;">Submitting 12 active templates to Meta WhatsApp Business API</div>
         </div>
 
+        <!-- STAGE 3: RESULTS TABLE -->
         <div id="modalContent" style="display:none;">
-            <div id="modalSummary" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:0.9rem;"></div>
+            <div id="modalSummary" style="border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:0.9rem;"></div>
             
             <div style="max-height:300px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px;">
                 <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
@@ -587,7 +657,10 @@
                 </table>
             </div>
 
-            <div style="margin-top:20px; display:flex; justify-content:flex-end;">
+            <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
+                <button id="btnRetry" onclick="returnToConfig()" class="btn-deploy" style="background:#f1f5f9; color:#475569; display:none;">
+                    Edit Credentials
+                </button>
                 <button onclick="closeDeployModal(); window.location.reload();" class="btn-deploy" style="padding:10px 20px;">
                     Done
                 </button>
@@ -604,28 +677,77 @@ function switchHubTab(tabId, btn) {
     btn.classList.add('active');
 }
 
-function openDeployModal(title, subtitle) {
-    document.getElementById('modalTitle').innerText = title;
-    document.getElementById('modalSubtitle').innerText = subtitle;
-    document.getElementById('modalLoading').style.display = 'block';
-    document.getElementById('modalContent').style.display = 'none';
-    document.getElementById('deployModal').style.display = 'flex';
-}
-
 function closeDeployModal() {
     document.getElementById('deployModal').style.display = 'none';
 }
 
-function deploySingleClient(companyId, companyName, btn) {
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span> Deploying...';
+function togglePassVisibility() {
+    const input = document.getElementById('cfgWawyPass');
+    const icon = document.getElementById('passToggleIcon');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'ph ph-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'ph ph-eye';
+    }
+}
+
+function openClientConfigModal(companyId, companyName, username, password, senderId, phone) {
+    document.getElementById('cfgCompanyId').value = companyId;
+    document.getElementById('cfgCompanyName').innerText = companyName;
+    document.getElementById('cfgCompanyPhone').innerText = phone || 'Not provided';
+    document.getElementById('cfgWawyUser').value = username || '';
+    document.getElementById('cfgWawyPass').value = password || '';
+    document.getElementById('cfgSenderId').value = senderId || phone || '';
+    
+    document.getElementById('modalTitle').innerText = 'WhatsApp Automation: ' + companyName;
+    document.getElementById('modalSubtitle').innerText = 'Set client Wawy username & password';
+    
+    document.getElementById('modalConfig').style.display = 'block';
+    document.getElementById('modalLoading').style.display = 'none';
+    document.getElementById('modalContent').style.display = 'none';
+    document.getElementById('btnRetry').style.display = 'none';
+    
+    document.getElementById('deployModal').style.display = 'flex';
+}
+
+function returnToConfig() {
+    document.getElementById('modalConfig').style.display = 'block';
+    document.getElementById('modalLoading').style.display = 'none';
+    document.getElementById('modalContent').style.display = 'none';
+    document.getElementById('btnRetry').style.display = 'none';
+}
+
+function executeClientDeploy() {
+    const companyId = document.getElementById('cfgCompanyId').value;
+    const username = document.getElementById('cfgWawyUser').value.trim();
+    const password = document.getElementById('cfgWawyPass').value.trim();
+    const senderId = document.getElementById('cfgSenderId').value.trim();
+    const saveSetting = document.getElementById('cfgSaveSetting').checked;
+
+    if (!username) {
+        alert('Please enter the client\'s Wawy username.');
+        document.getElementById('cfgWawyUser').focus();
+        return;
     }
 
-    openDeployModal('Deploying Templates: ' + companyName, 'Syncing 12 active templates to Wawy & Local DB');
+    if (!password) {
+        alert('Please enter the client\'s Wawy password.');
+        document.getElementById('cfgWawyPass').focus();
+        return;
+    }
+
+    document.getElementById('modalConfig').style.display = 'none';
+    document.getElementById('modalLoading').style.display = 'block';
+    document.getElementById('loadingStatusText').innerText = 'Logging into Wawy as "' + username + '" & Deploying...';
 
     const formData = new FormData();
     formData.append('company_id', companyId);
+    formData.append('wawy_username', username);
+    formData.append('wawy_password', password);
+    formData.append('sender_id', senderId);
+    formData.append('save_setting', saveSetting ? 'true' : 'false');
     formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
 
     fetch("{% url 'superadmin_whatsapp_deploy' %}", {
@@ -634,20 +756,20 @@ function deploySingleClient(companyId, companyName, btn) {
     })
     .then(r => r.json())
     .then(data => {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="ph-bold ph-lightning"></i> Deploy (12)';
-        }
         document.getElementById('modalLoading').style.display = 'none';
         document.getElementById('modalContent').style.display = 'block';
 
         if (data.status === 'success') {
             const res = data.results;
+            document.getElementById('modalSummary').className = '';
+            document.getElementById('modalSummary').style.background = '#f0fdf4';
+            document.getElementById('modalSummary').style.border = '1px solid #bbf7d0';
             document.getElementById('modalSummary').innerHTML = `
                 <div style="color:#166534; font-weight:700; margin-bottom:4px;">✓ ${data.message}</div>
                 <div style="font-size:0.82rem; color:#475569;">
-                    Local DB: <strong>${res.saved_to_db}/12 saved</strong> | 
-                    Wawy: <strong>${res.deployed_to_wawy} submitted</strong>, <strong>${res.already_in_wawy} verified</strong>
+                    Account: <strong>${res.wawy_user}</strong> | 
+                    Sender: <strong>${res.sender_id || 'Auto-detected'}</strong> | 
+                    Mobiz DB: <strong>${res.saved_to_db}/12 saved</strong>
                 </div>
             `;
 
@@ -666,31 +788,46 @@ function deploySingleClient(companyId, companyName, btn) {
                 `;
             });
             document.getElementById('modalTableBody').innerHTML = tbody;
+            document.getElementById('btnRetry').style.display = 'none';
         } else {
+            document.getElementById('modalSummary').className = '';
+            document.getElementById('modalSummary').style.background = '#fef2f2';
+            document.getElementById('modalSummary').style.border = '1px solid #fecaca';
             document.getElementById('modalSummary').innerHTML = `
-                <div style="color:#dc2626; font-weight:700;">✗ Failed: ${data.message}</div>
+                <div style="color:#dc2626; font-weight:700;">✗ Deployment Failed</div>
+                <div style="font-size:0.84rem; color:#991b1b; margin-top:4px;">${data.message}</div>
             `;
+            document.getElementById('modalTableBody').innerHTML = `
+                <tr><td colspan="3" style="padding:16px; text-align:center; color:#94a3b8;">No templates were deployed due to credentials error.</td></tr>
+            `;
+            document.getElementById('btnRetry').style.display = 'inline-flex';
         }
     })
     .catch(err => {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="ph-bold ph-lightning"></i> Deploy (12)';
-        }
         document.getElementById('modalLoading').style.display = 'none';
         document.getElementById('modalContent').style.display = 'block';
+        document.getElementById('modalSummary').className = '';
+        document.getElementById('modalSummary').style.background = '#fef2f2';
+        document.getElementById('modalSummary').style.border = '1px solid #fecaca';
         document.getElementById('modalSummary').innerHTML = `
-            <div style="color:#dc2626; font-weight:700;">✗ Error connecting to server: ${err}</div>
+            <div style="color:#dc2626; font-weight:700;">✗ Server connection error: ${err}</div>
         `;
+        document.getElementById('btnRetry').style.display = 'inline-flex';
     });
 }
 
 function deployAllClients() {
-    if (!confirm('Are you sure you want to deploy the 12 active templates to ALL companies? This will submit missing templates to Wawy and save all 12 in the database for each company.')) {
+    if (!confirm('Are you sure you want to deploy templates to all clients that have Wawy credentials configured? Clients without Wawy credentials will be skipped.')) {
         return;
     }
 
-    openDeployModal('Bulk Deploying Templates', 'Processing all active companies in background...');
+    document.getElementById('modalTitle').innerText = 'Bulk Deploying Templates';
+    document.getElementById('modalSubtitle').innerText = 'Processing all configured clients...';
+    document.getElementById('modalConfig').style.display = 'none';
+    document.getElementById('modalLoading').style.display = 'block';
+    document.getElementById('modalContent').style.display = 'none';
+    document.getElementById('loadingStatusText').innerText = 'Deploying active templates to all configured clients...';
+    document.getElementById('deployModal').style.display = 'flex';
 
     const formData = new FormData();
     formData.append('deploy_all', 'true');
@@ -704,16 +841,22 @@ function deployAllClients() {
     .then(data => {
         document.getElementById('modalLoading').style.display = 'none';
         document.getElementById('modalContent').style.display = 'block';
+        document.getElementById('modalSummary').className = '';
+        document.getElementById('modalSummary').style.background = '#f0fdf4';
+        document.getElementById('modalSummary').style.border = '1px solid #bbf7d0';
         document.getElementById('modalSummary').innerHTML = `
             <div style="color:#166534; font-weight:700; font-size:1rem;">✓ ${data.message}</div>
         `;
         document.getElementById('modalTableBody').innerHTML = `
-            <tr><td colspan="3" style="padding:16px; text-align:center; color:#64748b;">All companies processed successfully.</td></tr>
+            <tr><td colspan="3" style="padding:16px; text-align:center; color:#64748b;">Completed. Click Done to refresh.</td></tr>
         `;
     })
     .catch(err => {
         document.getElementById('modalLoading').style.display = 'none';
         document.getElementById('modalContent').style.display = 'block';
+        document.getElementById('modalSummary').className = '';
+        document.getElementById('modalSummary').style.background = '#fef2f2';
+        document.getElementById('modalSummary').style.border = '1px solid #fecaca';
         document.getElementById('modalSummary').innerHTML = `
             <div style="color:#dc2626; font-weight:700;">✗ Bulk deployment failed: ${err}</div>
         `;
