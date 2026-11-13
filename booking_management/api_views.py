@@ -6507,7 +6507,7 @@ def api_job_card_issue_options(request):
         'categories': [{'id': str(item.id), 'name': item.name} for item in categories],
         'services': [{'id': str(item.id), 'name': item.name, 'category_id': str(item.category_id)} for item in services],
         'issues': [{'id': str(item.id), 'name': item.name, 'category_id': str(item.category_id), 'service_id': str(item.service_id)} for item in issues],
-        'activities': [{'id': str(item.id), 'name': item.name, 'service_id': str(item.service_id)} for item in JobCardActivityOption.objects.filter(service__in=services, is_deleted=False).order_by('name')],
+        'activities': [{'id': str(item.id), 'name': item.name, 'service_id': str(item.service_id)} for item in JobCardActivityOption.objects.filter(is_deleted=False).order_by('name')],
     })
 
 
@@ -6544,7 +6544,7 @@ def api_job_card_issue_create(request):
 @csrf_exempt
 def api_job_card_activity_option_create(request):
     from core.functions import get_auto_id
-    from service_management.models import JobCardService
+    from service_management.models import JobCardService, JobCardCategory, Service
     from .models import JobCardActivityOption
     user = get_user_from_token(request)
     if not user:
@@ -6556,13 +6556,30 @@ def api_job_card_activity_option_create(request):
         return JsonResponse({'success': False, 'message': 'Company not found'}, status=400)
     try:
         data = json.loads(request.body or '{}')
-        service = JobCardService.objects.get(id=data.get('service_id'), is_deleted=False)
+        svc_id = data.get('service_id')
+        service = None
+        if svc_id:
+            service = JobCardService.objects.filter(id=svc_id, is_deleted=False).first()
+            if not service:
+                s_obj = Service.objects.filter(id=svc_id, is_deleted=False).first()
+                if s_obj:
+                    service = JobCardService.objects.filter(name__iexact=s_obj.name, is_deleted=False).first()
+        if not service:
+            service = JobCardService.objects.filter(is_deleted=False).first()
+            if not service:
+                cat = JobCardCategory.objects.filter(is_deleted=False).first()
+                if not cat:
+                    cat = JobCardCategory.objects.create(name='General', auto_id=get_auto_id(JobCardCategory), creator=user)
+                service = JobCardService.objects.create(category=cat, name='General Service', auto_id=get_auto_id(JobCardService), creator=user)
+
         name = (data.get('name') or '').strip()
         if not name or len(name) > 200:
             return JsonResponse({'success': False, 'message': 'Activity name is required and must be at most 200 characters'}, status=400)
-        option = JobCardActivityOption.objects.filter(
-            service=service, name__iexact=name, is_deleted=False,
-        ).first()
+        
+        option = JobCardActivityOption.objects.filter(service=service, name__iexact=name, is_deleted=False).first()
+        if not option:
+            option = JobCardActivityOption.objects.filter(name__iexact=name, is_deleted=False).first()
+
         created = option is None
         if created:
             option = JobCardActivityOption.objects.create(
@@ -6571,8 +6588,6 @@ def api_job_card_activity_option_create(request):
         return JsonResponse({'success': True, 'created': created, 'activity': {
             'id': str(option.id), 'name': option.name, 'service_id': str(option.service_id),
         }})
-    except JobCardService.DoesNotExist:
-        return JsonResponse({'success': False, 'message': 'Selected service is invalid'}, status=400)
     except Exception as exc:
         return JsonResponse({'success': False, 'message': str(exc)}, status=400)
 
@@ -6859,6 +6874,15 @@ def api_job_quotation_create(request):
                     issue_text=issue_text, activities=activities, sort_order=index,
                     auto_id=get_auto_id(JobQuotationIssue), creator=user,
                 )
+                from .models import JobCardActivityOption
+                for act in (activities or []):
+                    act_name = (act.get('name') or '').strip() if isinstance(act, dict) else str(act).strip()
+                    if act_name:
+                        opt = JobCardActivityOption.objects.filter(name__iexact=act_name, is_deleted=False).first()
+                        if not opt and issue_service:
+                            JobCardActivityOption.objects.create(
+                                service=issue_service, name=act_name, auto_id=get_auto_id(JobCardActivityOption), creator=user
+                            )
                 JobQuotationItem.objects.create(
                     quotation=quotation, reported_issue=reported_issue,
                     line_type='issue', service_name=issue_service.name, rate=rate, quantity=quantity, discount=discount,
@@ -7369,6 +7393,15 @@ def api_job_quotation_update(request, quotation_id):
                     report.updater = user if report.pk else None
                     report.save()
                     retained_reports.append(report.id)
+                    from .models import JobCardActivityOption
+                    for act in (activities or []):
+                        act_name = (act.get('name') or '').strip() if isinstance(act, dict) else str(act).strip()
+                        if act_name:
+                            opt = JobCardActivityOption.objects.filter(name__iexact=act_name, is_deleted=False).first()
+                            if not opt and service:
+                                JobCardActivityOption.objects.create(
+                                    service=service, name=act_name, auto_id=get_auto_id(JobCardActivityOption), creator=user
+                                )
 
                     try:
                         line_item = report.priced_item

@@ -309,6 +309,16 @@ urlpatterns = [
     path('api/credit-notes/create/', api_views.api_create_credit_note, name='api_create_credit_note'),
     path('api/api/credit-notes/info/', api_views.api_credit_note_info, name='api_api_credit_note_info'),
     path('api/api/credit-notes/create/', api_views.api_create_credit_note, name='api_api_create_credit_note'),
+
+    # Oil Brands & Grades APIs
+    path('api/oil-brands/', api_views.api_oil_brands, name='api_oil_brands'),
+    path('api/oil-brands/create/', api_views.api_oil_brands_create, name='api_oil_brands_create'),
+    path('api/master/oil-brands/', api_views.api_oil_brands, name='api_master_oil_brands'),
+    path('api/master/oil-brands/create/', api_views.api_oil_brands_create, name='api_master_oil_brands_create'),
+    path('api/oil-grades/', api_views.api_oil_grades, name='api_oil_grades'),
+    path('api/oil-grades/create/', api_views.api_oil_grades_create, name='api_oil_grades_create'),
+    path('api/master/oil-grades/', api_views.api_oil_grades, name='api_master_oil_grades'),
+    path('api/master/oil-grades/create/', api_views.api_oil_grades_create, name='api_master_oil_grades_create'),
 ]
 
 

@@ -2356,7 +2356,7 @@ def api_get_form_data(request):
 
     company = getattr(user.profile, 'company', None) if hasattr(user, 'profile') else None
 
-    from master.models import VehicleTypeModel, VehicleType, VehicleColor, VehicleBrandModel
+    from master.models import VehicleTypeModel, VehicleType, VehicleColor, VehicleBrandModel, OilBrand, OilGrade
     from .models import CustomerType, Branch
 
     customer_types = CustomerType.objects.filter(is_deleted=False).exclude(name__icontains='Workshop')
@@ -2522,6 +2522,8 @@ def api_get_form_data(request):
         'emission_standards': emission_standards_data,
         'states': [{'id': str(s.id), 'name': s.name} for s in State.objects.filter(country_id=company.country_id, is_deleted=False).order_by('name')] if company and company.country_id else [{'id': str(s.id), 'name': s.name} for s in State.objects.filter(is_deleted=False).order_by('name')],
         'fuel_types': [{'id': code, 'name': label} for code, label in CustomerVehicle.FUEL_TYPE_CHOICES],
+        'oil_brands': [{'id': str(ob.id), 'name': ob.name} for ob in OilBrand.objects.filter(is_active=True, is_deleted=False).order_by('name')],
+        'oil_grades': [{'id': str(og.id), 'name': og.name} for og in OilGrade.objects.filter(is_active=True, is_deleted=False).order_by('name')],
         # Legacy field (still used by other screens)
         'vehicle_models': legacy_vehicle_models,
         'branches': branches_data,
@@ -8735,6 +8737,92 @@ def api_insurance_companies(request):
         return JsonResponse({'success': True, 'insurance_companies': data})
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+@csrf_exempt
+def api_oil_brands(request):
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'message': 'Only GET allowed'}, status=405)
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+    try:
+        from master.models import OilBrand
+        brands = OilBrand.objects.filter(is_active=True, is_deleted=False).order_by('name')
+        data = [{'id': str(b.id), 'name': b.name} for b in brands]
+        return JsonResponse({'success': True, 'brands': data})
+    except Exception as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=500)
+
+
+@csrf_exempt
+def api_oil_brands_create(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Only POST allowed'}, status=405)
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+    try:
+        from core.functions import get_auto_id
+        from master.models import OilBrand
+        try:
+            body = json.loads(request.body)
+            name = (body.get('name') or '').strip()
+        except Exception:
+            name = (request.POST.get('name') or '').strip()
+        if not name:
+            return JsonResponse({'success': False, 'message': 'Oil brand name is required'}, status=400)
+        brand = OilBrand.objects.filter(name__iexact=name, is_deleted=False).first()
+        if not brand:
+            brand = OilBrand.objects.create(
+                name=name, is_active=True, auto_id=get_auto_id(OilBrand), creator=user
+            )
+        return JsonResponse({'success': True, 'brand': {'id': str(brand.id), 'name': brand.name}})
+    except Exception as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=500)
+
+
+@csrf_exempt
+def api_oil_grades(request):
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'message': 'Only GET allowed'}, status=405)
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+    try:
+        from master.models import OilGrade
+        grades = OilGrade.objects.filter(is_active=True, is_deleted=False).order_by('name')
+        data = [{'id': str(g.id), 'name': g.name} for g in grades]
+        return JsonResponse({'success': True, 'grades': data})
+    except Exception as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=500)
+
+
+@csrf_exempt
+def api_oil_grades_create(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Only POST allowed'}, status=405)
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+    try:
+        from core.functions import get_auto_id
+        from master.models import OilGrade
+        try:
+            body = json.loads(request.body)
+            name = (body.get('name') or '').strip()
+        except Exception:
+            name = (request.POST.get('name') or '').strip()
+        if not name:
+            return JsonResponse({'success': False, 'message': 'Oil grade is required'}, status=400)
+        grade = OilGrade.objects.filter(name__iexact=name, is_deleted=False).first()
+        if not grade:
+            grade = OilGrade.objects.create(
+                name=name, is_active=True, auto_id=get_auto_id(OilGrade), creator=user
+            )
+        return JsonResponse({'success': True, 'grade': {'id': str(grade.id), 'name': grade.name}})
+    except Exception as exc:
+        return JsonResponse({'success': False, 'message': str(exc)}, status=500)
 
 
 @csrf_exempt
