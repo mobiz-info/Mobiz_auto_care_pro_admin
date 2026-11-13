@@ -4434,8 +4434,11 @@ def api_job_card_list(request):
         v_make = v.make.name if (v and v.make) else ''
         v_model = (v.brand_model.name if (v and v.brand_model) else '') or (v.vehicle_type_model.name if (v and v.vehicle_type_model) else '')
         
+        has_invoice = Invoice.objects.filter(job_card=jc, is_deleted=False).exists()
         effective_status = jc.status
-        if jc.status not in (JobCard.STATUS_COMPLETED, JobCard.STATUS_CANCELLED) and jc.expected_delivery_date and jc.expected_delivery_date < now:
+        if has_invoice:
+            effective_status = JobCard.STATUS_COMPLETED
+        elif jc.status not in (JobCard.STATUS_COMPLETED, JobCard.STATUS_CANCELLED) and jc.expected_delivery_date and jc.expected_delivery_date < now:
             effective_status = JobCard.STATUS_DELAYED
 
         job_cards_data.append({
@@ -5709,6 +5712,8 @@ def api_job_card_invoice(request, job_card_id):
                     remarks='Payment collected with Job Card invoice', creator=user,
                     auto_id=receipt_id, receipt_number=f'RCPT-{str(receipt_id).zfill(5)}',
                 )
+            job.status = JobCard.STATUS_COMPLETED
+            job.save(update_fields=['status'])
             return response_for(invoice)
     except (InvalidOperation, ValueError) as exc:
         return JsonResponse({'success': False, 'message': str(exc)}, status=400)

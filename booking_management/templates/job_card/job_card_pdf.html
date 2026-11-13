@@ -323,19 +323,7 @@
         </tr>
     </table>
 
-    <!-- Schedule Bar -->
-    <div class="tracking-bar">
-        <table class="tracking-table">
-            <tr>
-                <td><strong>Delivery:</strong> {{ job_card.expected_delivery_date|date:"d-m-Y"|default:"-" }}{% if job_card.expected_delivery_date %} ({{ job_card.expected_delivery_date|date:"h:i A" }}){% endif %}</td>
-                <td><strong>Lead Time:</strong> {{ job_card.delivery_lead_time|default:"-" }}</td>
-                <td><strong>Section:</strong> <span style="color: #6b21a8; font-weight: 700;">{{ job_card.current_section|default:"General Inspection" }}</span></td>
-                {% if job_card.current_service %}
-                <td><strong>Service:</strong> {{ job_card.current_service }}</td>
-                {% endif %}
-            </tr>
-        </table>
-    </div>
+
 
     <!-- Vehicle Inspection Details -->
     {% if inspection_details or job_card.inspection_at %}
