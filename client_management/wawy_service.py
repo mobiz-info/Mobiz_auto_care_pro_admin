@@ -432,23 +432,31 @@ def deploy_active_templates_for_company(company, sender_id=None, override_wawy_c
     senders = client.get_senders()
     existing_wawy_templates = client.get_existing_templates()
 
-    # Determine sender_id
-    chosen_sender_id = sender_id
-    if not chosen_sender_id:
-        if setting and setting.sender_id:
-            s_clean = clean_phone_for_wawy(setting.sender_id)
-            for s in senders:
-                if s['sender_id'] == setting.sender_id or s['number'] == setting.sender_id or s['number'] == s_clean:
-                    chosen_sender_id = s['sender_id']
-                    break
-        if not chosen_sender_id and company.phone:
-            c_clean_phone = clean_phone_for_wawy(company.phone)
-            for s in senders:
-                if s['number'] == c_clean_phone or s['number'].endswith(c_clean_phone[-10:]):
-                    chosen_sender_id = s['sender_id']
-                    break
-        if not chosen_sender_id and senders:
-            chosen_sender_id = senders[0]['sender_id']
+    # Determine sender_id (ensuring it matches a valid Wawy sender_id e.g. '1-155')
+    chosen_sender_id = None
+    if sender_id and senders:
+        s_clean = clean_phone_for_wawy(sender_id)
+        for s in senders:
+            if s['sender_id'] == sender_id or s['number'] == sender_id or s['number'] == s_clean or s['number'].endswith(s_clean[-9:]):
+                chosen_sender_id = s['sender_id']
+                break
+
+    if not chosen_sender_id and setting and setting.sender_id and senders:
+        s_clean = clean_phone_for_wawy(setting.sender_id)
+        for s in senders:
+            if s['sender_id'] == setting.sender_id or s['number'] == setting.sender_id or s['number'] == s_clean or s['number'].endswith(s_clean[-9:]):
+                chosen_sender_id = s['sender_id']
+                break
+
+    if not chosen_sender_id and company.phone and senders:
+        c_clean_phone = clean_phone_for_wawy(company.phone)
+        for s in senders:
+            if s['number'] == c_clean_phone or s['number'].endswith(c_clean_phone[-9:]):
+                chosen_sender_id = s['sender_id']
+                break
+
+    if not chosen_sender_id and senders:
+        chosen_sender_id = senders[0]['sender_id']
 
     # Save settings for this company if requested
     if save_setting:
