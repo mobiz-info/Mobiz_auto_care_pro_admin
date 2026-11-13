@@ -11,24 +11,24 @@
         flex-direction: column;
         gap: 20px;
     }
-    
+
     .status-card-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
         gap: 16px;
     }
-    
+
     .stat-card {
         background: #ffffff;
         border-radius: 12px;
         padding: 20px;
         border: 1px solid #e2e8f0;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
         display: flex;
         align-items: center;
         gap: 16px;
     }
-    
+
     .stat-icon {
         width: 48px;
         height: 48px;
@@ -39,12 +39,27 @@
         font-size: 1.5rem;
         flex-shrink: 0;
     }
-    
-    .stat-green { background: #dcfce7; color: #16a34a; }
-    .stat-blue { background: #dbeafe; color: #2563eb; }
-    .stat-purple { background: #f3e8ff; color: #9333ea; }
-    .stat-amber { background: #fef3c7; color: #d97706; }
-    
+
+    .stat-green {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+
+    .stat-blue {
+        background: #dbeafe;
+        color: #2563eb;
+    }
+
+    .stat-purple {
+        background: #f3e8ff;
+        color: #9333ea;
+    }
+
+    .stat-amber {
+        background: #fef3c7;
+        color: #d97706;
+    }
+
     .stat-title {
         font-size: 0.82rem;
         color: #64748b;
@@ -53,7 +68,7 @@
         text-transform: uppercase;
         letter-spacing: 0.04em;
     }
-    
+
     .stat-value {
         font-size: 1.35rem;
         font-weight: 700;
@@ -62,14 +77,14 @@
         align-items: center;
         gap: 8px;
     }
-    
+
     .hub-nav-tabs {
         display: flex;
         gap: 8px;
         border-bottom: 2px solid #e2e8f0;
         margin-bottom: 4px;
     }
-    
+
     .hub-tab-btn {
         padding: 10px 18px;
         font-size: 0.95rem;
@@ -85,24 +100,24 @@
         transition: all 0.2s;
         margin-bottom: -2px;
     }
-    
+
     .hub-tab-btn.active {
         color: #000080;
         border-bottom-color: #000080;
     }
-    
+
     .hub-tab-btn:hover:not(.active) {
         color: #1e293b;
     }
-    
+
     .tab-content {
         display: none;
     }
-    
+
     .tab-content.active {
         display: block;
     }
-    
+
     .list-container {
         background: white;
         border-radius: 12px;
@@ -110,7 +125,7 @@
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
         overflow: hidden;
     }
-    
+
     .list-header {
         padding: 16px 20px;
         border-bottom: 1px solid #e2e8f0;
@@ -120,7 +135,7 @@
         flex-wrap: wrap;
         gap: 12px;
     }
-    
+
     .search-input {
         padding: 9px 16px 9px 36px;
         border: 1px solid #cbd5e1;
@@ -130,25 +145,25 @@
         width: 300px;
         font-family: 'Inter', sans-serif;
     }
-    
+
     .search-input:focus {
         border-color: #3b82f6;
         box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
     }
-    
+
     .search-wrapper {
         position: relative;
         display: flex;
         align-items: center;
     }
-    
+
     .search-icon {
         position: absolute;
         left: 12px;
         color: #94a3b8;
         font-size: 1.1rem;
     }
-    
+
     .btn-deploy {
         background: #000080;
         color: white;
@@ -163,18 +178,18 @@
         cursor: pointer;
         transition: all 0.2s;
     }
-    
+
     .btn-deploy:hover {
         background: #1e1e9a;
         transform: translateY(-1px);
     }
-    
+
     .btn-deploy:disabled {
         background: #94a3b8;
         cursor: not-allowed;
         transform: none;
     }
-    
+
     .btn-bulk-deploy {
         background: linear-gradient(135deg, #2563eb, #1d4ed8);
         color: white;
@@ -187,14 +202,14 @@
         gap: 8px;
         border: none;
         cursor: pointer;
-        box-shadow: 0 2px 4px rgba(37,99,235,0.25);
+        box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
         transition: all 0.2s;
     }
-    
+
     .btn-bulk-deploy:hover {
         background: linear-gradient(135deg, #1d4ed8, #1e40af);
     }
-    
+
     .badge-synced {
         background: #dcfce7;
         color: #166534;
@@ -206,7 +221,7 @@
         align-items: center;
         gap: 4px;
     }
-    
+
     .badge-pending {
         background: #fef3c7;
         color: #92400e;
@@ -218,14 +233,14 @@
         align-items: center;
         gap: 4px;
     }
-    
+
     .template-card-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
         gap: 16px;
         padding: 20px;
     }
-    
+
     .template-card {
         background: #ffffff;
         border: 1px solid #e2e8f0;
@@ -236,27 +251,27 @@
         justify-content: space-between;
         gap: 12px;
         transition: all 0.2s;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
     }
-    
+
     .template-card:hover {
         border-color: #93c5fd;
         box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
     }
-    
+
     .tmpl-header {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
         gap: 8px;
     }
-    
+
     .tmpl-title {
         font-size: 1rem;
         font-weight: 700;
         color: #0f172a;
     }
-    
+
     .tmpl-code {
         font-family: monospace;
         font-size: 0.78rem;
@@ -266,7 +281,7 @@
         border-radius: 4px;
         font-weight: 600;
     }
-    
+
     .tmpl-content {
         font-size: 0.84rem;
         color: #475569;
@@ -278,7 +293,7 @@
         white-space: pre-wrap;
         font-family: 'Inter', sans-serif;
     }
-    
+
     .var-highlight {
         color: #2563eb;
         font-weight: 700;
@@ -286,11 +301,14 @@
         padding: 1px 4px;
         border-radius: 4px;
     }
-    
+
     /* Modal styles */
     .deploy-modal-backdrop {
         position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
         background: rgba(15, 23, 42, 0.6);
         backdrop-filter: blur(4px);
         display: none;
@@ -298,7 +316,7 @@
         justify-content: center;
         z-index: 9999;
     }
-    
+
     .deploy-modal {
         background: white;
         border-radius: 16px;
@@ -309,19 +327,21 @@
         padding: 24px;
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
     }
-    
+
     .spinner {
         display: inline-block;
         width: 14px;
         height: 14px;
-        border: 2px solid rgba(255,255,255,0.3);
+        border: 2px solid rgba(255, 255, 255, 0.3);
         border-radius: 50%;
         border-top-color: white;
         animation: spin 0.8s linear infinite;
     }
-    
+
     @keyframes spin {
-        to { transform: rotate(360deg); }
+        to {
+            transform: rotate(360deg);
+        }
     }
 </style>
 
@@ -337,13 +357,13 @@
                 <div class="stat-title">Wawy Portal Status</div>
                 <div class="stat-value">
                     {% if wawy_connected %}
-                        <span style="color:#16a34a; font-size:1.1rem; display:flex; align-items:center; gap:6px;">
-                            <i class="ph-fill ph-check-circle"></i> Connected
-                        </span>
+                    <span style="color:#16a34a; font-size:1.1rem; display:flex; align-items:center; gap:6px;">
+                        <i class="ph-fill ph-check-circle"></i> Connected
+                    </span>
                     {% else %}
-                        <span style="color:#dc2626; font-size:1.1rem; display:flex; align-items:center; gap:6px;">
-                            <i class="ph-fill ph-x-circle"></i> Offline
-                        </span>
+                    <span style="color:#dc2626; font-size:1.1rem; display:flex; align-items:center; gap:6px;">
+                        <i class="ph-fill ph-x-circle"></i> Offline
+                    </span>
                     {% endif %}
                 </div>
             </div>
@@ -356,7 +376,8 @@
             <div>
                 <div class="stat-title">Active System Templates</div>
                 <div class="stat-value">
-                    {{ active_templates|length }} <span style="font-size:0.8rem; color:#64748b; font-weight:normal;">(Filtered / Active Only)</span>
+                    {{ active_templates|length }} <span
+                        style="font-size:0.8rem; color:#64748b; font-weight:normal;">(Filtered / Active Only)</span>
                 </div>
             </div>
         </div>
@@ -380,7 +401,8 @@
             <div>
                 <div class="stat-title">Wawy Sender Numbers</div>
                 <div class="stat-value">
-                    {{ senders_count }} <span style="font-size:0.8rem; color:#64748b; font-weight:normal;">Registered</span>
+                    {{ senders_count }} <span
+                        style="font-size:0.8rem; color:#64748b; font-weight:normal;">Registered</span>
                 </div>
             </div>
         </div>
@@ -402,9 +424,11 @@
             <div class="list-header">
                 <form method="GET" class="search-wrapper">
                     <i class="ph ph-magnifying-glass search-icon"></i>
-                    <input type="text" name="search" value="{{ search }}" placeholder="Search company, phone, code..." class="search-input">
+                    <input type="text" name="search" value="{{ search }}" placeholder="Search company, phone, code..."
+                        class="search-input">
                     {% if search %}
-                    <a href="{% url 'superadmin_whatsapp_hub' %}" style="position: absolute; right: 12px; color: #94a3b8; text-decoration: none;">
+                    <a href="{% url 'superadmin_whatsapp_hub' %}"
+                        style="position: absolute; right: 12px; color: #94a3b8; text-decoration: none;">
                         <i class="ph ph-x-circle"></i>
                     </a>
                     {% endif %}
@@ -437,53 +461,59 @@
                             <td style="color:#94a3b8; font-weight:500;">{{ forloop.counter }}</td>
                             <td>
                                 <div style="font-weight: 700; color: #1e293b;">{{ item.client.company_name }}</div>
-                                <div style="font-size: 0.75rem; color: #64748b; font-family: monospace;">{{ item.client.display_client_id }}</div>
+                                <div style="font-size: 0.75rem; color: #64748b; font-family: monospace;">{{
+                                    item.client.display_client_id }}</div>
                             </td>
                             <td>
                                 {% if item.clean_phone %}
-                                    <span style="font-weight: 600; color: #000080;">{{ item.clean_phone }}</span>
+                                <span style="font-weight: 600; color: #000080;">{{ item.clean_phone }}</span>
                                 {% else %}
-                                    <span style="color:#94a3b8; font-style:italic;">Not set</span>
+                                <span style="color:#94a3b8; font-style:italic;">Not set</span>
                                 {% endif %}
                             </td>
                             <td>
                                 {% if item.setting and item.setting.username %}
-                                    <span style="background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; padding:3px 8px; border-radius:6px; font-weight:600; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px;">
-                                        <i class="ph ph-user"></i> {{ item.setting.username }}
-                                    </span>
+                                <span
+                                    style="background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; padding:3px 8px; border-radius:6px; font-weight:600; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px;">
+                                    <i class="ph ph-user"></i> {{ item.setting.username }}
+                                </span>
                                 {% else %}
-                                    <span style="background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:3px 8px; border-radius:6px; font-weight:600; font-size:0.78rem; display:inline-flex; align-items:center; gap:4px;">
-                                        <i class="ph ph-warning-circle"></i> Not Set
-                                    </span>
+                                <span
+                                    style="background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:3px 8px; border-radius:6px; font-weight:600; font-size:0.78rem; display:inline-flex; align-items:center; gap:4px;">
+                                    <i class="ph ph-warning-circle"></i> Not Set
+                                </span>
                                 {% endif %}
                             </td>
                             <td>
                                 {% if item.sender_id %}
-                                    <span style="background:#eff6ff; color:#1d4ed8; padding:3px 8px; border-radius:6px; font-weight:600; font-size:0.8rem;">
-                                        {{ item.sender_id }}
-                                    </span>
+                                <span
+                                    style="background:#eff6ff; color:#1d4ed8; padding:3px 8px; border-radius:6px; font-weight:600; font-size:0.8rem;">
+                                    {{ item.sender_id }}
+                                </span>
                                 {% else %}
-                                    <span style="color:#94a3b8; font-size:0.8rem;">Auto-assigned</span>
+                                <span style="color:#94a3b8; font-size:0.8rem;">Auto-assigned</span>
                                 {% endif %}
                             </td>
                             <td>
-                                <strong style="color: {% if item.is_fully_synced %}#16a34a{% else %}#d97706{% endif %}; font-size: 0.95rem;">
+                                <strong
+                                    style="color: {% if item.is_fully_synced %}#16a34a{% else %}#d97706{% endif %}; font-size: 0.95rem;">
                                     {{ item.templates_synced }} / {{ item.total_templates }}
                                 </strong>
                             </td>
                             <td>
                                 {% if item.is_fully_synced %}
-                                    <span class="badge-synced">
-                                        <i class="ph-fill ph-check-circle"></i> Fully Synced
-                                    </span>
+                                <span class="badge-synced">
+                                    <i class="ph-fill ph-check-circle"></i> Fully Synced
+                                </span>
                                 {% else %}
-                                    <span class="badge-pending">
-                                        <i class="ph-fill ph-clock"></i> Setup Required
-                                    </span>
+                                <span class="badge-pending">
+                                    <i class="ph-fill ph-clock"></i> Setup Required
+                                </span>
                                 {% endif %}
                             </td>
                             <td style="text-align: right;">
-                                <button class="btn-deploy" onclick="openClientConfigModal('{{ item.client.id }}', '{{ item.client.company_name|escapejs }}', '{{ item.setting.username|default:''|escapejs }}', '{{ item.setting.password|default:''|escapejs }}', '{{ item.sender_id|default:''|escapejs }}', '{{ item.clean_phone|default:''|escapejs }}')">
+                                <button class="btn-deploy"
+                                    onclick="openClientConfigModal('{{ item.client.id }}', '{{ item.client.company_name|escapejs }}', '{{ item.setting.username|default:''|escapejs }}', '{{ item.setting.password|default:''|escapejs }}', '{{ item.sender_id|default:''|escapejs }}', '{{ item.clean_phone|default:''|escapejs }}')">
                                     <i class="ph-bold ph-lightning"></i> Deploy / Setup
                                 </button>
                             </td>
@@ -491,7 +521,8 @@
                         {% empty %}
                         <tr>
                             <td colspan="8" style="text-align: center; padding: 40px; color: #94a3b8;">
-                                <i class="ph ph-folder-open" style="font-size: 2.5rem; display: block; margin-bottom: 8px;"></i>
+                                <i class="ph ph-folder-open"
+                                    style="font-size: 2.5rem; display: block; margin-bottom: 8px;"></i>
                                 No companies found.
                             </td>
                         </tr>
@@ -502,15 +533,19 @@
 
             <!-- Pagination -->
             {% if page_obj.paginator.num_pages > 1 %}
-            <div class="pagination" style="padding: 16px 20px; display:flex; justify-content:center; align-items:center; gap:12px; border-top:1px solid #e2e8f0;">
+            <div class="pagination"
+                style="padding: 16px 20px; display:flex; justify-content:center; align-items:center; gap:12px; border-top:1px solid #e2e8f0;">
                 {% if page_obj.has_previous %}
-                    <a href="?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}" class="page-link">Previous</a>
+                <a href="?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}"
+                    class="page-link">Previous</a>
                 {% endif %}
                 <span style="font-weight: 500; font-size: 0.85rem; color:#64748b;">
-                    Page <strong style="color:#1e293b;">{{ page_obj.number }}</strong> of {{ page_obj.paginator.num_pages }}
+                    Page <strong style="color:#1e293b;">{{ page_obj.number }}</strong> of {{
+                    page_obj.paginator.num_pages }}
                 </span>
                 {% if page_obj.has_next %}
-                    <a href="?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}" class="page-link">Next</a>
+                <a href="?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}"
+                    class="page-link">Next</a>
                 {% endif %}
             </div>
             {% endif %}
@@ -519,10 +554,13 @@
 
     <!-- TAB 2: ACTIVE SYSTEM TEMPLATES CATALOG -->
     <div id="templatesTab" class="tab-content">
-        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; display:flex; align-items:center; gap:12px;">
+        <div
+            style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; display:flex; align-items:center; gap:12px;">
             <i class="ph-fill ph-info" style="color: #2563eb; font-size: 1.5rem; flex-shrink:0;"></i>
             <div style="font-size: 0.88rem; color: #1e40af; line-height: 1.4;">
-                <strong>Only Active Templates Deployed:</strong> Out of all templates in Wawy, only these <strong>12 active templates</strong> actually called by the Mobiz software are deployed. All 13+ unused/junk test templates in Wawy are completely filtered out!
+                <strong>Only Active Templates Deployed:</strong> Out of all templates in Wawy, only these <strong>12
+                    active templates</strong> actually called by the Mobiz software are deployed. All 13+ unused/junk
+                test templates in Wawy are completely filtered out!
             </div>
         </div>
 
@@ -536,7 +574,8 @@
                             <span class="tmpl-code">{{ tmpl.wawy_template_name }}</span>
                         </div>
                         <div style="text-align: right;">
-                            <span style="font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; {% if tmpl.category == '13' %}background:#fce7f3; color:#be185d;{% else %}background:#e0f2fe; color:#0369a1;{% endif %}">
+                            <span
+                                style="font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; {% if tmpl.category == '13' %}background:#fce7f3; color:#be185d;{% else %}background:#e0f2fe; color:#0369a1;{% endif %}">
                                 {{ tmpl.category_name }}
                             </span>
                             <div style="font-size: 0.72rem; color: #64748b; margin-top: 3px;">
@@ -557,33 +596,37 @@
 <!-- Deploy / Configure Modal -->
 <div id="deployModal" class="deploy-modal-backdrop">
     <div class="deploy-modal">
-        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:14px; margin-bottom:16px;">
+        <div
+            style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:14px; margin-bottom:16px;">
             <div style="display:flex; align-items:center; gap:10px;">
-                <div style="width:36px; height:36px; border-radius:8px; background:#dcfce7; color:#16a34a; display:flex; align-items:center; justify-content:center; font-size:1.3rem;">
+                <div
+                    style="width:36px; height:36px; border-radius:8px; background:#dcfce7; color:#16a34a; display:flex; align-items:center; justify-content:center; font-size:1.3rem;">
                     <i class="ph-bold ph-lightning"></i>
                 </div>
                 <div>
-                    <h3 id="modalTitle" style="font-size:1.15rem; font-weight:700; color:#1e293b; margin:0;">Deploy WhatsApp Templates</h3>
-                    <span id="modalSubtitle" style="font-size:0.8rem; color:#64748b;">Configure Wawy credentials & deploy</span>
+                    <h3 id="modalTitle" style="font-size:1.15rem; font-weight:700; color:#1e293b; margin:0;">Deploy
+                        WhatsApp Templates</h3>
+                    <span id="modalSubtitle" style="font-size:0.8rem; color:#64748b;">Configure Wawy credentials &
+                        deploy</span>
                 </div>
             </div>
-            <button onclick="closeDeployModal()" style="background:none; border:none; font-size:1.4rem; color:#94a3b8; cursor:pointer;">
+            <button onclick="closeDeployModal()"
+                style="background:none; border:none; font-size:1.4rem; color:#94a3b8; cursor:pointer;">
                 <i class="ph ph-x"></i>
             </button>
         </div>
 
         <!-- STAGE 1: CREDENTIALS CONFIGURATION FORM -->
         <div id="modalConfig">
-            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:16px;">
+            <div
+                style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:16px;">
                 <div style="font-size:0.95rem; font-weight:700; color:#1e293b;" id="cfgCompanyName"></div>
                 <div style="font-size:0.8rem; color:#64748b; margin-top:2px;">
                     Registered Phone: <strong id="cfgCompanyPhone" style="color:#000080;"></strong>
                 </div>
             </div>
 
-            <div style="font-size:0.84rem; color:#475569; margin-bottom:16px; line-height:1.4;">
-                ഓരോ ക്ലയന്റിന്റെയും പ്രത്യേക <strong>Wawy Username & Password</strong> താഴെ നൽകുക. 'Deploy' ക്ലിക്ക് ചെയ്യുമ്പോൾ ആ അക്കൗണ്ടിലേക്ക് 12 ആക്ടീവ് ടെംപ്ലേറ്റുകളും സബ്മിറ്റ് ആകും.
-            </div>
+
 
             <input type="hidden" id="cfgCompanyId" value="">
 
@@ -591,7 +634,8 @@
                 <label style="display:block; font-size:0.85rem; font-weight:600; color:#334155; margin-bottom:6px;">
                     Wawy Portal Username <span style="color:#ef4444;">*</span>
                 </label>
-                <input type="text" id="cfgWawyUser" placeholder="e.g. client_username or mobiz" class="search-input" style="width:100%; padding-left:14px;">
+                <input type="text" id="cfgWawyUser" placeholder="e.g. client_username or mobiz" class="search-input"
+                    style="width:100%; padding-left:14px;">
             </div>
 
             <div style="margin-bottom:14px;">
@@ -599,8 +643,10 @@
                     Wawy Portal Password <span style="color:#ef4444;">*</span>
                 </label>
                 <div style="position:relative;">
-                    <input type="password" id="cfgWawyPass" placeholder="Enter client's Wawy password" class="search-input" style="width:100%; padding-left:14px; padding-right:40px;">
-                    <button type="button" onclick="togglePassVisibility()" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;">
+                    <input type="password" id="cfgWawyPass" placeholder="Enter client's Wawy password"
+                        class="search-input" style="width:100%; padding-left:14px; padding-right:40px;">
+                    <button type="button" onclick="togglePassVisibility()"
+                        style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;">
                         <i id="passToggleIcon" class="ph ph-eye"></i>
                     </button>
                 </div>
@@ -608,9 +654,11 @@
 
             <div style="margin-bottom:16px;">
                 <label style="display:block; font-size:0.85rem; font-weight:600; color:#334155; margin-bottom:6px;">
-                    Sender Number / ID <span style="font-size:0.75rem; color:#64748b; font-weight:normal;">(Optional - auto-detected if left empty)</span>
+                    Sender Number / ID <span style="font-size:0.75rem; color:#64748b; font-weight:normal;">(Optional -
+                        auto-detected if left empty)</span>
                 </label>
-                <input type="text" id="cfgSenderId" placeholder="e.g. 919496007007 or 1-139" class="search-input" style="width:100%; padding-left:14px;">
+                <input type="text" id="cfgSenderId" placeholder="e.g. 919496007007 or 1-139" class="search-input"
+                    style="width:100%; padding-left:14px;">
             </div>
 
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:20px;">
@@ -621,10 +669,12 @@
             </div>
 
             <div style="display:flex; justify-content:flex-end; gap:10px;">
-                <button type="button" onclick="closeDeployModal()" class="btn-deploy" style="background:#f1f5f9; color:#475569;">
+                <button type="button" onclick="closeDeployModal()" class="btn-deploy"
+                    style="background:#f1f5f9; color:#475569;">
                     Cancel
                 </button>
-                <button type="button" onclick="executeClientDeploy()" class="btn-deploy" style="background:#000080; padding:10px 20px;">
+                <button type="button" onclick="executeClientDeploy()" class="btn-deploy"
+                    style="background:#000080; padding:10px 20px;">
                     <i class="ph-bold ph-lightning"></i> Deploy 12 Active Templates
                 </button>
             </div>
@@ -635,14 +685,17 @@
             <div style="font-size:2rem; color:#000080; animation:spin 1s linear infinite; display:inline-block;">
                 <i class="ph ph-spinner-gap"></i>
             </div>
-            <div id="loadingStatusText" style="margin-top:12px; font-weight:600; color:#1e293b;">Connecting to Wawy & Deploying...</div>
-            <div style="font-size:0.85rem; color:#64748b; margin-top:4px;">Submitting 12 active templates to Meta WhatsApp Business API</div>
+            <div id="loadingStatusText" style="margin-top:12px; font-weight:600; color:#1e293b;">Connecting to Wawy &
+                Deploying...</div>
+            <div style="font-size:0.85rem; color:#64748b; margin-top:4px;">Submitting 12 active templates to Meta
+                WhatsApp Business API</div>
         </div>
 
         <!-- STAGE 3: RESULTS TABLE -->
         <div id="modalContent" style="display:none;">
-            <div id="modalSummary" style="border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:0.9rem;"></div>
-            
+            <div id="modalSummary" style="border-radius:10px; padding:12px 16px; margin-bottom:16px; font-size:0.9rem;">
+            </div>
+
             <div style="max-height:300px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px;">
                 <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
                     <thead>
@@ -658,10 +711,12 @@
             </div>
 
             <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
-                <button id="btnRetry" onclick="returnToConfig()" class="btn-deploy" style="background:#f1f5f9; color:#475569; display:none;">
+                <button id="btnRetry" onclick="returnToConfig()" class="btn-deploy"
+                    style="background:#f1f5f9; color:#475569; display:none;">
                     Edit Credentials
                 </button>
-                <button onclick="closeDeployModal(); window.location.reload();" class="btn-deploy" style="padding:10px 20px;">
+                <button onclick="closeDeployModal(); window.location.reload();" class="btn-deploy"
+                    style="padding:10px 20px;">
                     Done
                 </button>
             </div>
@@ -670,101 +725,101 @@
 </div>
 
 <script>
-function switchHubTab(tabId, btn) {
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.hub-tab-btn').forEach(el => el.classList.remove('active'));
-    document.getElementById(tabId).classList.add('active');
-    btn.classList.add('active');
-}
-
-function closeDeployModal() {
-    document.getElementById('deployModal').style.display = 'none';
-}
-
-function togglePassVisibility() {
-    const input = document.getElementById('cfgWawyPass');
-    const icon = document.getElementById('passToggleIcon');
-    if (input.type === 'password') {
-        input.type = 'text';
-        icon.className = 'ph ph-eye-slash';
-    } else {
-        input.type = 'password';
-        icon.className = 'ph ph-eye';
-    }
-}
-
-function openClientConfigModal(companyId, companyName, username, password, senderId, phone) {
-    document.getElementById('cfgCompanyId').value = companyId;
-    document.getElementById('cfgCompanyName').innerText = companyName;
-    document.getElementById('cfgCompanyPhone').innerText = phone || 'Not provided';
-    document.getElementById('cfgWawyUser').value = username || '';
-    document.getElementById('cfgWawyPass').value = password || '';
-    document.getElementById('cfgSenderId').value = senderId || phone || '';
-    
-    document.getElementById('modalTitle').innerText = 'WhatsApp Automation: ' + companyName;
-    document.getElementById('modalSubtitle').innerText = 'Set client Wawy username & password';
-    
-    document.getElementById('modalConfig').style.display = 'block';
-    document.getElementById('modalLoading').style.display = 'none';
-    document.getElementById('modalContent').style.display = 'none';
-    document.getElementById('btnRetry').style.display = 'none';
-    
-    document.getElementById('deployModal').style.display = 'flex';
-}
-
-function returnToConfig() {
-    document.getElementById('modalConfig').style.display = 'block';
-    document.getElementById('modalLoading').style.display = 'none';
-    document.getElementById('modalContent').style.display = 'none';
-    document.getElementById('btnRetry').style.display = 'none';
-}
-
-function executeClientDeploy() {
-    const companyId = document.getElementById('cfgCompanyId').value;
-    const username = document.getElementById('cfgWawyUser').value.trim();
-    const password = document.getElementById('cfgWawyPass').value.trim();
-    const senderId = document.getElementById('cfgSenderId').value.trim();
-    const saveSetting = document.getElementById('cfgSaveSetting').checked;
-
-    if (!username) {
-        alert('Please enter the client\'s Wawy username.');
-        document.getElementById('cfgWawyUser').focus();
-        return;
+    function switchHubTab(tabId, btn) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.hub-tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        btn.classList.add('active');
     }
 
-    if (!password) {
-        alert('Please enter the client\'s Wawy password.');
-        document.getElementById('cfgWawyPass').focus();
-        return;
+    function closeDeployModal() {
+        document.getElementById('deployModal').style.display = 'none';
     }
 
-    document.getElementById('modalConfig').style.display = 'none';
-    document.getElementById('modalLoading').style.display = 'block';
-    document.getElementById('loadingStatusText').innerText = 'Logging into Wawy as "' + username + '" & Deploying...';
+    function togglePassVisibility() {
+        const input = document.getElementById('cfgWawyPass');
+        const icon = document.getElementById('passToggleIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'ph ph-eye-slash';
+        } else {
+            input.type = 'password';
+            icon.className = 'ph ph-eye';
+        }
+    }
 
-    const formData = new FormData();
-    formData.append('company_id', companyId);
-    formData.append('wawy_username', username);
-    formData.append('wawy_password', password);
-    formData.append('sender_id', senderId);
-    formData.append('save_setting', saveSetting ? 'true' : 'false');
-    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    function openClientConfigModal(companyId, companyName, username, password, senderId, phone) {
+        document.getElementById('cfgCompanyId').value = companyId;
+        document.getElementById('cfgCompanyName').innerText = companyName;
+        document.getElementById('cfgCompanyPhone').innerText = phone || 'Not provided';
+        document.getElementById('cfgWawyUser').value = username || '';
+        document.getElementById('cfgWawyPass').value = password || '';
+        document.getElementById('cfgSenderId').value = senderId || phone || '';
 
-    fetch("{% url 'superadmin_whatsapp_deploy' %}", {
-        method: 'POST',
-        body: formData
-    })
-    .then(r => r.json())
-    .then(data => {
+        document.getElementById('modalTitle').innerText = 'WhatsApp Automation: ' + companyName;
+        document.getElementById('modalSubtitle').innerText = 'Set client Wawy username & password';
+
+        document.getElementById('modalConfig').style.display = 'block';
         document.getElementById('modalLoading').style.display = 'none';
-        document.getElementById('modalContent').style.display = 'block';
+        document.getElementById('modalContent').style.display = 'none';
+        document.getElementById('btnRetry').style.display = 'none';
 
-        if (data.status === 'success') {
-            const res = data.results;
-            document.getElementById('modalSummary').className = '';
-            document.getElementById('modalSummary').style.background = '#f0fdf4';
-            document.getElementById('modalSummary').style.border = '1px solid #bbf7d0';
-            document.getElementById('modalSummary').innerHTML = `
+        document.getElementById('deployModal').style.display = 'flex';
+    }
+
+    function returnToConfig() {
+        document.getElementById('modalConfig').style.display = 'block';
+        document.getElementById('modalLoading').style.display = 'none';
+        document.getElementById('modalContent').style.display = 'none';
+        document.getElementById('btnRetry').style.display = 'none';
+    }
+
+    function executeClientDeploy() {
+        const companyId = document.getElementById('cfgCompanyId').value;
+        const username = document.getElementById('cfgWawyUser').value.trim();
+        const password = document.getElementById('cfgWawyPass').value.trim();
+        const senderId = document.getElementById('cfgSenderId').value.trim();
+        const saveSetting = document.getElementById('cfgSaveSetting').checked;
+
+        if (!username) {
+            alert('Please enter the client\'s Wawy username.');
+            document.getElementById('cfgWawyUser').focus();
+            return;
+        }
+
+        if (!password) {
+            alert('Please enter the client\'s Wawy password.');
+            document.getElementById('cfgWawyPass').focus();
+            return;
+        }
+
+        document.getElementById('modalConfig').style.display = 'none';
+        document.getElementById('modalLoading').style.display = 'block';
+        document.getElementById('loadingStatusText').innerText = 'Logging into Wawy as "' + username + '" & Deploying...';
+
+        const formData = new FormData();
+        formData.append('company_id', companyId);
+        formData.append('wawy_username', username);
+        formData.append('wawy_password', password);
+        formData.append('sender_id', senderId);
+        formData.append('save_setting', saveSetting ? 'true' : 'false');
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+        fetch("{% url 'superadmin_whatsapp_deploy' %}", {
+            method: 'POST',
+            body: formData
+        })
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('modalLoading').style.display = 'none';
+                document.getElementById('modalContent').style.display = 'block';
+
+                if (data.status === 'success') {
+                    const res = data.results;
+                    document.getElementById('modalSummary').className = '';
+                    document.getElementById('modalSummary').style.background = '#f0fdf4';
+                    document.getElementById('modalSummary').style.border = '1px solid #bbf7d0';
+                    document.getElementById('modalSummary').innerHTML = `
                 <div style="color:#166534; font-weight:700; margin-bottom:4px;">✓ ${data.message}</div>
                 <div style="font-size:0.82rem; color:#475569;">
                     Account: <strong>${res.wawy_user}</strong> | 
@@ -773,10 +828,10 @@ function executeClientDeploy() {
                 </div>
             `;
 
-            let tbody = '';
-            res.details.forEach(item => {
-                const badgeColor = item.wawy_status === 'APPROVED' ? '#16a34a' : (item.wawy_status === 'SUBMITTED' ? '#2563eb' : '#d97706');
-                tbody += `
+                    let tbody = '';
+                    res.details.forEach(item => {
+                        const badgeColor = item.wawy_status === 'APPROVED' ? '#16a34a' : (item.wawy_status === 'SUBMITTED' ? '#2563eb' : '#d97706');
+                        tbody += `
                     <tr style="border-bottom:1px solid #f1f5f9;">
                         <td style="padding:8px 12px; font-weight:600;">${item.name} <br><span style="color:#64748b; font-size:0.75rem; font-family:monospace;">${item.wawy_name}</span></td>
                         <td style="padding:8px 12px;">
@@ -786,81 +841,81 @@ function executeClientDeploy() {
                         <td style="padding:8px 12px; font-weight:600; color:#16a34a;">${item.db_status}</td>
                     </tr>
                 `;
-            });
-            document.getElementById('modalTableBody').innerHTML = tbody;
-            document.getElementById('btnRetry').style.display = 'none';
-        } else {
-            document.getElementById('modalSummary').className = '';
-            document.getElementById('modalSummary').style.background = '#fef2f2';
-            document.getElementById('modalSummary').style.border = '1px solid #fecaca';
-            document.getElementById('modalSummary').innerHTML = `
+                    });
+                    document.getElementById('modalTableBody').innerHTML = tbody;
+                    document.getElementById('btnRetry').style.display = 'none';
+                } else {
+                    document.getElementById('modalSummary').className = '';
+                    document.getElementById('modalSummary').style.background = '#fef2f2';
+                    document.getElementById('modalSummary').style.border = '1px solid #fecaca';
+                    document.getElementById('modalSummary').innerHTML = `
                 <div style="color:#dc2626; font-weight:700;">✗ Deployment Failed</div>
                 <div style="font-size:0.84rem; color:#991b1b; margin-top:4px;">${data.message}</div>
             `;
-            document.getElementById('modalTableBody').innerHTML = `
+                    document.getElementById('modalTableBody').innerHTML = `
                 <tr><td colspan="3" style="padding:16px; text-align:center; color:#94a3b8;">No templates were deployed due to credentials error.</td></tr>
             `;
-            document.getElementById('btnRetry').style.display = 'inline-flex';
-        }
-    })
-    .catch(err => {
-        document.getElementById('modalLoading').style.display = 'none';
-        document.getElementById('modalContent').style.display = 'block';
-        document.getElementById('modalSummary').className = '';
-        document.getElementById('modalSummary').style.background = '#fef2f2';
-        document.getElementById('modalSummary').style.border = '1px solid #fecaca';
-        document.getElementById('modalSummary').innerHTML = `
+                    document.getElementById('btnRetry').style.display = 'inline-flex';
+                }
+            })
+            .catch(err => {
+                document.getElementById('modalLoading').style.display = 'none';
+                document.getElementById('modalContent').style.display = 'block';
+                document.getElementById('modalSummary').className = '';
+                document.getElementById('modalSummary').style.background = '#fef2f2';
+                document.getElementById('modalSummary').style.border = '1px solid #fecaca';
+                document.getElementById('modalSummary').innerHTML = `
             <div style="color:#dc2626; font-weight:700;">✗ Server connection error: ${err}</div>
         `;
-        document.getElementById('btnRetry').style.display = 'inline-flex';
-    });
-}
-
-function deployAllClients() {
-    if (!confirm('Are you sure you want to deploy templates to all clients that have Wawy credentials configured? Clients without Wawy credentials will be skipped.')) {
-        return;
+                document.getElementById('btnRetry').style.display = 'inline-flex';
+            });
     }
 
-    document.getElementById('modalTitle').innerText = 'Bulk Deploying Templates';
-    document.getElementById('modalSubtitle').innerText = 'Processing all configured clients...';
-    document.getElementById('modalConfig').style.display = 'none';
-    document.getElementById('modalLoading').style.display = 'block';
-    document.getElementById('modalContent').style.display = 'none';
-    document.getElementById('loadingStatusText').innerText = 'Deploying active templates to all configured clients...';
-    document.getElementById('deployModal').style.display = 'flex';
+    function deployAllClients() {
+        if (!confirm('Are you sure you want to deploy templates to all clients that have Wawy credentials configured? Clients without Wawy credentials will be skipped.')) {
+            return;
+        }
 
-    const formData = new FormData();
-    formData.append('deploy_all', 'true');
-    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+        document.getElementById('modalTitle').innerText = 'Bulk Deploying Templates';
+        document.getElementById('modalSubtitle').innerText = 'Processing all configured clients...';
+        document.getElementById('modalConfig').style.display = 'none';
+        document.getElementById('modalLoading').style.display = 'block';
+        document.getElementById('modalContent').style.display = 'none';
+        document.getElementById('loadingStatusText').innerText = 'Deploying active templates to all configured clients...';
+        document.getElementById('deployModal').style.display = 'flex';
 
-    fetch("{% url 'superadmin_whatsapp_deploy' %}", {
-        method: 'POST',
-        body: formData
-    })
-    .then(r => r.json())
-    .then(data => {
-        document.getElementById('modalLoading').style.display = 'none';
-        document.getElementById('modalContent').style.display = 'block';
-        document.getElementById('modalSummary').className = '';
-        document.getElementById('modalSummary').style.background = '#f0fdf4';
-        document.getElementById('modalSummary').style.border = '1px solid #bbf7d0';
-        document.getElementById('modalSummary').innerHTML = `
+        const formData = new FormData();
+        formData.append('deploy_all', 'true');
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+        fetch("{% url 'superadmin_whatsapp_deploy' %}", {
+            method: 'POST',
+            body: formData
+        })
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('modalLoading').style.display = 'none';
+                document.getElementById('modalContent').style.display = 'block';
+                document.getElementById('modalSummary').className = '';
+                document.getElementById('modalSummary').style.background = '#f0fdf4';
+                document.getElementById('modalSummary').style.border = '1px solid #bbf7d0';
+                document.getElementById('modalSummary').innerHTML = `
             <div style="color:#166534; font-weight:700; font-size:1rem;">✓ ${data.message}</div>
         `;
-        document.getElementById('modalTableBody').innerHTML = `
+                document.getElementById('modalTableBody').innerHTML = `
             <tr><td colspan="3" style="padding:16px; text-align:center; color:#64748b;">Completed. Click Done to refresh.</td></tr>
         `;
-    })
-    .catch(err => {
-        document.getElementById('modalLoading').style.display = 'none';
-        document.getElementById('modalContent').style.display = 'block';
-        document.getElementById('modalSummary').className = '';
-        document.getElementById('modalSummary').style.background = '#fef2f2';
-        document.getElementById('modalSummary').style.border = '1px solid #fecaca';
-        document.getElementById('modalSummary').innerHTML = `
+            })
+            .catch(err => {
+                document.getElementById('modalLoading').style.display = 'none';
+                document.getElementById('modalContent').style.display = 'block';
+                document.getElementById('modalSummary').className = '';
+                document.getElementById('modalSummary').style.background = '#fef2f2';
+                document.getElementById('modalSummary').style.border = '1px solid #fecaca';
+                document.getElementById('modalSummary').innerHTML = `
             <div style="color:#dc2626; font-weight:700;">✗ Bulk deployment failed: ${err}</div>
         `;
-    });
-}
+            });
+    }
 </script>
 {% endblock %}
