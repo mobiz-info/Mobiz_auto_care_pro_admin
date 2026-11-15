@@ -443,6 +443,8 @@ class JobLeadGenerationMode(BaseModel):
 class JobLeadServiceInterest(BaseModel):
     lead = models.ForeignKey(JobLead, on_delete=models.CASCADE, related_name='service_interests')
     service = models.ForeignKey('service_management.Service', on_delete=models.SET_NULL, null=True, blank=True, related_name='job_lead_interests')
+    job_card_service = models.ForeignKey('service_management.JobCardService', on_delete=models.SET_NULL, null=True, blank=True, related_name='job_lead_interests')
+    category_id = models.CharField(max_length=100, blank=True, null=True)
     category_name = models.CharField(max_length=150, blank=True, null=True)
     service_name = models.CharField(max_length=200)
     expected_value = models.DecimalField(max_digits=12, decimal_places=2, default=0)

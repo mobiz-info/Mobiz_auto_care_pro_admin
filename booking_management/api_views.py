@@ -4859,13 +4859,50 @@ def _save_job_card_reported_issues(job_card, rows, uploaded_files, user):
         category = JobCardCategory.objects.filter(
             id=row.get('category_id'), is_deleted=False
         ).first()
+        if not category and row.get('category_name'):
+            category = JobCardCategory.objects.filter(
+                name__iexact=row.get('category_name'), is_deleted=False
+            ).first()
+        if not category:
+            category = JobCardCategory.objects.filter(is_deleted=False).first()
+
         service = JobCardService.objects.filter(
-            id=row.get('service_id'), category=category, is_deleted=False
-        ).first() if category else None
+            id=row.get('service_id'), is_deleted=False
+        ).first()
+        if not service and category and row.get('service_name'):
+            service = JobCardService.objects.filter(
+                category=category, name__iexact=row.get('service_name'), is_deleted=False
+            ).first()
+        if not service and category:
+            service = JobCardService.objects.filter(category=category, is_deleted=False).first()
+            if not service:
+                service = JobCardService.objects.create(
+                    category=category,
+                    name=(row.get('service_name') or 'General Service')[:150],
+                    auto_id=get_auto_id(JobCardService),
+                    creator=user
+                )
+
+        issue_text = (row.get('issue_text') or (service.name if service else '')).strip()
         issue = JobCardIssue.objects.filter(
             id=row.get('issue_id'), category=category, service=service, is_deleted=False
-        ).first() if service else None
-        issue_text = (row.get('issue_text') or (issue.name if issue else '')).strip()
+        ).first() if row.get('issue_id') and category and service else None
+        if not issue and category and service:
+            if issue_text:
+                issue = JobCardIssue.objects.filter(
+                    category=category, service=service, name__iexact=issue_text, is_deleted=False
+                ).first()
+            if not issue:
+                issue = JobCardIssue.objects.filter(category=category, service=service, is_deleted=False).first()
+            if not issue:
+                issue = JobCardIssue.objects.create(
+                    category=category,
+                    service=service,
+                    name=(issue_text or 'Reported Issue')[:200],
+                    auto_id=get_auto_id(JobCardIssue),
+                    creator=user
+                )
+
         if not category or not service or not issue or not issue_text or len(issue_text) > 200:
             raise ValueError(f'Issue row {index + 1} has invalid category, service, or issue')
         try:
@@ -6145,7 +6182,7 @@ def _job_lead_data(lead):
         'job_card_id': job_card_id,
         'job_card_number': job_card_number,
         'quotation_count': lead.quotations.filter(is_deleted=False).count(),
-        'service_interests': [{'id': str(item.id), 'service_id': str(item.service_id or ''), 'category_name': item.category_name or '', 'service_name': item.service_name, 'expected_value': float(item.expected_value or 0)} for item in lead.service_interests.filter(is_deleted=False)],
+        'service_interests': [{'id': str(item.id), 'service_id': str(item.job_card_service_id or item.service_id or ''), 'category_id': str(item.category_id or (item.job_card_service.category_id if item.job_card_service else '') or ''), 'category_name': item.category_name or '', 'service_name': item.service_name, 'expected_value': float(item.expected_value or 0)} for item in lead.service_interests.filter(is_deleted=False)],
         'follow_ups': [{'id': str(f.id), 'remarks': f.remarks, 'next_follow_up_date': f.next_follow_up_date.isoformat() if f.next_follow_up_date else '', 'status': f.status, 'success_chance': float(f.success_chance) if f.success_chance is not None else None, 'lost_reason': f.lost_reason or '', 'date_added': f.date_added.isoformat() if f.date_added else ''} for f in lead.follow_ups.filter(is_deleted=False)],
     }
 
@@ -6192,17 +6229,36 @@ def api_job_leads(request):
             next_date = date.fromisoformat(data['next_follow_up_date'])
             staff = Staff.objects.get(id=data['staff_id'], company=company, is_deleted=False, branch=branch) if branch else Staff.objects.get(id=data['staff_id'], company=company, is_deleted=False)
             customer_type = CustomerType.objects.get(id=data['customer_type_id'], is_deleted=False)
+            from service_management.models import Service, JobCardService
             expected = Decimal('0')
             parsed_items = []
             for item in interests:
-                service = Service.objects.get(id=item.get('service_id'), is_active=True, is_deleted=False)
-                if branch and not service.service_branches.filter(branch=branch, is_enabled=True, is_deleted=False).exists():
-                    raise ValueError('Selected service is not enabled for your branch')
+                sid = item.get('service_id')
+                jc_service = JobCardService.objects.filter(id=sid, is_deleted=False).select_related('category').first()
+                if jc_service:
+                    s_name = jc_service.name
+                    cat_name = jc_service.category.name
+                    cat_id = str(jc_service.category_id)
+                    legacy_srv = None
+                else:
+                    legacy_srv = Service.objects.get(id=sid, is_active=True, is_deleted=False)
+                    if branch and not legacy_srv.service_branches.filter(branch=branch, is_enabled=True, is_deleted=False).exists():
+                        raise ValueError('Selected service is not enabled for your branch')
+                    s_name = legacy_srv.name
+                    cat_name = legacy_srv.service_type.name
+                    cat_id = str(legacy_srv.service_type_id)
                 amount = Decimal(str(item.get('expected_value', 0)))
                 if amount < 0:
                     raise ValueError('Expected value cannot be negative')
                 expected += amount
-                parsed_items.append((service, amount))
+                parsed_items.append({
+                    'service': legacy_srv,
+                    'job_card_service': jc_service,
+                    'service_name': s_name,
+                    'category_name': cat_name,
+                    'category_id': cat_id,
+                    'amount': amount,
+                })
             customer_id = data.get('customer_id') or None
             vehicle_id = data.get('vehicle_id') or None
             customer = Customer.objects.filter(id=customer_id, company=company, is_deleted=False).first() if customer_id else None
@@ -6224,7 +6280,7 @@ def api_job_leads(request):
             whatsapp_number=data.get('whatsapp_number') or '', lead_generation_mode=mode,
             reference=data.get('reference') or '', state=data.get('state') or '', city=data.get('city') or '', email=data.get('email') or '', expected_value=expected,
             next_follow_up_date=next_date,
-            service_name=', '.join(service.name for service, _ in parsed_items),
+            service_name=', '.join(item['service_name'] for item in parsed_items),
             vehicle_number=data.get('vehicle_number') or '', vehicle_make=data.get('vehicle_make') or '',
             vehicle_model=data.get('vehicle_model') or '', vehicle_type_id=data.get('vehicle_type_id') or None,
             vehicle_segment_id=data.get('vehicle_segment_id') or None, vehicle_make_master_id=data.get('vehicle_make_id') or None,
@@ -6233,8 +6289,18 @@ def api_job_leads(request):
             vehicle_fuel_type=data.get('vehicle_fuel_type') or '', vehicle_wheel_type=data.get('vehicle_wheel_type') or '',
             auto_id=get_auto_id(JobLead), creator=user,
             )
-            for service, amount in parsed_items:
-                JobLeadServiceInterest.objects.create(lead=lead, service=service, category_name=service.service_type.name, service_name=service.name, expected_value=amount, auto_id=get_auto_id(JobLeadServiceInterest), creator=user)
+            for item in parsed_items:
+                JobLeadServiceInterest.objects.create(
+                    lead=lead,
+                    service=item['service'],
+                    job_card_service=item['job_card_service'],
+                    category_name=item['category_name'],
+                    category_id=item['category_id'],
+                    service_name=item['service_name'],
+                    expected_value=item['amount'],
+                    auto_id=get_auto_id(JobLeadServiceInterest),
+                    creator=user
+                )
         return JsonResponse({'status': 'success', 'lead': _job_lead_data(lead)})
     except Exception as exc:
         return JsonResponse({'status': 'error', 'message': str(exc)}, status=400)
@@ -6319,22 +6385,51 @@ def api_job_lead_update(request, lead_id):
             if 'service_interests' in data:
                 parsed_items = []
                 total = Decimal('0')
+                from service_management.models import Service, JobCardService
                 for item in data.get('service_interests') or []:
-                    service = Service.objects.filter(id=item.get('service_id'), is_active=True, is_deleted=False).select_related('service_type').first()
-                    if not service:
-                        return JsonResponse({'status': 'error', 'message': 'One of the selected services is invalid'}, status=400)
-                    if lead.branch_id and not service.service_branches.filter(branch=lead.branch, is_enabled=True, is_deleted=False).exists():
-                        return JsonResponse({'status': 'error', 'message': 'Selected service is not enabled for this branch'}, status=400)
+                    sid = item.get('service_id')
+                    jc_service = JobCardService.objects.filter(id=sid, is_deleted=False).select_related('category').first()
+                    if jc_service:
+                        s_name = jc_service.name
+                        cat_name = jc_service.category.name
+                        cat_id = str(jc_service.category_id)
+                        legacy_srv = None
+                    else:
+                        legacy_srv = Service.objects.filter(id=sid, is_active=True, is_deleted=False).select_related('service_type').first()
+                        if not legacy_srv:
+                            return JsonResponse({'status': 'error', 'message': 'One of the selected services is invalid'}, status=400)
+                        if lead.branch_id and not legacy_srv.service_branches.filter(branch=lead.branch, is_enabled=True, is_deleted=False).exists():
+                            return JsonResponse({'status': 'error', 'message': 'Selected service is not enabled for this branch'}, status=400)
+                        s_name = legacy_srv.name
+                        cat_name = legacy_srv.service_type.name
+                        cat_id = str(legacy_srv.service_type_id)
                     amount = Decimal(str(item.get('expected_value', 0)))
                     if amount < 0:
                         return JsonResponse({'status': 'error', 'message': 'Expected value cannot be negative'}, status=400)
-                    parsed_items.append((service, amount))
+                    parsed_items.append({
+                        'service': legacy_srv,
+                        'job_card_service': jc_service,
+                        'service_name': s_name,
+                        'category_name': cat_name,
+                        'category_id': cat_id,
+                        'amount': amount,
+                    })
                     total += amount
-                lead.service_name = ', '.join(service.name for service, _ in parsed_items)
+                lead.service_name = ', '.join(item['service_name'] for item in parsed_items)
                 lead.expected_value = total
                 lead.service_interests.all().delete()
-                for service, amount in parsed_items:
-                    JobLeadServiceInterest.objects.create(lead=lead, service=service, category_name=service.service_type.name, service_name=service.name, expected_value=amount, auto_id=get_auto_id(JobLeadServiceInterest), creator=user)
+                for item in parsed_items:
+                    JobLeadServiceInterest.objects.create(
+                        lead=lead,
+                        service=item['service'],
+                        job_card_service=item['job_card_service'],
+                        category_name=item['category_name'],
+                        category_id=item['category_id'],
+                        service_name=item['service_name'],
+                        expected_value=item['amount'],
+                        auto_id=get_auto_id(JobLeadServiceInterest),
+                        creator=user
+                    )
             lead.save()
         return JsonResponse({'status': 'success', 'lead': _job_lead_data(lead)})
     except JobLead.DoesNotExist:
@@ -6431,7 +6526,7 @@ def api_job_lead_form_data(request):
         return JsonResponse({'success': False, 'message': 'Company not found'}, status=400)
     from client_management.models import Branch, CustomerType, Staff
     from master.models import State, VehicleType, VehicleTypeModel, VehicleMake, VehicleBrandModel, VehicleColor, EmissionStandard
-    from service_management.models import Service, BranchService, CompanyService, BranchServiceCategory
+    from service_management.models import Service, BranchService, CompanyService, BranchServiceCategory, JobCardCategory, JobCardService
     from .models import JobLeadGenerationMode
     scoped_branch = branch
     branch_id = request.GET.get('branch_id')
@@ -6441,11 +6536,19 @@ def api_job_lead_form_data(request):
     staff = Staff.objects.filter(company=company, is_deleted=False)
     if scoped_branch or branch_id:
         staff = staff.filter(branch=branch)
-    enabled_ids = CompanyService.objects.filter(company=company, is_enabled=True).values_list('service_id', flat=True)
-    enabled_ids = BranchService.objects.filter(branch=active_branch, is_enabled=True, is_deleted=False, service_id__in=enabled_ids).values_list('service_id', flat=True) if active_branch else []
-    services = Service.objects.filter(id__in=enabled_ids, is_active=True, is_deleted=False)
-    disabled_categories = BranchServiceCategory.objects.filter(branch=active_branch, is_enabled=False, is_deleted=False).values_list('service_type_id', flat=True) if active_branch else []
-    services = services.exclude(service_type_id__in=disabled_categories).distinct()
+    jc_categories = JobCardCategory.objects.filter(is_deleted=False).order_by('name')
+    if jc_categories.exists():
+        jc_services = JobCardService.objects.filter(is_deleted=False, category__in=jc_categories).select_related('category').order_by('category__name', 'name')
+        service_categories_data = [{'id': str(c.id), 'name': c.name, 'slug': ''} for c in jc_categories]
+        services_data = [{'id': str(s.id), 'name': s.name, 'category_id': str(s.category_id), 'category_name': s.category.name} for s in jc_services]
+    else:
+        enabled_ids = CompanyService.objects.filter(company=company, is_enabled=True).values_list('service_id', flat=True)
+        enabled_ids = BranchService.objects.filter(branch=active_branch, is_enabled=True, is_deleted=False, service_id__in=enabled_ids).values_list('service_id', flat=True) if active_branch else []
+        services = Service.objects.filter(id__in=enabled_ids, is_active=True, is_deleted=False)
+        disabled_categories = BranchServiceCategory.objects.filter(branch=active_branch, is_enabled=False, is_deleted=False).values_list('service_type_id', flat=True) if active_branch else []
+        services = services.exclude(service_type_id__in=disabled_categories).distinct()
+        service_categories_data = [{'id': str(c['service_type_id']), 'name': c['service_type__name'], 'slug': c['service_type__slug'] or ''} for c in services.values('service_type_id', 'service_type__name', 'service_type__slug').distinct().order_by('service_type__name')]
+        services_data = [{'id': str(s.id), 'name': s.name, 'category_id': str(s.service_type_id), 'category_name': s.service_type.name} for s in services.select_related('service_type').order_by('service_type__name', 'name')]
     states = State.objects.filter(is_deleted=False)
     country = getattr(company, 'country', None)
     if country:
@@ -6458,8 +6561,8 @@ def api_job_lead_form_data(request):
         'staff': [{'id': str(s.id), 'name': s.name} for s in staff.order_by('name')],
         'customer_types': [{'id': str(c.id), 'name': c.name} for c in CustomerType.objects.filter(is_deleted=False).exclude(name__icontains='Workshop').order_by('name')],
         'lead_modes': list(JobLeadGenerationMode.objects.filter(company=company, is_deleted=False).values_list('name', flat=True)),
-        'service_categories': [{'id': str(c['service_type_id']), 'name': c['service_type__name'], 'slug': c['service_type__slug'] or ''} for c in services.values('service_type_id', 'service_type__name', 'service_type__slug').distinct().order_by('service_type__name')],
-        'services': [{'id': str(s.id), 'name': s.name, 'category_id': str(s.service_type_id), 'category_name': s.service_type.name} for s in services.select_related('service_type').order_by('service_type__name', 'name')],
+        'service_categories': service_categories_data,
+        'services': services_data,
         'vehicle_types': [{'id': str(v.id), 'name': v.name} for v in VehicleType.objects.filter(is_active=True, is_deleted=False).order_by('name')],
         'vehicle_segments': [{'id': str(v.id), 'name': v.name, 'vehicle_type_id': str(v.vehicle_type_id)} for v in VehicleTypeModel.objects.filter(is_active=True, is_deleted=False).filter(Q(company=company)|Q(company__isnull=True)).exclude(disabled_companies=company).order_by('name')],
         'makes': [{'id': str(v.id), 'name': v.name} for v in VehicleMake.objects.filter(is_active=True, is_deleted=False).order_by('name')],
