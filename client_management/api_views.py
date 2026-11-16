@@ -1578,9 +1578,18 @@ def api_create_invoice(request):
             vehicle.wheel_type = wheel_type_val
             vehicle.save(update_fields=['wheel_type'])
             
-        from decimal import Decimal
-        total_val = Decimal(str(data.get('total', 0)))
-        amt_collected_val = Decimal(str(data.get('amount_collected', 0)))
+        from decimal import Decimal, ROUND_HALF_UP
+        def _round2(v):
+            try:
+                return Decimal(str(v or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            except Exception:
+                return Decimal('0.00')
+
+        total_val = _round2(data.get('total', 0))
+        amt_collected_val = _round2(data.get('amount_collected', 0))
+        subtotal_val = _round2(data.get('subtotal', 0))
+        discount_val = _round2(data.get('discount', 0))
+        tax_val = _round2(data.get('tax_amount', 0))
         inv_type = 'cashinvoice' if amt_collected_val >= total_val else 'creditinvoice'
 
         remarks_text = (data.get('remarks') or '').strip() or None
@@ -1591,11 +1600,11 @@ def api_create_invoice(request):
             vehicle=vehicle,
             branch=branch,
             scheme=scheme_obj,
-            subtotal=data.get('subtotal', 0),
-            discount=data.get('discount', 0),
-            tax_amount=data.get('tax_amount', 0),
-            total=data.get('total', 0),
-            amount_collected=data.get('amount_collected', 0),
+            subtotal=subtotal_val,
+            discount=discount_val,
+            tax_amount=tax_val,
+            total=total_val,
+            amount_collected=amt_collected_val,
             invoice_type=inv_type,
             remarks=remarks_text,
             show_warranty_in_pdf=show_warranty_val,
@@ -1887,11 +1896,18 @@ def api_update_invoice(request):
             invoice.items.all().delete()
 
             # Update main invoice fields
-            subtotal_val = Decimal(str(data.get('subtotal', 0)))
-            discount_val = Decimal(str(data.get('discount', 0)))
-            tax_val = Decimal(str(data.get('tax_amount', 0)))
-            total_val = Decimal(str(data.get('total', 0)))
-            amt_collected_val = Decimal(str(data.get('amount_collected', 0)))
+            from decimal import Decimal, ROUND_HALF_UP
+            def _round2(v):
+                try:
+                    return Decimal(str(v or 0)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                except Exception:
+                    return Decimal('0.00')
+
+            subtotal_val = _round2(data.get('subtotal', 0))
+            discount_val = _round2(data.get('discount', 0))
+            tax_val = _round2(data.get('tax_amount', 0))
+            total_val = _round2(data.get('total', 0))
+            amt_collected_val = _round2(data.get('amount_collected', 0))
             inv_type = 'cashinvoice' if amt_collected_val >= total_val else 'creditinvoice'
             remarks_text = (data.get('remarks') or '').strip() or None
 
@@ -10236,8 +10252,16 @@ def api_vehicle_makes(request):
 
     if request.method == 'GET':
         try:
-            makes = VehicleMake.objects.filter(is_active=True, is_deleted=False).order_by('name')
-            data = [{'id': str(m.id), 'name': m.name} for m in makes]
+            makes = VehicleMake.objects.filter(is_active=True, is_deleted=False).select_related('creator').order_by('name')
+            data = [
+                {
+                    'id': str(m.id),
+                    'name': m.name,
+                    'is_superadmin': bool(m.creator is None or m.creator.is_superuser),
+                    'can_delete': bool(user.is_superuser or not (m.creator is None or m.creator.is_superuser)),
+                }
+                for m in makes
+            ]
             return JsonResponse({'success': True, 'vehicle_makes': data})
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)}, status=500)
@@ -10266,6 +10290,8 @@ def api_vehicle_makes(request):
             body = json.loads(request.body)
             make_id = body.get('id')
             make = VehicleMake.objects.get(id=make_id, is_deleted=False)
+            if not user.is_superuser and (make.creator is None or make.creator.is_superuser):
+                return JsonResponse({'success': False, 'message': 'Superadmin vehicle makes cannot be deleted'}, status=403)
             make.is_deleted = True
             make.is_active = False
             make.save()
@@ -10298,7 +10324,7 @@ def api_vehicle_brand_models(request):
         try:
             qs = VehicleBrandModel.objects.filter(
                 is_active=True, is_deleted=False
-            ).select_related('vehicle_type_model', 'make').order_by('vehicle_type_model__name', 'name')
+            ).select_related('vehicle_type_model', 'make', 'creator').order_by('vehicle_type_model__name', 'name')
             data = [
                 {
                     'id': str(b.id),
@@ -10307,6 +10333,8 @@ def api_vehicle_brand_models(request):
                     'make_name': b.make.name if b.make else '',
                     'vehicle_type_id': str(b.vehicle_type_model.id),
                     'vehicle_type_name': b.vehicle_type_model.name,
+                    'is_superadmin': bool(b.creator is None or b.creator.is_superuser),
+                    'can_delete': bool(user.is_superuser or not (b.creator is None or b.creator.is_superuser)),
                 }
                 for b in qs
             ]
@@ -10364,6 +10392,8 @@ def api_vehicle_brand_models(request):
             body = json.loads(request.body)
             brand_id = body.get('id')
             brand = VehicleBrandModel.objects.get(id=brand_id, is_deleted=False)
+            if not user.is_superuser and (brand.creator is None or brand.creator.is_superuser):
+                return JsonResponse({'success': False, 'message': 'Superadmin vehicle brands cannot be deleted'}, status=403)
             brand.is_deleted = True
             brand.is_active = False
             brand.save()

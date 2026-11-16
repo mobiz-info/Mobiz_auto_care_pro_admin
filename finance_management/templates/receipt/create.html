@@ -98,9 +98,11 @@ input[type="date"].form-control{
                     Card
                 </option>
 
+                {% if request.user.profile.company.country.currency_code != 'AED' and request.user.profile.company.country.phone_iso_code != 'AE' %}
                 <option value="digital_payments">
                     Digital Payments
                 </option>
+                {% endif %}
 
             </select>
 

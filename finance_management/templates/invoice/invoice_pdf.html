@@ -303,7 +303,9 @@
                             <div class="company-details">
                                 <h2>{{ invoice.branch.company.company_name|upper }}</h2>
                                 <p><strong>{{ invoice.branch.name }}</strong></p>
-                                {% if invoice.branch.address %}
+                                {% if clean_branch_address %}
+                                    <p>{{ clean_branch_address|linebreaksbr }}</p>
+                                {% elif invoice.branch.address %}
                                     <p>{{ invoice.branch.address|linebreaksbr }}</p>
                                 {% endif %}
                                 {% if invoice.branch.phone %}
@@ -312,7 +314,7 @@
                                 {% if invoice.branch.email %}
                                     <p>Email: {{ invoice.branch.email }}</p>
                                 {% endif %}
-                                {% if invoice.branch.gst_number %}
+                                {% if invoice.branch.gst_number and not company_trn %}
                                     <p>GSTIN: {{ invoice.branch.gst_number }}</p>
                                 {% endif %}
                             </div>
@@ -346,12 +348,6 @@
                         <td class="meta-label">Date:</td>
                         <td class="meta-value">{{ invoice.date|date:"d M Y" }}</td>
                     </tr>
-                    {% if payment_mode %}
-                    <tr>
-                        <td class="meta-label">Payment Mode:</td>
-                        <td class="meta-value">{{ payment_mode }}</td>
-                    </tr>
-                    {% endif %}
                 </table>
             </td>
         </tr>
@@ -524,8 +520,8 @@
                                 {% if item.service_detail.service_category == 'oil_change' %}
                                     <strong>Oil:</strong> {% if item.service_detail.oil_product.oil_brand %}{{ item.service_detail.oil_product.oil_brand.name }}{% else %}{{ item.service_detail.oil_product.brand }}{% endif %} {{ item.service_detail.oil_product.name }} ({% if item.service_detail.oil_product.oil_grade %}{{ item.service_detail.oil_product.oil_grade.name }}{% else %}{{ item.service_detail.oil_product.grade }}{% endif %})
                                     {% if item.service_detail.oil_litres_used %} | <strong>Litres:</strong> {{ item.service_detail.oil_litres_used }}L{% endif %}
-                                    {% if item.service_detail.oil_product.price_per_litre %} | <strong>Price/L:</strong> {{ currency }}{{ item.service_detail.oil_product.price_per_litre }}{% endif %}
-                                    {% if item.service_detail.oil_filter_changed or item.service_detail.oil_filter %} | <strong>Filter:</strong> {% if item.service_detail.oil_filter.brand %}{{ item.service_detail.oil_filter.brand.name }}{% endif %} {{ item.service_detail.oil_filter.name }} ({% if item.service_detail.oil_filter_price %}{{ currency }}{{ item.service_detail.oil_filter_price }}{% else %}Included{% endif %}){% endif %}
+                                    {% if item.service_detail.oil_product.price_per_litre %} | <strong>Price/L:</strong> {{ currency }}{{ item.service_detail.oil_product.price_per_litre|floatformat:2 }}{% endif %}
+                                    {% if item.service_detail.oil_filter_changed or item.service_detail.oil_filter %} | <strong>Filter:</strong> {% if item.service_detail.oil_filter.brand %}{{ item.service_detail.oil_filter.brand.name }}{% endif %} {{ item.service_detail.oil_filter.name }} ({% if item.service_detail.oil_filter_price %}{{ currency }}{{ item.service_detail.oil_filter_price|floatformat:2 }}{% else %}Included{% endif %}){% endif %}
                                     {% if item.service_detail.odometer_at_service %} | <strong>Odometer:</strong> {{ item.service_detail.odometer_at_service }} km{% endif %}
                                     {% if item.service_detail.next_oil_change_km %} | <strong style="color: #1e3a8a;">Next Change:</strong> {{ item.service_detail.next_oil_change_km }} km{% endif %}
                                 {% elif item.service_detail.service_category == 'tyre_change' %}
@@ -546,8 +542,8 @@
                         {% endif %}
                     </td>
                     <td class="align-center">{% if item.qty %}{{ item.qty|floatformat:"-2" }}{% else %}1{% endif %}</td>
-                    <td class="align-right">{{ currency }}{{ item.rate }}</td>
-                    <td class="align-right">{{ currency }}{{ item.net_taxable_amount|default:item.rate }}</td>
+                    <td class="align-right">{{ currency }}{{ item.rate|floatformat:2 }}</td>
+                    <td class="align-right">{{ currency }}{{ item.net_taxable_amount|default:item.rate|floatformat:2 }}</td>
                 </tr>
                 {% endif %}
             {% empty %}
@@ -563,27 +559,27 @@
         <table class="summary-table">
             <tr>
                 <td class="summary-label">Subtotal</td>
-                <td class="summary-value">{{ currency }}{{ invoice.subtotal }}</td>
+                <td class="summary-value">{{ currency }}{{ invoice.subtotal|floatformat:2 }}</td>
             </tr>
             {% if invoice.discount > 0 %}
                 <tr>
                     <td class="summary-label">Discount</td>
-                    <td class="summary-value">- {{ currency }}{{ invoice.discount }}</td>
+                    <td class="summary-value">- {{ currency }}{{ invoice.discount|floatformat:2 }}</td>
                 </tr>
             {% endif %}
             {% if invoice.tax_amount > 0 %}
                 <tr>
                     <td class="summary-label">Tax Amount</td>
-                    <td class="summary-value">{{ currency }}{{ invoice.tax_amount }}</td>
+                    <td class="summary-value">{{ currency }}{{ invoice.tax_amount|floatformat:2 }}</td>
                 </tr>
             {% endif %}
             <tr class="summary-total">
                 <td class="summary-label" style="color: #1e3a8a;">Total</td>
-                <td class="summary-value" style="color: #1e3a8a;">{{ currency }}{{ invoice.total }}</td>
+                <td class="summary-value" style="color: #1e3a8a;">{{ currency }}{{ invoice.total|floatformat:2 }}</td>
             </tr>
             <tr>
                 <td class="summary-label">Amount Paid</td>
-                <td class="summary-value" style="color: #16a34a;">{{ currency }}{{ invoice.amount_collected }}</td>
+                <td class="summary-value" style="color: #16a34a;">{{ currency }}{{ invoice.amount_collected|floatformat:2 }}</td>
             </tr>
             {% if payment_mode %}
             <tr>
@@ -595,7 +591,7 @@
                 <td class="summary-label">Balance Due</td>
                 <td class="summary-value" style="{% if balance > 0 %}color: #dc2626;{% else %}color: #16a34a;{% endif %}">
                     {% if balance > 0 %}
-                        {{ currency }}{{ balance }}
+                        {{ currency }}{{ balance|floatformat:2 }}
                     {% else %}
                         Paid
                     {% endif %}

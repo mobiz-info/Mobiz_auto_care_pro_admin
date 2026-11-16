@@ -2229,6 +2229,19 @@ def generate_invoice_pdf_file(invoice, base_url):
     elif invoice.customer and invoice.customer.company:
         company_trn = invoice.customer.company.gst_number or invoice.customer.company.tin_pan_no or ''
 
+    import re
+    if company_trn:
+        company_trn = re.sub(r'^(TRN\s*:\s*|TRN\s*|-|:\s*)', '', str(company_trn).strip(), flags=re.IGNORECASE).strip()
+
+    clean_branch_address = ''
+    if invoice.branch and invoice.branch.address:
+        lines = []
+        for line in invoice.branch.address.splitlines():
+            if re.search(r'\bTRN\b|\bGSTIN?\b', line, re.IGNORECASE):
+                continue
+            lines.append(line)
+        clean_branch_address = '\n'.join(lines).strip()
+
     customisation = None
     if invoice.branch and hasattr(invoice.branch, 'invoice_customisation'):
         customisation = invoice.branch.invoice_customisation
@@ -2239,6 +2252,7 @@ def generate_invoice_pdf_file(invoice, base_url):
         'currency': currency,
         'payment_mode': payment_mode,
         'company_trn': company_trn,
+        'clean_branch_address': clean_branch_address,
         'customisation': customisation,
     }
     
