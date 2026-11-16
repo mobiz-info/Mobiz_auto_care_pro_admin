@@ -6775,6 +6775,19 @@ def api_job_card_activity_option_create(request):
         return JsonResponse({'success': False, 'message': str(exc)}, status=400)
 
 
+def _clean_uuid(val):
+    if not val:
+        return None
+    val_str = str(val).strip()
+    if not val_str or val_str.lower() in ('null', 'none', 'undefined'):
+        return None
+    try:
+        import uuid
+        return str(uuid.UUID(val_str))
+    except (ValueError, AttributeError):
+        return None
+
+
 def _job_quotation_item_total(item):
     from decimal import Decimal
     return max(Decimal('0'), item.rate * item.quantity - item.discount)
@@ -6804,13 +6817,15 @@ def api_job_quotation_create(request):
         from service_management.models import JobCardCategory, JobCardService, JobCardIssue
         prepared_issues = []
         for index, row in enumerate(data.get('reported_issues') or []):
-            category = JobCardCategory.objects.filter(id=row.get('category_id'), is_deleted=False).first()
+            cat_id = _clean_uuid(row.get('category_id'))
+            category = JobCardCategory.objects.filter(id=cat_id, is_deleted=False).first() if cat_id else None
             if not category and row.get('category_name'):
                 category = JobCardCategory.objects.filter(name__iexact=row.get('category_name'), is_deleted=False).first()
             if not category:
                 category = JobCardCategory.objects.filter(is_deleted=False).first()
 
-            service = JobCardService.objects.filter(id=row.get('service_id'), category=category, is_deleted=False).first() if category else None
+            svc_id = _clean_uuid(row.get('service_id'))
+            service = JobCardService.objects.filter(id=svc_id, category=category, is_deleted=False).first() if svc_id and category else None
             if not service and category and row.get('service_name'):
                 service = JobCardService.objects.filter(category=category, name__iexact=row.get('service_name'), is_deleted=False).first()
             if not service and category:
@@ -6819,7 +6834,8 @@ def api_job_quotation_create(request):
                     service = JobCardService.objects.create(category=category, name=(row.get('service_name') or 'General Service')[:150], auto_id=get_auto_id(JobCardService), creator=user)
 
             issue_text = (row.get('issue_text') or row.get('service_name') or '').strip()
-            issue = JobCardIssue.objects.filter(id=row.get('issue_id'), category=category, service=service, is_deleted=False).first() if row.get('issue_id') and category and service else None
+            iss_id = _clean_uuid(row.get('issue_id'))
+            issue = JobCardIssue.objects.filter(id=iss_id, category=category, service=service, is_deleted=False).first() if iss_id and category and service else None
             if not issue and category and service:
                 if issue_text:
                     issue = JobCardIssue.objects.filter(category=category, service=service, name__iexact=issue_text, is_deleted=False).first()
@@ -6861,12 +6877,13 @@ def api_job_quotation_create(request):
         if not company:
             return JsonResponse({'success': False, 'message': 'Company not found'}, status=400)
         lead = None
-        if data.get('lead_id'):
-            lead = JobLead.objects.get(id=data['lead_id'], company=company, is_deleted=False)
+        lead_id = _clean_uuid(data.get('lead_id'))
+        if lead_id:
+            lead = JobLead.objects.get(id=lead_id, company=company, is_deleted=False)
             if branch and lead.branch_id != branch.id:
                 return JsonResponse({'success': False, 'message': 'Forbidden'}, status=403)
         if not branch:
-            requested_branch_id = data.get('branch_id') or (lead.branch_id if lead else None)
+            requested_branch_id = _clean_uuid(data.get('branch_id')) or (lead.branch_id if lead else None)
             branch = Branch.objects.filter(id=requested_branch_id, company=company, is_deleted=False).first() if requested_branch_id else Branch.objects.filter(company=company, is_deleted=False).order_by('name').first()
         if not branch:
             return JsonResponse({'success': False, 'message': 'A branch is required to create a Job Card quotation'}, status=400)
@@ -6878,7 +6895,8 @@ def api_job_quotation_create(request):
             vehicle_data = vehicle_details
             name = (profile.get('name') or '').strip()
             phone = (profile.get('phone') or '').strip()
-            customer_type = CustomerType.objects.filter(id=profile.get('customer_type_id'), is_deleted=False).first()
+            cust_type_id = _clean_uuid(profile.get('customer_type_id'))
+            customer_type = CustomerType.objects.filter(id=cust_type_id, is_deleted=False).first() if cust_type_id else None
             state = (profile.get('state') or '').strip()
             city = (profile.get('city') or '').strip()
             tax_number = (profile.get('tax_number') or '').strip()
@@ -6889,9 +6907,12 @@ def api_job_quotation_create(request):
             if 'corporate' in customer_type.name.lower() and not (tax_number and tin_number and pan_number):
                 return JsonResponse({'success': False, 'message': 'Tax Registration No, TIN and PAN are required for corporate customers'}, status=400)
             plate = (vehicle_data.get('vehicle_number') or '').strip().upper()
-            segment = VehicleTypeModel.objects.filter(id=vehicle_data.get('segment_id'), is_active=True, is_deleted=False).first()
-            make = VehicleMake.objects.filter(id=vehicle_data.get('make_id'), is_active=True, is_deleted=False).first()
-            brand_model = VehicleBrandModel.objects.filter(id=vehicle_data.get('brand_model_id'), is_active=True, is_deleted=False).first()
+            segment_id = _clean_uuid(vehicle_data.get('segment_id'))
+            make_id = _clean_uuid(vehicle_data.get('make_id'))
+            brand_model_id = _clean_uuid(vehicle_data.get('brand_model_id'))
+            segment = VehicleTypeModel.objects.filter(id=segment_id, is_active=True, is_deleted=False).first() if segment_id else None
+            make = VehicleMake.objects.filter(id=make_id, is_active=True, is_deleted=False).first() if make_id else None
+            brand_model = VehicleBrandModel.objects.filter(id=brand_model_id, is_active=True, is_deleted=False).first() if brand_model_id else None
             if not plate or not segment or not make or not brand_model:
                 return JsonResponse({'success': False, 'message': 'Vehicle number, make, model and segment are required'}, status=400)
             if brand_model.make_id != make.id or brand_model.vehicle_type_model_id != segment.id:
@@ -6930,8 +6951,10 @@ def api_job_quotation_create(request):
                     if normalized(candidate.vehicle_number) == plate_key:
                         vehicle = CustomerVehicle.objects.select_for_update().get(id=candidate.id)
                         break
-                color = VehicleColor.objects.filter(id=vehicle_data.get('color_id'), is_deleted=False).first() if vehicle_data.get('color_id') else None
-                emission = EmissionStandard.objects.filter(id=vehicle_data.get('emission_standard_id'), is_deleted=False).first() if vehicle_data.get('emission_standard_id') else None
+                color_id = _clean_uuid(vehicle_data.get('color_id'))
+                emission_id = _clean_uuid(vehicle_data.get('emission_standard_id'))
+                color = VehicleColor.objects.filter(id=color_id, is_deleted=False).first() if color_id else None
+                emission = EmissionStandard.objects.filter(id=emission_id, is_deleted=False).first() if emission_id else None
                 fuel = vehicle_data.get('fuel_type') or ''
                 wheel = vehicle_data.get('wheel_type') or CustomerVehicle.WHEEL_TYPE_NORMAL
                 if wheel not in dict(CustomerVehicle.WHEEL_TYPE_CHOICES):
@@ -6956,13 +6979,18 @@ def api_job_quotation_create(request):
                         vehicle.chassis_number = chassis_num
                     vehicle.save()
         else:
-            customer = Customer.objects.get(id=data.get('customer_id'), company=company, is_deleted=False)
-            vehicle = CustomerVehicle.objects.get(id=data.get('vehicle_id'), customer=customer, is_deleted=False)
+            cust_id = _clean_uuid(data.get('customer_id'))
+            veh_id = _clean_uuid(data.get('vehicle_id'))
+            customer = Customer.objects.get(id=cust_id, company=company, is_deleted=False) if cust_id else None
+            vehicle = CustomerVehicle.objects.get(id=veh_id, customer=customer, is_deleted=False) if (veh_id and customer) else None
+            if not customer or not vehicle:
+                return JsonResponse({'success': False, 'message': 'Customer or vehicle not found'}, status=404)
             if customer.branch_id != branch.id:
                 return JsonResponse({'success': False, 'message': 'Customer is outside your branch'}, status=403)
         revised_from = None
-        if data.get('revision_of_id'):
-            revised_from = JobQuotation.objects.get(id=data['revision_of_id'], customer__company=company, is_deleted=False)
+        rev_id = _clean_uuid(data.get('revision_of_id'))
+        if rev_id:
+            revised_from = JobQuotation.objects.get(id=rev_id, customer__company=company, is_deleted=False)
             if revised_from.customer_id != customer.id or revised_from.vehicle_id != vehicle.id:
                 transaction.set_rollback(True)
                 return JsonResponse({'success': False, 'message': 'Revision customer/vehicle mismatch'}, status=400)
@@ -6974,8 +7002,8 @@ def api_job_quotation_create(request):
             from client_management.models import Staff
             from django.utils.dateparse import parse_datetime
             prepared_by = None
-            prepared_by_id = (data.get('prepared_by_id') or '').strip()
-            if prepared_by_id and prepared_by_id not in ('null', 'None'):
+            prepared_by_id = _clean_uuid(data.get('prepared_by_id'))
+            if prepared_by_id:
                 staff_qs = Staff.objects.filter(id=prepared_by_id, is_deleted=False)
                 if company:
                     staff_qs = staff_qs.filter(company=company)
@@ -7522,13 +7550,15 @@ def api_job_quotation_update(request, quotation_id):
             if 'reported_issues' in data:
                 retained_reports = []
                 for index, row in enumerate(data.get('reported_issues') or []):
-                    category = JobCardCategory.objects.filter(id=row.get('category_id'), is_deleted=False).first()
+                    cat_id = _clean_uuid(row.get('category_id'))
+                    category = JobCardCategory.objects.filter(id=cat_id, is_deleted=False).first() if cat_id else None
                     if not category and row.get('category_name'):
                         category = JobCardCategory.objects.filter(name__iexact=row.get('category_name'), is_deleted=False).first()
                     if not category:
                         category = JobCardCategory.objects.filter(is_deleted=False).first()
 
-                    service = JobCardService.objects.filter(id=row.get('service_id'), category=category, is_deleted=False).first() if category else None
+                    svc_id = _clean_uuid(row.get('service_id'))
+                    service = JobCardService.objects.filter(id=svc_id, category=category, is_deleted=False).first() if (svc_id and category) else None
                     if not service and category and row.get('service_name'):
                         service = JobCardService.objects.filter(category=category, name__iexact=row.get('service_name'), is_deleted=False).first()
                     if not service and category:
@@ -7537,7 +7567,8 @@ def api_job_quotation_update(request, quotation_id):
                             service = JobCardService.objects.create(category=category, name=(row.get('service_name') or 'General Service')[:150], auto_id=get_auto_id(JobCardService), creator=user)
 
                     issue_text = (row.get('issue_text') or row.get('service_name') or '').strip()
-                    issue = JobCardIssue.objects.filter(id=row.get('issue_id'), category=category, service=service, is_deleted=False).first() if row.get('issue_id') and category and service else None
+                    iss_id = _clean_uuid(row.get('issue_id'))
+                    issue = JobCardIssue.objects.filter(id=iss_id, category=category, service=service, is_deleted=False).first() if (iss_id and category and service) else None
                     if not issue and category and service:
                         if issue_text:
                             issue = JobCardIssue.objects.filter(category=category, service=service, name__iexact=issue_text, is_deleted=False).first()
@@ -7549,9 +7580,10 @@ def api_job_quotation_update(request, quotation_id):
                     if not category or not service or not issue_text:
                         transaction.set_rollback(True)
                         return JsonResponse({'success': False, 'message': f'Issue row {index + 1} has invalid category, service, or issue'}, status=400)
+                    rep_id = _clean_uuid(row.get('report_id'))
                     report = JobQuotationIssue.objects.filter(
-                        id=row.get('report_id'), quotation=quotation, is_deleted=False
-                    ).first() if row.get('report_id') else None
+                        id=rep_id, quotation=quotation, is_deleted=False
+                    ).first() if rep_id else None
                     if row.get('report_id') and report is None:
                         transaction.set_rollback(True)
                         return JsonResponse({'success': False, 'message': f'Issue row {index + 1} was not found'}, status=404)
@@ -7808,10 +7840,14 @@ def api_job_card_from_job_quotation(request, quotation_id):
                     name = (activity_data.get('name') or '').strip()
                     if not name:
                         continue
+                    cost = Decimal(str(activity_data.get('cost') or 0))
+                    discount = Decimal(str(activity_data.get('discount') or 0))
                     JobCardActivity.objects.create(
                         reported_issue=job_report,
                         name=name,
                         status=JobCardActivity.STATUS_PENDING,
+                        cost=cost,
+                        discount=discount,
                         sort_order=activity_index,
                         auto_id=get_auto_id(JobCardActivity),
                         creator=user,
