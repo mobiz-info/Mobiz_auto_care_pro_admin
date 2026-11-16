@@ -2806,6 +2806,7 @@ def generate_quotation_pdf_file(quotation, base_url):
         'tax_amount': tax_amount,
         'grand_total': grand_total,
         'has_inspection': has_inspection,
+        'damage_marks': damage_marks,
         'damage_marks_count': damage_marks_count,
         'checklist_items': checklist_items,
         'tyre_inspection': tyre,

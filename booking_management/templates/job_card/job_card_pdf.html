@@ -335,6 +335,31 @@
             <span class="info-value">{{ job_card.inspection_at|date:"d-m-Y h:i A" }}</span>
         </div>
         {% endif %}
+        {% if inspection_details.damage_marks %}
+        <div style="margin-top: 4px; margin-bottom: 8px;">
+            <strong style="color: #1e3a8a; font-size: 8.5pt;">Vehicle Damage Inspection:</strong>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 8pt;">
+                <thead>
+                    <tr style="background-color: #fffbeb; border-bottom: 1px solid #fde68a;">
+                        <th style="padding: 4px 6px; text-align: left; color: #92400e; width: 30%;">Part / View</th>
+                        <th style="padding: 4px 6px; text-align: center; color: #92400e; width: 20%;">Type</th>
+                        <th style="padding: 4px 6px; text-align: center; color: #92400e; width: 20%;">Severity</th>
+                        <th style="padding: 4px 6px; text-align: left; color: #92400e; width: 30%;">Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mark in inspection_details.damage_marks %}
+                    <tr style="border-bottom: 1px solid #f1f5f9;">
+                        <td style="padding: 4px 6px; font-weight: 600;">{{ mark.part|default:"Part" }} ({{ mark.view|default:"Exterior" }})</td>
+                        <td style="padding: 4px 6px; text-align: center;">{{ mark.damage_type|default:"Scratch" }}</td>
+                        <td style="padding: 4px 6px; text-align: center; font-weight: bold; color: {% if mark.severity|lower == 'severe' %}#b91c1c{% elif mark.severity|lower == 'moderate' %}#b45309{% else %}#065f46{% endif %};">{{ mark.severity|default:"Minor" }}</td>
+                        <td style="padding: 4px 6px; color: #475569;">{{ mark.remarks|default:"-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
         {% if inspection_details.tyre %}
         <div style="margin-top: 4px; padding-bottom: 4px;">
             <strong style="color: #1e3a8a; font-size: 8.5pt;">Tyre Inspection:</strong>
