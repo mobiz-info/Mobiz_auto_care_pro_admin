@@ -516,29 +516,28 @@
                             </div>
                         {% endif %}
                         {% if item.service_detail %}
+                            {% if item.service_detail.service_category == 'oil_change' and item.service_detail.oil_product or item.service_detail.oil_filter_changed or item.service_detail.oil_filter %}
                             <div style="font-size: 8pt; color: #475569; margin-top: 4px; padding-left: 8px; border-left: 2px solid #3b82f6; line-height: 1.4;">
-                                {% if item.service_detail.service_category == 'oil_change' %}
+                                {% if item.service_detail.oil_product %}
                                     <strong>Oil:</strong> {% if item.service_detail.oil_product.oil_brand %}{{ item.service_detail.oil_product.oil_brand.name }}{% else %}{{ item.service_detail.oil_product.brand }}{% endif %} {{ item.service_detail.oil_product.name }} ({% if item.service_detail.oil_product.oil_grade %}{{ item.service_detail.oil_product.oil_grade.name }}{% else %}{{ item.service_detail.oil_product.grade }}{% endif %})
                                     {% if item.service_detail.oil_litres_used %} | <strong>Litres:</strong> {{ item.service_detail.oil_litres_used }}L{% endif %}
                                     {% if item.service_detail.oil_product.price_per_litre %} | <strong>Price/L:</strong> {{ currency }}{{ item.service_detail.oil_product.price_per_litre|floatformat:2 }}{% endif %}
-                                    {% if item.service_detail.oil_filter_changed or item.service_detail.oil_filter %} | <strong>Filter:</strong> {% if item.service_detail.oil_filter.brand %}{{ item.service_detail.oil_filter.brand.name }}{% endif %} {{ item.service_detail.oil_filter.name }} ({% if item.service_detail.oil_filter_price %}{{ currency }}{{ item.service_detail.oil_filter_price|floatformat:2 }}{% else %}Included{% endif %}){% endif %}
-                                    {% if item.service_detail.odometer_at_service %} | <strong>Odometer:</strong> {{ item.service_detail.odometer_at_service }} km{% endif %}
-                                    {% if item.service_detail.next_oil_change_km %} | <strong style="color: #1e3a8a;">Next Change:</strong> {{ item.service_detail.next_oil_change_km }} km{% endif %}
-                                {% elif item.service_detail.service_category == 'tyre_change' %}
-                                    {% if item.service_detail.tyre_brand %}<strong>Brand:</strong> {{ item.service_detail.tyre_brand.brand }}{% endif %}
-                                    {% if item.service_detail.tyre_size %} | <strong>Size:</strong> {{ item.service_detail.tyre_size }}{% endif %}
-                                    {% if item.service_detail.tyres_changed_count %} | <strong>Qty:</strong> {{ item.service_detail.tyres_changed_count }} pcs{% endif %}
-                                    {% if item.service_detail.next_tyre_change_km %} | <strong style="color: #1e3a8a;">Next Change:</strong> {{ item.service_detail.next_tyre_change_km }} km{% endif %}
-                                {% elif item.service_detail.service_category == 'wheel_alignment' %}
-                                    {% if item.service_detail.odometer_at_service %}<strong>Odometer:</strong> {{ item.service_detail.odometer_at_service }} km{% endif %}
-                                    {% if item.service_detail.next_alignment_km %}{% if item.service_detail.odometer_at_service %} | {% endif %}<strong style="color: #1e3a8a;">Next Alignment:</strong> {{ item.service_detail.next_alignment_km }} km{% endif %}
-                                    {% if item.service_detail.alignment_notes %}{% if item.service_detail.odometer_at_service or item.service_detail.next_alignment_km %} | {% endif %}<strong>Notes:</strong> {{ item.service_detail.alignment_notes }}{% endif %}
-                                {% elif item.service_detail.service_category == 'car_detailing' or item.service_detail.service_category == 'detailing' %}
-                                    {% if item.service_detail.warranty_value %}
-                                        <strong>Warranty:</strong> {{ item.service_detail.warranty_value }} {{ item.service_detail.warranty_unit|title }}{% if item.service_detail.warranty_value > 1 %}s{% endif %}
-                                    {% endif %}
+                                {% endif %}
+                                {% if item.service_detail.oil_filter_changed or item.service_detail.oil_filter %}
+                                    {% if item.service_detail.oil_product %} | {% endif %}<strong>Filter:</strong> {% if item.service_detail.oil_filter.brand %}{{ item.service_detail.oil_filter.brand.name }}{% endif %} {{ item.service_detail.oil_filter.name }} ({% if item.service_detail.oil_filter_price %}{{ currency }}{{ item.service_detail.oil_filter_price|floatformat:2 }}{% else %}Included{% endif %})
                                 {% endif %}
                             </div>
+                            {% elif item.service_detail.service_category == 'tyre_change' and item.service_detail.tyre_brand or item.service_detail.tyre_size or item.service_detail.tyres_changed_count %}
+                            <div style="font-size: 8pt; color: #475569; margin-top: 4px; padding-left: 8px; border-left: 2px solid #3b82f6; line-height: 1.4;">
+                                {% if item.service_detail.tyre_brand %}<strong>Brand:</strong> {{ item.service_detail.tyre_brand.brand }}{% endif %}
+                                {% if item.service_detail.tyre_size %} | <strong>Size:</strong> {{ item.service_detail.tyre_size }}{% endif %}
+                                {% if item.service_detail.tyres_changed_count %} | <strong>Qty:</strong> {{ item.service_detail.tyres_changed_count }} pcs{% endif %}
+                            </div>
+                            {% elif item.service_detail.service_category == 'wheel_alignment' and item.service_detail.alignment_notes %}
+                            <div style="font-size: 8pt; color: #475569; margin-top: 4px; padding-left: 8px; border-left: 2px solid #3b82f6; line-height: 1.4;">
+                                <strong>Notes:</strong> {{ item.service_detail.alignment_notes }}
+                            </div>
+                            {% endif %}
                         {% endif %}
                     </td>
                     <td class="align-center">{% if item.qty %}{{ item.qty|floatformat:"-2" }}{% else %}1{% endif %}</td>
