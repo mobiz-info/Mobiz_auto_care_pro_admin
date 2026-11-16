@@ -126,3 +126,4 @@ def seed_inspection_master():
 
 if __name__ == '__main__':
     seed_inspection_master()
+

@@ -41,7 +41,7 @@ JOB_CARD_MASTERS = {
         'model': InspectionCategory, 'form': InspectionCategoryForm,
         'title': 'Inspection Categories', 'singular': 'Inspection Category',
         'new_label': 'Add Category', 'primary': lambda item: item.name,
-        'secondary': lambda item: f"Icon: {item.icon} · Order: {item.sort_order} · {'Active' if item.is_active else 'Inactive'}",
+        'secondary': lambda item: f"Order: {item.sort_order} · {'Active' if item.is_active else 'Inactive'}",
         'dependencies': lambda item: item.items.filter(is_deleted=False).exists(),
     },
     'inspection_items': {

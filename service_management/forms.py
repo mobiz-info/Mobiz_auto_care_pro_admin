@@ -111,10 +111,9 @@ class JobCardIssueForm(forms.ModelForm):
 class InspectionCategoryForm(forms.ModelForm):
     class Meta:
         model = InspectionCategory
-        fields = ['name', 'icon', 'sort_order', 'is_active']
+        fields = ['name', 'sort_order', 'is_active']
         widgets = {
             'name': TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Tyre & Wheels, Battery, Oil & Fluids'}),
-            'icon': TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. tire_repair, battery_charging_full, opacity'}),
             'sort_order': NumberInput(attrs={'class': 'form-control', 'placeholder': '0'}),
             'is_active': CheckboxInput(attrs={'class': 'form-check-input'}),
         }
