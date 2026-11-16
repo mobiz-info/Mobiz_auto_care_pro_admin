@@ -2707,6 +2707,86 @@ def generate_quotation_pdf_file(quotation, base_url):
     tax_amount = float(quotation.tax_amount or 0)
     grand_total = float(quotation.grand_total) if quotation.grand_total else max(0.0, subtotal - discount + tax_amount)
 
+    # 4. Inspection details & checklist
+    raw_inspection = getattr(quotation, 'inspection_details', None) or {}
+    if not isinstance(raw_inspection, dict):
+        raw_inspection = {}
+
+    damage_marks = raw_inspection.get('damage_marks') or []
+    damage_marks_count = len(damage_marks) if isinstance(damage_marks, list) else 0
+
+    checklist_raw = raw_inspection.get('checklist') or {}
+    checklist_items = []
+    if isinstance(checklist_raw, dict) and checklist_raw:
+        from service_management.models import InspectionItem
+        item_ids = [k for k in checklist_raw.keys()]
+        db_items = {}
+        try:
+            db_items = {str(item.id): item for item in InspectionItem.objects.filter(id__in=item_ids).select_related('category')}
+        except Exception:
+            pass
+
+        for k, v in checklist_raw.items():
+            if isinstance(v, dict):
+                obj = db_items.get(str(k))
+                item_name = v.get('name') or (obj.name if obj else str(k))
+                category_name = v.get('category') or (obj.category.name if obj and obj.category else '')
+                status = (v.get('status') or '').strip().lower()
+                value = v.get('value') or ''
+                remarks = v.get('remarks') or ''
+                if status or value or remarks:
+                    status_display = status.upper()
+                    if status == 'pass':
+                        status_display = 'PASS'
+                    elif status == 'good':
+                        status_display = 'GOOD'
+                    elif status == 'attention':
+                        status_display = 'ATTENTION'
+                    elif status == 'fail':
+                        status_display = 'FAIL'
+                    elif status == 'critical':
+                        status_display = 'CRITICAL'
+                    checklist_items.append({
+                        'name': item_name,
+                        'category': category_name,
+                        'status': status,
+                        'status_display': status_display,
+                        'value': value,
+                        'remarks': remarks,
+                    })
+
+    tyre = raw_inspection.get('tyre') if isinstance(raw_inspection.get('tyre'), dict) else {}
+    oil = raw_inspection.get('oil_service') or raw_inspection.get('oil') or {}
+    if not isinstance(oil, dict):
+        oil = {}
+    brake = raw_inspection.get('brake_service') if isinstance(raw_inspection.get('brake_service'), dict) else {}
+    wheel_alignment = raw_inspection.get('wheel_alignment') if isinstance(raw_inspection.get('wheel_alignment'), dict) else {}
+
+    has_inspection = bool(
+        checklist_items or damage_marks_count > 0 or tyre or oil or brake or wheel_alignment or getattr(quotation, 'inspection_at', None)
+    )
+
+    company_seal = None
+    if company and getattr(company, 'company_seal', None):
+        try:
+            seal_field = company.company_seal
+            if hasattr(seal_field, 'path') and os.path.exists(seal_field.path):
+                company_seal = 'file://' + os.path.abspath(seal_field.path)
+            elif hasattr(seal_field, 'url'):
+                company_seal = seal_field.url
+        except Exception:
+            company_seal = getattr(company.company_seal, 'url', None)
+
+    prepared_by_name = ''
+    if getattr(quotation, 'prepared_by', None):
+        prepared_by_name = getattr(quotation.prepared_by, 'name', '') or str(quotation.prepared_by)
+    elif getattr(quotation, 'prepared_by_id', None):
+        prepared_by_name = str(quotation.prepared_by_id)
+
+    days_needed_text = ''
+    if getattr(quotation, 'additional_days_needed', 0):
+        days_needed_text = f"{quotation.additional_days_needed} Days"
+
     context = {
         'quotation': quotation,
         'company': company,
@@ -2725,6 +2805,16 @@ def generate_quotation_pdf_file(quotation, base_url):
         'tax_percentage': tax_percentage,
         'tax_amount': tax_amount,
         'grand_total': grand_total,
+        'has_inspection': has_inspection,
+        'damage_marks_count': damage_marks_count,
+        'checklist_items': checklist_items,
+        'tyre_inspection': tyre,
+        'oil_inspection': oil,
+        'brake_inspection': brake,
+        'wheel_alignment_inspection': wheel_alignment,
+        'company_seal': company_seal,
+        'prepared_by_name': prepared_by_name,
+        'days_needed': days_needed_text,
     }
     
     html_string = render_to_string('quotation/quotation_pdf.html', context)
