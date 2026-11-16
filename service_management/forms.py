@@ -1,6 +1,6 @@
 from django import forms
 from django.forms import TextInput, Select, Textarea, NumberInput, CheckboxInput
-from .models import ServiceType, Service, JobCardCategory, JobCardService, JobCardIssue
+from .models import ServiceType, Service, JobCardCategory, JobCardService, JobCardIssue, InspectionCategory, InspectionItem
 from client_management.models import Client
 
 class ServiceTypeForm(forms.ModelForm):
@@ -106,3 +106,51 @@ class JobCardIssueForm(forms.ModelForm):
             if matches.exists():
                 self.add_error('name', 'This issue already exists for the selected service.')
         return cleaned
+
+
+class InspectionCategoryForm(forms.ModelForm):
+    class Meta:
+        model = InspectionCategory
+        fields = ['name', 'icon', 'sort_order', 'is_active']
+        widgets = {
+            'name': TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Tyre & Wheels, Battery, Oil & Fluids'}),
+            'icon': TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. tire_repair, battery_charging_full, opacity'}),
+            'sort_order': NumberInput(attrs={'class': 'form-control', 'placeholder': '0'}),
+            'is_active': CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def clean_name(self):
+        name = self.cleaned_data['name'].strip()
+        matches = InspectionCategory.objects.filter(name__iexact=name, is_deleted=False)
+        if self.instance.pk:
+            matches = matches.exclude(pk=self.instance.pk)
+        if matches.exists():
+            raise forms.ValidationError('An inspection category with this name already exists.')
+        return name
+
+
+class InspectionItemForm(forms.ModelForm):
+    class Meta:
+        model = InspectionItem
+        fields = ['category', 'name', 'input_type', 'unit', 'service', 'description', 'sort_order', 'is_active']
+        widgets = {
+            'category': Select(attrs={'class': 'form-control'}),
+            'name': TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. Battery Voltage, Front Brake Pads, Coolant Level'}),
+            'input_type': Select(attrs={'class': 'form-control'}),
+            'unit': TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. V, mm, psi'}),
+            'service': Select(attrs={'class': 'form-control'}),
+            'description': TextInput(attrs={'class': 'form-control', 'placeholder': 'Guidance / Notes for technician'}),
+            'sort_order': NumberInput(attrs={'class': 'form-control', 'placeholder': '0'}),
+            'is_active': CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['category'].queryset = InspectionCategory.objects.filter(is_deleted=False)
+        self.fields['category'].empty_label = '-- Select Category --'
+        self.fields['service'].queryset = JobCardService.objects.filter(is_deleted=False)
+        self.fields['service'].empty_label = '-- Select Optional Upsell Service --'
+        self.fields['service'].required = False
+        self.fields['unit'].required = False
+        self.fields['description'].required = False
+

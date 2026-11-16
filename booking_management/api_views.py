@@ -5929,6 +5929,50 @@ def api_job_card_metadata(request):
     })
 
 
+def api_inspection_checklist(request):
+    """Returns dynamic inspection checklist categories and items for Job Card & Quotation."""
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'message': 'Only GET allowed'}, status=405)
+
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+
+    from service_management.models import InspectionCategory, InspectionItem
+    categories = InspectionCategory.objects.filter(is_deleted=False, is_active=True).prefetch_related('items').order_by('sort_order', 'name')
+    data = []
+    for cat in categories:
+        items = cat.items.filter(is_deleted=False, is_active=True).select_related('service', 'service__category').order_by('sort_order', 'name')
+        data.append({
+            'id': str(cat.id),
+            'name': cat.name,
+            'icon': cat.icon or 'build_circle_outlined',
+            'sort_order': cat.sort_order,
+            'items': [
+                {
+                    'id': str(item.id),
+                    'name': item.name,
+                    'input_type': item.input_type,
+                    'unit': item.unit,
+                    'description': item.description,
+                    'sort_order': item.sort_order,
+                    'service': {
+                        'id': str(item.service.id),
+                        'name': item.service.name,
+                        'category_id': str(item.service.category_id) if item.service.category_id else '',
+                        'category_name': item.service.category.name if item.service.category else '',
+                    } if item.service else None,
+                }
+                for item in items
+            ]
+        })
+
+    return JsonResponse({
+        'success': True,
+        'categories': data,
+    })
+
+
 @csrf_exempt
 def api_job_card_add_vehicle(request):
     """Registers a new vehicle for an existing customer."""

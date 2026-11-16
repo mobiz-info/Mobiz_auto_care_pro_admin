@@ -10,10 +10,10 @@ from django.http import JsonResponse
 from decimal import Decimal
 from django.db.models import Q
 
-from .models import ServiceType, Service, BranchService, BranchVehiclePrice, ServiceVehicleTypePrice, CompanyService, SmokeTestPrice, JobCardCategory, JobCardService, JobCardIssue, BranchServiceCategory
+from .models import ServiceType, Service, BranchService, BranchVehiclePrice, ServiceVehicleTypePrice, CompanyService, SmokeTestPrice, JobCardCategory, JobCardService, JobCardIssue, BranchServiceCategory, InspectionCategory, InspectionItem
 from master.models import VehicleType, VehicleTypeModel, EmissionStandard
 from client_management.models import Branch
-from .forms import ServiceTypeForm, ServiceForm, JobCardCategoryForm, JobCardServiceForm, JobCardIssueForm
+from .forms import ServiceTypeForm, ServiceForm, JobCardCategoryForm, JobCardServiceForm, JobCardIssueForm, InspectionCategoryForm, InspectionItemForm
 from core.functions import get_auto_id
 
 JOB_CARD_MASTERS = {
@@ -37,6 +37,20 @@ JOB_CARD_MASTERS = {
         'secondary': lambda item: f'{item.category.name} / {item.service.name}',
         'dependencies': lambda item: False,
     },
+    'inspection_categories': {
+        'model': InspectionCategory, 'form': InspectionCategoryForm,
+        'title': 'Inspection Categories', 'singular': 'Inspection Category',
+        'new_label': 'Add Category', 'primary': lambda item: item.name,
+        'secondary': lambda item: f"Icon: {item.icon} · Order: {item.sort_order} · {'Active' if item.is_active else 'Inactive'}",
+        'dependencies': lambda item: item.items.filter(is_deleted=False).exists(),
+    },
+    'inspection_items': {
+        'model': InspectionItem, 'form': InspectionItemForm,
+        'title': 'Inspection Checklist Points', 'singular': 'Checklist Item',
+        'new_label': 'Add Checklist Item', 'primary': lambda item: item.name,
+        'secondary': lambda item: f"{item.category.name} · Type: {item.get_input_type_display()}" + (f" · Upsell Service: {item.service.name}" if item.service else ""),
+        'dependencies': lambda item: False,
+    },
 }
 
 
@@ -56,9 +70,12 @@ def jobcard_master_list(request, master):
         queryset = queryset.select_related('category')
     elif master == 'issues':
         queryset = queryset.select_related('category', 'service')
+    elif master == 'inspection_items':
+        queryset = queryset.select_related('category', 'service')
     if search:
         queryset = queryset.filter(name__icontains=search)
-    page_obj = Paginator(queryset.order_by('name'), 15).get_page(request.GET.get('page'))
+    order_fields = ['sort_order', 'name'] if hasattr(config['model'], 'sort_order') else ['name']
+    page_obj = Paginator(queryset.order_by(*order_fields), 15).get_page(request.GET.get('page'))
     rows = [{
         'id': item.id,
         'primary': config['primary'](item),

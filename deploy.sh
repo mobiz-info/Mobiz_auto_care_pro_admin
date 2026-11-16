@@ -43,6 +43,9 @@ echo "🔄 Checking migrations..."
 echo "🌍 Seeding countries..."
 /home/mobiz/webapps/car_wash/venv/bin/python seed_countries.py || true
 
+echo "📋 Seeding inspection checklist..."
+/home/mobiz/webapps/car_wash/venv/bin/python seed_inspection_checklist.py || true
+
 echo "🎨 Collecting static files..."
 /home/mobiz/webapps/car_wash/venv/bin/python manage.py collectstatic --noinput
 

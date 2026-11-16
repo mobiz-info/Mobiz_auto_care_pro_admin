@@ -23,7 +23,14 @@
                 <tr>
                     <th style="width:80px">#</th>
                     <th>{{ singular }} Name</th>
-                    {% if master != 'categories' %}<th>{% if master == 'services' %}Service Category{% else %}Service Category / Service{% endif %}</th>{% endif %}
+                    {% if master != 'categories' %}
+                        <th>
+                            {% if master == 'services' %}Service Category
+                            {% elif master == 'inspection_categories' %}Icon & Details
+                            {% elif master == 'inspection_items' %}Category & Upsell Service
+                            {% else %}Service Category / Service{% endif %}
+                        </th>
+                    {% endif %}
                     <th style="width:120px;text-align:right">Action</th>
                 </tr>
             </thead>
@@ -34,7 +41,7 @@
                     <td style="font-weight:600;color:#1e293b">
                         <div style="display:flex;align-items:center;gap:12px">
                             <div style="width:32px;height:32px;border-radius:50%;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#64748b">
-                                {% if master == 'categories' %}<i class="ph-fill ph-folders"></i>{% elif master == 'services' %}<i class="ph-fill ph-wrench"></i>{% else %}<i class="ph-fill ph-warning-circle"></i>{% endif %}
+                                {% if master == 'categories' %}<i class="ph-fill ph-folders"></i>{% elif master == 'services' %}<i class="ph-fill ph-wrench"></i>{% elif master == 'inspection_categories' %}<i class="ph-fill ph-check-square"></i>{% elif master == 'inspection_items' %}<i class="ph-fill ph-list-checks"></i>{% else %}<i class="ph-fill ph-warning-circle"></i>{% endif %}
                             </div>
                             {{ row.primary }}
                         </div>

@@ -213,3 +213,44 @@ class SmokeTestPrice(BaseModel):
     def __str__(self):
         return f"{self.branch.name} | {self.vehicle_model.name} x {self.emission_standard.name} ({self.fuel_type}) — Rs.{self.price}"
 
+
+class InspectionCategory(BaseModel):
+    name = models.CharField(max_length=150)
+    icon = models.CharField(max_length=50, blank=True, default='build_circle_outlined', help_text="Flutter/Material icon identifier")
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
+class InspectionItem(BaseModel):
+    INPUT_RAG = 'rag'
+    INPUT_YES_NO = 'yes_no'
+    INPUT_MEASUREMENT = 'measurement'
+
+    INPUT_TYPE_CHOICES = [
+        (INPUT_RAG, 'RAG Status (🟢 Good / 🟡 Attention / 🔴 Critical)'),
+        (INPUT_YES_NO, 'Yes / No (Pass / Fail)'),
+        (INPUT_MEASUREMENT, 'Measurement (Value with Unit)'),
+    ]
+
+    category = models.ForeignKey(InspectionCategory, on_delete=models.CASCADE, related_name='items')
+    name = models.CharField(max_length=200, help_text="Checklist Point Title")
+    input_type = models.CharField(max_length=20, choices=INPUT_TYPE_CHOICES, default=INPUT_RAG)
+    unit = models.CharField(max_length=30, blank=True, default='', help_text="e.g. V, mm, psi, km")
+    service = models.ForeignKey(JobCardService, on_delete=models.SET_NULL, null=True, blank=True, related_name='inspection_items', help_text="Service to suggest if critical issue found")
+    description = models.CharField(max_length=255, blank=True, default='', help_text="Guidance note for technician")
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['category__sort_order', 'category__name', 'sort_order', 'name']
+
+    def __str__(self):
+        return f"{self.category.name} - {self.name}"
+
+
