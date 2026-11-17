@@ -427,6 +427,17 @@
                    value="{{ to_date }}"
                    class="date-input">
 
+            {% if companies %}
+            <select name="company" class="select-input" onchange="this.form.submit()">
+                <option value="">All Companies</option>
+                {% for c in companies %}
+                <option value="{{ c.id }}" {% if selected_company_id == c.id|stringformat:"s" %}selected{% endif %}>
+                    {{ c.company_name }}
+                </option>
+                {% endfor %}
+            </select>
+            {% endif %}
+
             {% if request.user.profile.role.name != 'BRANCH_ADMIN' %}
             <select name="branch" class="select-input">
 

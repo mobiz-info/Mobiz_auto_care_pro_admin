@@ -1686,12 +1686,14 @@ def api_create_invoice(request):
             if not service_obj and not extra_obj and svc_name:
                 clean_name = svc_name.strip()
                 base_name = clean_name.split('(')[0].strip()
-                company_obj = invoice.branch.company if invoice.branch else None
-                extra_obj = Extra.objects.filter(
-                    Q(company=company_obj) | Q(company__isnull=True),
-                    name__iexact=base_name,
-                    is_deleted=False
-                ).first()
+                service_obj = Service.objects.filter(name__iexact=base_name, is_deleted=False).first()
+                if not service_obj:
+                    company_obj = invoice.branch.company if invoice.branch else None
+                    extra_obj = Extra.objects.filter(
+                        Q(company=company_obj) | Q(company__isnull=True),
+                        name__iexact=base_name,
+                        is_deleted=False
+                    ).first()
 
             qty_val = Decimal(str(svc.get('qty', 1)))
             rate_val = Decimal(str(svc.get('rate', 0)))
@@ -2002,12 +2004,14 @@ def api_update_invoice(request):
                 if not service_obj and not extra_obj and svc_name:
                     clean_name = svc_name.strip()
                     base_name = clean_name.split('(')[0].strip()
-                    company_obj = invoice.branch.company if invoice.branch else None
-                    extra_obj = Extra.objects.filter(
-                        Q(company=company_obj) | Q(company__isnull=True),
-                        name__iexact=base_name,
-                        is_deleted=False
-                    ).first()
+                    service_obj = Service.objects.filter(name__iexact=base_name, is_deleted=False).first()
+                    if not service_obj:
+                        company_obj = invoice.branch.company if invoice.branch else None
+                        extra_obj = Extra.objects.filter(
+                            Q(company=company_obj) | Q(company__isnull=True),
+                            name__iexact=base_name,
+                            is_deleted=False
+                        ).first()
 
                 qty_val = Decimal(str(svc.get('qty', 1)))
                 rate_val = Decimal(str(svc.get('rate', 0)))

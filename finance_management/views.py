@@ -1272,10 +1272,12 @@ def job_report(request):
 
     from django.db.models import Sum, Count, Q, ExpressionWrapper, F, DecimalField
     from finance_management.models import Invoice
-    from service_management.models import ServiceType, BranchServiceCategory
+    from service_management.models import ServiceType, BranchServiceCategory, Service, BranchService, CompanyService
+    from client_management.models import Client
 
     from_date = request.GET.get('from_date')
     to_date = request.GET.get('to_date')
+    company_param = request.GET.get('company')
     branch_id = request.GET.get('branch')
     category_param = request.GET.get('category')
     search = request.GET.get('search')
@@ -1290,20 +1292,23 @@ def job_report(request):
         'items'
     )
 
-    # COMPANY FILTER
+    # COMPANY & ROLE FILTER
     user = request.user
     role = None
     if hasattr(user, 'profile') and user.profile.role:
         role = user.profile.role.name
 
+    companies = None
+    selected_company = None
+
     if role == 'COMPANY_ADMIN':
         if hasattr(user.profile, 'company') and user.profile.company:
-            company = user.profile.company
+            selected_company = user.profile.company
             invoices = invoices.filter(
-                branch__company=company
+                branch__company=selected_company
             )
             branches = Branch.objects.filter(
-                company=company,
+                company=selected_company,
                 is_deleted=False
             )
         else:
@@ -1313,9 +1318,29 @@ def job_report(request):
     elif role == 'BRANCH_ADMIN':
         if hasattr(user, 'managed_branch') and user.managed_branch:
             invoices = invoices.filter(branch=user.managed_branch)
+            selected_company = user.managed_branch.company
         branches = None
     else:
-        branches = Branch.objects.filter(is_deleted=False)
+        companies = Client.objects.filter(is_deleted=False).order_by('company_name')
+        if company_param:
+            selected_company = Client.objects.filter(id=company_param, is_deleted=False).first()
+            if selected_company:
+                invoices = invoices.filter(branch__company=selected_company)
+                branches = Branch.objects.filter(company=selected_company, is_deleted=False)
+            else:
+                branches = Branch.objects.filter(is_deleted=False)
+        else:
+            branches = Branch.objects.filter(is_deleted=False)
+
+    # BRANCH FILTER
+    if branch_id:
+        invoices = invoices.filter(
+            branch_id=branch_id
+        )
+        if not selected_company:
+            branch_obj = Branch.objects.filter(id=branch_id).select_related('company').first()
+            if branch_obj and branch_obj.company:
+                selected_company = branch_obj.company
 
     # Fetch Enabled Categories for Category Filter
     all_types = ServiceType.objects.filter(is_deleted=False).order_by('name')
@@ -1325,33 +1350,29 @@ def job_report(request):
         target_branch_id = user.managed_branch.id
 
     if target_branch_id:
-        bsc_qs = BranchServiceCategory.objects.filter(branch_id=target_branch_id, is_deleted=False)
-        if bsc_qs.filter(is_enabled=True).exists():
-            enabled_slugs = set(bsc_qs.filter(is_enabled=True).values_list('service_type__slug', flat=True))
-            categories = [st for st in all_types if st.slug and st.slug in enabled_slugs]
-        else:
-            disabled_slugs = set(bsc_qs.filter(is_enabled=False).values_list('service_type__slug', flat=True))
-            categories = [st for st in all_types if not (st.slug and st.slug in disabled_slugs)]
+        bsc_qs = BranchServiceCategory.objects.filter(branch_id=target_branch_id, is_deleted=False, is_enabled=True)
+        enabled_type_ids = set(bsc_qs.values_list('service_type_id', flat=True))
+        enabled_type_ids.update(
+            BranchService.objects.filter(branch_id=target_branch_id, is_enabled=True, is_deleted=False).values_list('service__service_type_id', flat=True)
+        )
+        enabled_slugs = set(bsc_qs.values_list('service_type__slug', flat=True))
+        categories = [
+            st for st in all_types
+            if st.id in enabled_type_ids or (st.slug and st.slug in enabled_slugs)
+        ]
+    elif selected_company:
+        bsc_qs = BranchServiceCategory.objects.filter(branch__company=selected_company, is_deleted=False, is_enabled=True)
+        enabled_type_ids = set(bsc_qs.values_list('service_type_id', flat=True))
+        enabled_slugs = set(bsc_qs.values_list('service_type__slug', flat=True))
+        enabled_type_ids.update(
+            CompanyService.objects.filter(company=selected_company, is_enabled=True, is_deleted=False).values_list('service__service_type_id', flat=True)
+        )
+        categories = [
+            st for st in all_types
+            if st.id in enabled_type_ids or (st.slug and st.slug in enabled_slugs)
+        ]
     else:
-        company_obj = None
-        if role == 'COMPANY_ADMIN' and hasattr(user, 'profile') and hasattr(user.profile, 'company') and user.profile.company:
-            company_obj = user.profile.company
-
-        if company_obj:
-            bsc_qs = BranchServiceCategory.objects.filter(branch__company=company_obj, is_deleted=False)
-            if bsc_qs.filter(is_enabled=True).exists():
-                enabled_slugs = set(bsc_qs.filter(is_enabled=True).values_list('service_type__slug', flat=True))
-                categories = [st for st in all_types if st.slug and st.slug in enabled_slugs]
-            else:
-                disabled_slugs = set(bsc_qs.filter(is_enabled=False).values_list('service_type__slug', flat=True))
-                categories = [st for st in all_types if not (st.slug and st.slug in disabled_slugs)]
-        else:
-            bsc_qs = BranchServiceCategory.objects.filter(is_deleted=False)
-            if bsc_qs.filter(is_enabled=True).exists():
-                enabled_slugs = set(bsc_qs.filter(is_enabled=True).values_list('service_type__slug', flat=True))
-                categories = [st for st in all_types if st.slug and st.slug in enabled_slugs]
-            else:
-                categories = list(all_types)
+        categories = list(all_types)
 
     # SEARCH
     if search:
@@ -1373,28 +1394,63 @@ def job_report(request):
             date__lte=to_date
         )
 
-    # BRANCH FILTER
-    if branch_id:
-        invoices = invoices.filter(
-            branch_id=branch_id
-        )
-
     # CATEGORY FILTER
     if category_param:
         is_uuid = False
+        target_st = None
         try:
             import uuid
-            uuid.UUID(str(category_param))
+            uuid_val = uuid.UUID(str(category_param))
             is_uuid = True
+            target_st = ServiceType.objects.filter(id=uuid_val).first()
         except (ValueError, AttributeError, TypeError):
             is_uuid = False
 
-        if is_uuid:
-            cat_q = Q(items__service__service_type__id=category_param) | Q(items__service__service_type__slug=category_param)
-        else:
-            cat_q = Q(items__service__service_type__slug=category_param) | Q(items__service_detail__service_category=category_param)
+        if not target_st:
+            target_st = ServiceType.objects.filter(slug=category_param, is_deleted=False).first()
+        if not target_st:
+            target_st = ServiceType.objects.filter(name__iexact=category_param, is_deleted=False).first()
 
-        invoices = invoices.filter(cat_q).distinct()
+        if target_st:
+            aliases = [target_st.slug] if target_st.slug else []
+            s_slug = target_st.slug or ''
+            s_name = target_st.name.lower()
+            if 'detail' in s_slug or 'detail' in s_name:
+                aliases.extend(['detailing', 'car_detailing'])
+            if 'align' in s_slug or 'align' in s_name:
+                aliases.extend(['wheel_alignment', 'wheel_balancing'])
+            if 'insur' in s_slug or 'insur' in s_name:
+                aliases.extend(['auto_insurance', 'insurance'])
+            if 'antirust' in s_slug or 'antirust' in s_name:
+                aliases.extend(['under_body_antirust_coating', 'under_body_antirust_coating_1'])
+            if 'oil' in s_slug or 'oil' in s_name:
+                aliases.extend(['oil_change'])
+            if 'tyre' in s_slug or 'tyre' in s_name:
+                aliases.extend(['tyre_change', 'tyre_services'])
+            if 'wash' in s_slug or 'wash' in s_name:
+                aliases.extend(['washing', 'car_wash'])
+            if 'smoke' in s_slug or 'smoke' in s_name:
+                aliases.extend(['smoke_test', 'smoke_test_1'])
+            aliases = list(set(aliases))
+
+            svc_names = list(Service.objects.filter(service_type=target_st).values_list('name', flat=True))
+
+            cat_q = (
+                Q(items__service__service_type=target_st) |
+                Q(items__service__service_type__slug=target_st.slug) |
+                Q(items__service_detail__service_category__in=aliases)
+            )
+            if svc_names:
+                cat_q |= Q(items__service_name__in=svc_names)
+            cat_q |= Q(items__service_name__iexact=target_st.name)
+
+            invoices = invoices.filter(cat_q).distinct()
+        else:
+            if is_uuid:
+                cat_q = Q(items__service__service_type__id=category_param) | Q(items__service__service_type__slug=category_param)
+            else:
+                cat_q = Q(items__service__service_type__slug=category_param) | Q(items__service_detail__service_category=category_param)
+            invoices = invoices.filter(cat_q).distinct()
 
     invoices = invoices.order_by(
         '-date',
@@ -1419,6 +1475,8 @@ def job_report(request):
 
     context = {
         'invoices': invoices,
+        'companies': companies,
+        'selected_company_id': str(selected_company.id) if selected_company else (company_param or ''),
         'branches': branches,
         'categories': categories,
         'from_date': from_date,
