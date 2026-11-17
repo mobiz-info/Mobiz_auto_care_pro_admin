@@ -9,8 +9,9 @@ class Invoice(BaseModel):
     date = models.DateField(auto_now_add=True)
     
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='invoices')
-    vehicle = models.ForeignKey(CustomerVehicle, on_delete=models.CASCADE, related_name='invoices')
+    vehicle = models.ForeignKey(CustomerVehicle, on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='invoices')
+    is_direct_sale = models.BooleanField(default=False, help_text="True if counter/direct product sale without vehicle")
     job_card = models.OneToOneField(
         'booking_management.JobCard', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='invoice',

@@ -983,8 +983,8 @@ def api_receipt_list(request):
                 'phone': invoice.customer.phone,
             },
             'vehicle': {
-                'number': invoice.vehicle.vehicle_number,
-                'model': invoice.vehicle.vehicle_type_model.name if invoice.vehicle.vehicle_type_model else '',
+                'number': invoice.vehicle.vehicle_number if invoice.vehicle else 'Counter Sale',
+                'model': invoice.vehicle.vehicle_type_model.name if invoice.vehicle and invoice.vehicle.vehicle_type_model else '',
             },
             'branch': invoice.branch.name if invoice.branch else '',
         })
@@ -3162,9 +3162,12 @@ def invoice_create(request):
 
         customer_id = data.get('customer_id')
         vehicle_id = data.get('vehicle_id')
+        is_direct_sale = bool(data.get('is_direct_sale', False))
         
-        if not customer_id or not vehicle_id:
-            return JsonResponse({'success': False, 'message': 'Customer and Vehicle are required'}, status=400)
+        if not customer_id and not data.get('customer_phone') and not data.get('phone'):
+            return JsonResponse({'success': False, 'message': 'Customer is required'}, status=400)
+        if not is_direct_sale and not vehicle_id:
+            return JsonResponse({'success': False, 'message': 'Vehicle is required'}, status=400)
 
         from client_management.api_views import api_create_invoice
         request._body = json.dumps(data).encode('utf-8')

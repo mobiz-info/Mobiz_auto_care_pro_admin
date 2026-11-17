@@ -1322,17 +1322,18 @@ def _save_invoice_service_detail(item, detail_data, invoice, vehicle, user):
             )
 
         # Update vehicle denormalized fields
-        update_fields = []
-        if detail.next_oil_change_km:
-            vehicle.next_oil_change_km = detail.next_oil_change_km
-            update_fields.append('next_oil_change_km')
-        if detail.odometer_at_service:
-            vehicle.current_odometer_km = detail.odometer_at_service
-            update_fields.append('current_odometer_km')
-        vehicle.last_oil_change_date = timezone.now().date()
-        update_fields.append('last_oil_change_date')
-        if update_fields:
-            vehicle.save(update_fields=update_fields)
+        if vehicle:
+            update_fields = []
+            if detail.next_oil_change_km:
+                vehicle.next_oil_change_km = detail.next_oil_change_km
+                update_fields.append('next_oil_change_km')
+            if detail.odometer_at_service:
+                vehicle.current_odometer_km = detail.odometer_at_service
+                update_fields.append('current_odometer_km')
+            vehicle.last_oil_change_date = timezone.now().date()
+            update_fields.append('last_oil_change_date')
+            if update_fields:
+                vehicle.save(update_fields=update_fields)
 
     elif category == InvoiceServiceDetail.CATEGORY_TYRE:
         tyre_items = detail_data.get('tyre_items')
@@ -1359,18 +1360,19 @@ def _save_invoice_service_detail(item, detail_data, invoice, vehicle, user):
         detail.next_tyre_change_date = detail_data.get('next_tyre_change_date') or None
 
         # Update vehicle denormalized fields
-        update_fields = []
-        if detail.next_tyre_change_km:
-            vehicle.next_tyre_change_km = detail.next_tyre_change_km
-            update_fields.append('next_tyre_change_km')
-        odometer = detail_data.get('odometer_at_service')
-        if odometer:
-            vehicle.current_odometer_km = odometer
-            update_fields.append('current_odometer_km')
-        vehicle.last_tyre_change_date = timezone.now().date()
-        update_fields.append('last_tyre_change_date')
-        if update_fields:
-            vehicle.save(update_fields=update_fields)
+        if vehicle:
+            update_fields = []
+            if detail.next_tyre_change_km:
+                vehicle.next_tyre_change_km = detail.next_tyre_change_km
+                update_fields.append('next_tyre_change_km')
+            odometer = detail_data.get('odometer_at_service')
+            if odometer:
+                vehicle.current_odometer_km = odometer
+                update_fields.append('current_odometer_km')
+            vehicle.last_tyre_change_date = timezone.now().date()
+            update_fields.append('last_tyre_change_date')
+            if update_fields:
+                vehicle.save(update_fields=update_fields)
 
     elif category == InvoiceServiceDetail.CATEGORY_ALIGNMENT:
         detail.alignment_done = bool(detail_data.get('alignment_done', False))
@@ -1380,22 +1382,23 @@ def _save_invoice_service_detail(item, detail_data, invoice, vehicle, user):
         detail.next_alignment_km = detail_data.get('next_alignment_km') or None
 
         # Update vehicle denormalized fields
-        update_fields = []
-        if detail.next_alignment_km:
-            vehicle.next_alignment_km = detail.next_alignment_km
-            update_fields.append('next_alignment_km')
-        odometer = detail_data.get('odometer_at_service')
-        if odometer:
-            vehicle.current_odometer_km = odometer
-            update_fields.append('current_odometer_km')
-        vehicle.last_alignment_date = timezone.now().date()
-        update_fields.append('last_alignment_date')
-        w_type = detail_data.get('wheel_type')
-        if w_type in ['alloy_wheel', 'normal_wheel']:
-            vehicle.wheel_type = w_type
-            update_fields.append('wheel_type')
-        if update_fields:
-            vehicle.save(update_fields=update_fields)
+        if vehicle:
+            update_fields = []
+            if detail.next_alignment_km:
+                vehicle.next_alignment_km = detail.next_alignment_km
+                update_fields.append('next_alignment_km')
+            odometer = detail_data.get('odometer_at_service')
+            if odometer:
+                vehicle.current_odometer_km = odometer
+                update_fields.append('current_odometer_km')
+            vehicle.last_alignment_date = timezone.now().date()
+            update_fields.append('last_alignment_date')
+            w_type = detail_data.get('wheel_type')
+            if w_type in ['alloy_wheel', 'normal_wheel']:
+                vehicle.wheel_type = w_type
+                update_fields.append('wheel_type')
+            if update_fields:
+                vehicle.save(update_fields=update_fields)
 
     elif category == InvoiceServiceDetail.CATEGORY_SMOKE:
         from datetime import timedelta
@@ -1428,15 +1431,16 @@ def _save_invoice_service_detail(item, detail_data, invoice, vehicle, user):
         next_date = invoice.date + timedelta(days=days)
         detail.next_smoke_test_date = next_date
 
-        vehicle.last_smoke_test_date = invoice.date
-        vehicle.next_smoke_test_date = next_date
-        update_fields = ['last_smoke_test_date', 'next_smoke_test_date']
-        odometer = detail_data.get('odometer_at_service') or detail_data.get('odometer')
-        if odometer:
-            detail.odometer_at_service = odometer
-            vehicle.current_odometer_km = odometer
-            update_fields.append('current_odometer_km')
-        vehicle.save(update_fields=update_fields)
+        if vehicle:
+            vehicle.last_smoke_test_date = invoice.date
+            vehicle.next_smoke_test_date = next_date
+            update_fields = ['last_smoke_test_date', 'next_smoke_test_date']
+            odometer = detail_data.get('odometer_at_service') or detail_data.get('odometer')
+            if odometer:
+                detail.odometer_at_service = odometer
+                vehicle.current_odometer_km = odometer
+                update_fields.append('current_odometer_km')
+            vehicle.save(update_fields=update_fields)
 
     elif category in (InvoiceServiceDetail.CATEGORY_INSURANCE, 'insurance'):
         expiry_value = detail_data.get('insurance_expiry_date')
@@ -1468,9 +1472,9 @@ def _save_invoice_service_detail(item, detail_data, invoice, vehicle, user):
 
     detail.save()
 
-    # Log odometer reading for ALL service categories (if odometer provided)
+    # Log odometer reading for ALL service categories (if odometer provided and vehicle exists)
     odometer_km = detail_data.get('odometer_at_service') or detail_data.get('odometer')
-    if odometer_km:
+    if odometer_km and vehicle:
         try:
             VehicleOdometerLog.objects.create(
                 vehicle=vehicle,
@@ -1496,33 +1500,67 @@ def api_create_invoice(request):
         data = json.loads(request.body)
         customer_id = data.get('customer_id')
         vehicle_id = data.get('vehicle_id')
+        is_direct_sale = bool(data.get('is_direct_sale', False))
         
-        if not customer_id:
-            return JsonResponse({'success': False, 'message': 'customer_id is required'}, status=400)
-            
         role = user.profile.role.name if user.profile.role else None
-        customer_qs = Customer.objects.filter(id=customer_id, is_deleted=False)
-        if role == 'BRANCH_ADMIN' and hasattr(user, 'managed_branch'):
-            customer_qs = customer_qs.filter(branch=user.managed_branch)
-        elif role == 'COMPANY_ADMIN' and user.profile.company:
-            customer_qs = customer_qs.filter(company=user.profile.company)
 
-        customer = customer_qs.get()
+        customer = None
+        if customer_id:
+            customer_qs = Customer.objects.filter(id=customer_id, is_deleted=False)
+            if role == 'BRANCH_ADMIN' and hasattr(user, 'managed_branch'):
+                customer_qs = customer_qs.filter(branch=user.managed_branch)
+            elif role == 'COMPANY_ADMIN' and user.profile.company:
+                customer_qs = customer_qs.filter(company=user.profile.company)
+            customer = customer_qs.first()
+
+        if not customer:
+            cust_phone = (data.get('customer_phone') or data.get('phone') or '').strip()
+            cust_name = (data.get('customer_name') or data.get('name') or 'Counter Customer').strip()
+            if cust_phone:
+                cust_filter = Q(phone=cust_phone) | Q(whatsapp_number=cust_phone)
+                cust_qs = Customer.objects.filter(cust_filter, is_deleted=False)
+                if role == 'BRANCH_ADMIN' and hasattr(user, 'managed_branch'):
+                    cust_qs = cust_qs.filter(branch=user.managed_branch)
+                    b_obj = user.managed_branch
+                    c_obj = user.managed_branch.company
+                elif role == 'COMPANY_ADMIN' and user.profile.company:
+                    cust_qs = cust_qs.filter(company=user.profile.company)
+                    c_obj = user.profile.company
+                    b_obj = c_obj.branches.filter(is_deleted=False).first()
+                else:
+                    b_obj = None
+                    c_obj = None
+
+                customer = cust_qs.first()
+                if not customer:
+                    customer = Customer.objects.create(
+                        name=cust_name or 'Counter Customer',
+                        phone=cust_phone,
+                        company=c_obj,
+                        branch=b_obj,
+                        creator=user,
+                        auto_id=get_auto_id(Customer),
+                    )
+
+        if not customer:
+            return JsonResponse({'success': False, 'message': 'customer_id or phone is required'}, status=400)
+
         vehicle = None
-        if vehicle_id:
-            vehicle = CustomerVehicle.objects.filter(id=vehicle_id, customer=customer, is_deleted=False).first()
-        if not vehicle:
-            vehicle = CustomerVehicle.objects.filter(customer=customer, is_deleted=False).first()
-        if not vehicle:
-            from master.models import VehicleTypeModel
-            vm = VehicleTypeModel.objects.filter(is_deleted=False).first()
-            vehicle = CustomerVehicle.objects.create(
-                customer=customer,
-                vehicle_number='NON-MOTOR',
-                vehicle_type_model=vm,
-                creator=user,
-                auto_id=get_auto_id(CustomerVehicle),
-            )
+        if not is_direct_sale:
+            if vehicle_id:
+                vehicle = CustomerVehicle.objects.filter(id=vehicle_id, customer=customer, is_deleted=False).first()
+            if not vehicle:
+                vehicle = CustomerVehicle.objects.filter(customer=customer, is_deleted=False).first()
+            if not vehicle:
+                from master.models import VehicleTypeModel
+                vm = VehicleTypeModel.objects.filter(is_deleted=False).first()
+                vehicle = CustomerVehicle.objects.create(
+                    customer=customer,
+                    vehicle_number='NON-MOTOR',
+                    vehicle_type_model=vm,
+                    creator=user,
+                    auto_id=get_auto_id(CustomerVehicle),
+                )
         
         # Generate invoice number using a unique branch-specific prefix and sequence.
         branch_id = data.get('branch_id')
@@ -1574,7 +1612,7 @@ def api_create_invoice(request):
                 scheme_obj = v_obj.scheme
 
         wheel_type_val = data.get('wheel_type')
-        if wheel_type_val in ['alloy_wheel', 'normal_wheel']:
+        if vehicle and wheel_type_val in ['alloy_wheel', 'normal_wheel']:
             vehicle.wheel_type = wheel_type_val
             vehicle.save(update_fields=['wheel_type'])
             
@@ -1598,6 +1636,7 @@ def api_create_invoice(request):
             invoice_number=inv_number,
             customer=customer,
             vehicle=vehicle,
+            is_direct_sale=is_direct_sale,
             branch=branch,
             scheme=scheme_obj,
             subtotal=subtotal_val,

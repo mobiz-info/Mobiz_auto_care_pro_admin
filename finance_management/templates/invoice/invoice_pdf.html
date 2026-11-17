@@ -358,7 +358,7 @@
     <!-- Client & Info Details -->
     <table class="details-table">
         <tr>
-            <td>
+            <td {% if not invoice.vehicle or invoice.is_direct_sale %}colspan="2" style="width: 100%;"{% endif %}>
                 <div class="info-card">
                     <h4>Customer Details</h4>
                     <table class="info-table">
@@ -410,6 +410,7 @@
                     </table>
                 </div>
             </td>
+            {% if invoice.vehicle and not invoice.is_direct_sale %}
             <td>
                 <div class="info-card">
                     <h4>Vehicle Details</h4>
@@ -489,6 +490,7 @@
                     </table>
                 </div>
             </td>
+            {% endif %}
         </tr>
     </table>
 

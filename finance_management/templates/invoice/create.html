@@ -588,10 +588,13 @@
 <!-- ================= STEP 1: Branch Select & Vehicle/Customer Search ================= -->
 <div id="step1_container">
     <div class="app-card">
-        <div class="app-card-header">
+        <div class="app-card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div class="app-card-title">
                 <i class="ph ph-magnifying-glass"></i> New Job - Customer & Vehicle Search
             </div>
+            <button type="button" class="search-btn" style="background: #0284c7; padding: 8px 16px; font-size: 0.85rem; margin: 0; box-shadow: 0 2px 8px rgba(2,132,199,0.25);" onclick="openQuickCounterSaleModal()">
+                <i class="ph-bold ph-shopping-bag"></i> 🛍️ Direct / Counter Sale (No Vehicle)
+            </button>
         </div>
 
         <div class="form-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
@@ -666,10 +669,16 @@
             <p style="color: #64748b; max-width: 400px; margin: 0 auto 18px auto; font-size: 0.88rem;">
                 No matching record found in this branch/company. You can add a new customer and vehicle right now.
             </p>
-            <button type="button" class="search-btn" style="display: inline-flex; margin: 0 auto;"
-                onclick="openAddCustomerModal()">
-                <i class="ph ph-user-plus"></i> Add New Customer & Vehicle
-            </button>
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                <button type="button" class="search-btn" style="display: inline-flex; margin: 0;"
+                    onclick="openAddCustomerModal()">
+                    <i class="ph ph-user-plus"></i> Add New Customer & Vehicle
+                </button>
+                <button type="button" class="search-btn" style="display: inline-flex; margin: 0; background: #0284c7;"
+                    onclick="openQuickCounterSaleModal()">
+                    <i class="ph-bold ph-shopping-bag"></i> Direct Counter Sale (No Vehicle)
+                </button>
+            </div>
         </div>
     </div>
 
@@ -692,10 +701,16 @@
                     </div>
                 </div>
             </div>
-            <button type="button" class="search-btn" style="padding: 8px 16px; font-size: 0.85rem;"
-                onclick="openAddVehicleModal()">
-                <i class="ph ph-plus-circle"></i> Add Vehicle
-            </button>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <button type="button" class="search-btn" style="padding: 8px 16px; font-size: 0.85rem; background: #0284c7;"
+                    onclick="proceedWithCounterSale(currentCustomer)">
+                    <i class="ph-bold ph-shopping-bag"></i> Counter Sale (No Vehicle)
+                </button>
+                <button type="button" class="search-btn" style="padding: 8px 16px; font-size: 0.85rem;"
+                    onclick="openAddVehicleModal()">
+                    <i class="ph ph-plus-circle"></i> Add Vehicle
+                </button>
+            </div>
         </div>
 
         <!-- Customer Vehicles List -->
@@ -734,7 +749,7 @@
             </div>
         </div>
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-            <button type="button" style="display:inline-flex; align-items:center; gap:6px; padding:10px 14px; font-weight:700; border-radius:10px; border:1.5px solid #2563eb; color:#2563eb; background:#eff6ff; font-size:0.92rem; cursor:pointer; transition:all 0.15s;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'" onclick="openVehicleHistoryModal(document.getElementById('selected_vehicle_id').value, document.getElementById('active_vehicle_label').innerText)">
+            <button type="button" id="btn_vehicle_history" style="display:inline-flex; align-items:center; gap:6px; padding:10px 14px; font-weight:700; border-radius:10px; border:1.5px solid #2563eb; color:#2563eb; background:#eff6ff; font-size:0.92rem; cursor:pointer; transition:all 0.15s;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'" onclick="openVehicleHistoryModal(document.getElementById('selected_vehicle_id').value, document.getElementById('active_vehicle_label').innerText)">
                 <i class="ph-bold ph-clock-counter-clockwise" style="font-size:1.15rem;"></i> <span>History</span>
             </button>
             <button type="button" class="search-btn" style="background:#475569; margin-top:0;" onclick="goToStep(1)">
@@ -745,6 +760,7 @@
 
     <form id="invoiceForm" onsubmit="submitInvoice(event)">
         {% csrf_token %}
+        <input type="hidden" id="is_direct_sale" value="0">
         <input type="hidden" id="selected_customer_id" value="">
         <input type="hidden" id="selected_vehicle_id" value="">
         <input type="hidden" id="selected_branch_id_hidden" value="">
@@ -753,7 +769,7 @@
             <!-- Left Column: Services, Parts, Extras, Reminders -->
             <div>
                 <!-- Service Selection Card -->
-                <div class="app-card">
+                <div class="app-card" id="services_app_card">
                     <div class="app-card-header">
                         <div class="app-card-title">
                             <i class="ph ph-wrench"></i> Services & Packages
@@ -773,7 +789,7 @@
                 </div>
 
                 <!-- Trading / Spare Parts Card -->
-                <div class="app-card">
+                <div class="app-card" id="trading_app_card">
                     <div class="app-card-header">
                         <div class="app-card-title">
                             <i class="ph ph-package"></i> Trading / Spare Parts
@@ -790,7 +806,7 @@
                 </div>
 
                 <!-- Add Extras Card (Matching App with Checkbox, Rate, Qty, Remarks, and Line Total) -->
-                <div class="app-card">
+                <div class="app-card" id="extras_app_card">
                     <div class="app-card-header">
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
                             <input type="checkbox" id="add_extras_checkbox" style="width: 18px; height: 18px;"
@@ -1114,6 +1130,35 @@
                 <div id="qv_error" style="display:none; color:#b91c1c; margin-bottom:12px;"></div>
                 <button type="submit" class="search-btn" style="width:100%; padding:12px; justify-content:center;">
                     Add Vehicle
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Quick Counter / Direct Sale (No Vehicle) -->
+<div id="quickCounterSaleModal" class="modal-overlay">
+    <div class="modal-dialog" style="max-width: 440px;">
+        <div class="modal-header">
+            <h4><i class="ph-bold ph-shopping-bag" style="color:#0284c7;"></i> Direct / Counter Sale (No Vehicle)</h4>
+            <button type="button" class="modal-close" onclick="closeModal('quickCounterSaleModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="quickCounterSaleForm" onsubmit="submitQuickCounterSale(event)">
+                <p style="color:#64748b; font-size:0.88rem; margin-bottom:14px;">
+                    Create an over-the-counter retail invoice for spare parts / stock items without registering or selecting a vehicle.
+                </p>
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label>Customer Mobile / Phone *</label>
+                    <input type="tel" id="counter_phone" class="form-control" required placeholder="e.g. 9876543210 or 0501234567">
+                </div>
+                <div class="form-group" style="margin-bottom:16px;">
+                    <label>Customer Name</label>
+                    <input type="text" id="counter_name" class="form-control" placeholder="Optional (e.g. Walk-in Customer)">
+                </div>
+                <div id="counter_error" style="display:none; color:#b91c1c; margin-bottom:12px;"></div>
+                <button type="submit" class="search-btn" style="width:100%; padding:12px; justify-content:center; background:#0284c7;">
+                    <i class="ph-bold ph-arrow-right"></i> Proceed to Product Sale
                 </button>
             </form>
         </div>
@@ -1453,6 +1498,20 @@
         if (!vehicle) return;
         currentVehicleData = vehicle;
 
+        document.getElementById('is_direct_sale').value = '0';
+        window.directSaleCustomerPhone = '';
+        window.directSaleCustomerName = '';
+
+        // Reset visibility of service cards if coming from counter sale
+        const servicesCard = document.getElementById('services_app_card');
+        if (servicesCard) servicesCard.style.display = 'block';
+        const extrasCard = document.getElementById('extras_app_card');
+        if (extrasCard) extrasCard.style.display = 'block';
+        const remindersCard = document.getElementById('reminders_card');
+        if (remindersCard) remindersCard.style.display = 'block';
+        const btnHist = document.getElementById('btn_vehicle_history');
+        if (btnHist) btnHist.style.display = 'inline-flex';
+
         const branchSelect = document.getElementById('branch_select');
         const branchId = branchSelect.value;
         const branchName = branchSelect.options[branchSelect.selectedIndex]?.text || '';
@@ -1468,6 +1527,104 @@
 
         goToStep(2);
         fetchInvoiceServices(currentCustomer.id, vehicle.id, branchId);
+    }
+
+    function proceedWithCounterSale(customer) {
+        if (!customer) {
+            openQuickCounterSaleModal();
+            return;
+        }
+
+        const branchSelect = document.getElementById('branch_select');
+        const branchId = branchSelect.value;
+        const branchName = branchSelect.options[branchSelect.selectedIndex]?.text || '';
+
+        document.getElementById('is_direct_sale').value = '1';
+        document.getElementById('selected_customer_id').value = customer.id || '';
+        document.getElementById('selected_vehicle_id').value = '';
+        document.getElementById('selected_branch_id_hidden').value = branchId;
+
+        window.directSaleCustomerPhone = customer.phone || '';
+        window.directSaleCustomerName = customer.name || 'Counter Customer';
+
+        document.getElementById('active_branch_label').innerText = branchName;
+        document.getElementById('active_customer_label').innerText = customer.name ? `${customer.name} (${customer.phone || 'No phone'})` : (customer.phone || 'Walk-in Customer');
+        document.getElementById('active_vehicle_label').innerHTML = '🛍️ Direct / Counter Sale <span style="font-size:0.75rem; background:#0284c7; color:#fff; padding:2px 8px; border-radius:12px; vertical-align:middle; margin-left:6px;">No Vehicle</span>';
+        document.getElementById('active_model_badge').innerText = 'Product Sale (Retail)';
+
+        // Hide vehicle history button
+        const btnHist = document.getElementById('btn_vehicle_history');
+        if (btnHist) btnHist.style.display = 'none';
+
+        // Hide services, extras, reminders in counter sale
+        const servicesCard = document.getElementById('services_app_card');
+        if (servicesCard) servicesCard.style.display = 'none';
+        const extrasCard = document.getElementById('extras_app_card');
+        if (extrasCard) extrasCard.style.display = 'none';
+        const remindersCard = document.getElementById('reminders_card');
+        if (remindersCard) remindersCard.style.display = 'none';
+
+        // Clear service rows
+        const sContainer = document.getElementById('service_rows_container');
+        if (sContainer) sContainer.innerHTML = '';
+
+        // Auto-add 1 trading row if empty
+        const tradingContainer = document.getElementById('trading_rows_container');
+        if (tradingContainer && tradingContainer.children.length === 0) {
+            addTradingRow();
+        }
+
+        goToStep(2);
+        calculateSummary();
+    }
+
+    function openQuickCounterSaleModal() {
+        const query = document.getElementById('lookup_input')?.value.trim() || '';
+        const phoneInput = document.getElementById('counter_phone');
+        const err = document.getElementById('counter_error');
+        if (err) err.style.display = 'none';
+
+        if (phoneInput) {
+            if (/^\+?\d+$/.test(query)) {
+                phoneInput.value = query;
+            } else {
+                phoneInput.value = '';
+            }
+        }
+        document.getElementById('quickCounterSaleModal').style.display = 'flex';
+    }
+
+    function submitQuickCounterSale(e) {
+        e.preventDefault();
+        const phone = document.getElementById('counter_phone').value.trim();
+        const name = document.getElementById('counter_name').value.trim() || 'Counter Customer';
+        const branchId = document.getElementById('branch_select').value;
+        const err = document.getElementById('counter_error');
+
+        if (!phone) {
+            if (err) {
+                err.innerText = 'Please provide customer phone number.';
+                err.style.display = 'block';
+            }
+            return;
+        }
+
+        closeModal('quickCounterSaleModal');
+
+        // Check if customer already exists for this phone
+        fetch(`/api/customer/search/?branch_id=${branchId}&mobile=${encodeURIComponent(phone)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.customer) {
+                    currentCustomer = data.customer;
+                    proceedWithCounterSale(data.customer);
+                } else {
+                    proceedWithCounterSale({ id: '', name: name, phone: phone });
+                }
+            })
+            .catch(() => {
+                proceedWithCounterSale({ id: '', name: name, phone: phone });
+            });
     }
 
     function loadDirectCustomerAndVehicle(customerId, vehicleId, branchId) {
@@ -1491,9 +1648,17 @@
             document.getElementById('step2_indicator').classList.remove('active');
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } else if (step === 2) {
-            if (!document.getElementById('selected_customer_id').value || !document.getElementById('selected_vehicle_id').value) {
-                alert("Please search and select a customer vehicle first.");
-                return;
+            const isDirect = document.getElementById('is_direct_sale')?.value === '1';
+            if (isDirect) {
+                if (!document.getElementById('selected_customer_id').value && !window.directSaleCustomerPhone) {
+                    alert("Please provide customer details for counter sale.");
+                    return;
+                }
+            } else {
+                if (!document.getElementById('selected_customer_id').value || !document.getElementById('selected_vehicle_id').value) {
+                    alert("Please search and select a customer vehicle first.");
+                    return;
+                }
             }
             document.getElementById('step1_container').style.display = 'none';
             document.getElementById('step2_container').style.display = 'block';
@@ -2534,18 +2699,19 @@
         const customerId = document.getElementById('selected_customer_id').value;
         const vehicleId = document.getElementById('selected_vehicle_id').value;
         const branchId = document.getElementById('selected_branch_id_hidden').value;
+        const isDirectSale = document.getElementById('is_direct_sale')?.value === '1';
 
-        if (!customerId || !vehicleId) {
+        if (!isDirectSale && (!customerId || !vehicleId)) {
             alert('Please select a customer and vehicle first.');
             goToStep(1);
             return;
         }
-
-        const serviceRows = document.querySelectorAll('#service_rows_container .service-row-card');
-        if (serviceRows.length === 0) {
-            alert('Please add at least one service.');
+        if (isDirectSale && !customerId && !window.directSaleCustomerPhone) {
+            alert('Customer phone is required for counter sale.');
             return;
         }
+
+        const serviceRows = document.querySelectorAll('#service_rows_container .service-row-card');
 
         const servicesPayload = [];
         let hasDetailing = false;
@@ -2682,6 +2848,12 @@
             });
         }
 
+        // Validate that at least one service or trading item is selected
+        if (servicesPayload.length === 0 && tradingPayload.length === 0) {
+            alert('Please add at least one service or spare parts/stock item.');
+            return;
+        }
+
         // Custom reminders payload
         const remindersPayload = [];
         if (document.getElementById('add_custom_reminders_checkbox').checked) {
@@ -2725,8 +2897,11 @@
         btn.innerHTML = '<i class="ph ph-spinner-gap" style="animation: spin 1s linear infinite;"></i> Creating Invoice...';
 
         const payload = {
-            customer_id: customerId,
-            vehicle_id: vehicleId,
+            customer_id: customerId || null,
+            customer_phone: window.directSaleCustomerPhone || '',
+            customer_name: window.directSaleCustomerName || '',
+            vehicle_id: isDirectSale ? null : (vehicleId || null),
+            is_direct_sale: isDirectSale,
             branch_id: branchId,
             date: invoiceDate,
             invoice_date: invoiceDate,
@@ -2771,8 +2946,8 @@
                         btnWa.href = `/invoices/${invId}/whatsapp-share/`;
                         btnWa.onclick = function(e) {
                             e.preventDefault();
-                            const custName = (typeof currentCustomer !== 'undefined' && currentCustomer) ? currentCustomer.name : '';
-                            const custPhone = (typeof currentCustomer !== 'undefined' && currentCustomer) ? (currentCustomer.phone || currentCustomer.whatsapp_number) : '';
+                            const custName = (typeof currentCustomer !== 'undefined' && currentCustomer && currentCustomer.name) ? currentCustomer.name : (window.directSaleCustomerName || '');
+                            const custPhone = (typeof currentCustomer !== 'undefined' && currentCustomer && currentCustomer.phone) ? (currentCustomer.phone || currentCustomer.whatsapp_number) : (window.directSaleCustomerPhone || '');
                             openWhatsAppShareModal(invId, invNo, custName, custPhone);
                         };
                         document.getElementById('btn_modal_receipt').href = `/invoice-receipt/${invId}/`;
