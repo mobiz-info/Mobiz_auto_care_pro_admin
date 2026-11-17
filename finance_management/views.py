@@ -1275,8 +1275,22 @@ def job_report(request):
     from service_management.models import ServiceType, BranchServiceCategory, Service, BranchService, CompanyService
     from client_management.models import Client
 
-    from_date = request.GET.get('from_date')
-    to_date = request.GET.get('to_date')
+    today = timezone.localdate() if hasattr(timezone, 'localdate') else timezone.now().date()
+    today_str = today.strftime('%Y-%m-%d')
+
+    from_date_param = request.GET.get('from_date') if 'from_date' in request.GET else request.GET.get('fromdate')
+    to_date_param = request.GET.get('to_date') if 'to_date' in request.GET else request.GET.get('todate')
+
+    if from_date_param is None:
+        from_date = today_str
+    else:
+        from_date = from_date_param.strip()
+
+    if to_date_param is None:
+        to_date = today_str
+    else:
+        to_date = to_date_param.strip()
+
     company_param = request.GET.get('company')
     branch_id = request.GET.get('branch')
     category_param = request.GET.get('category')
@@ -1287,7 +1301,9 @@ def job_report(request):
     ).select_related(
         'customer',
         'vehicle',
-        'branch'
+        'branch',
+        'branch__company',
+        'branch__company__country'
     ).prefetch_related(
         'items'
     )
@@ -1454,10 +1470,19 @@ def job_report(request):
 
     invoices = invoices.order_by(
         '-date',
-        '-id'
+        '-auto_id'
     )
     for invoice in invoices:
         invoice.balance = invoice.total - invoice.amount_collected
+
+    # Resolve currency symbol
+    currency_symbol = '₹'
+    if selected_company and getattr(selected_company, 'country', None) and selected_company.country.currency_symbol:
+        currency_symbol = selected_company.country.currency_symbol
+    elif hasattr(user, 'profile') and getattr(user.profile, 'company', None) and getattr(user.profile.company, 'country', None) and user.profile.company.country.currency_symbol:
+        currency_symbol = user.profile.company.country.currency_symbol
+    elif hasattr(user, 'managed_branch') and user.managed_branch and getattr(user.managed_branch.company, 'country', None) and user.managed_branch.company.country.currency_symbol:
+        currency_symbol = user.managed_branch.company.country.currency_symbol
 
     # SUMMARY
     summary = invoices.aggregate(
@@ -1484,6 +1509,7 @@ def job_report(request):
         'branch_id': branch_id,
         'category': category_param,
         'search': search,
+        'currency_symbol': currency_symbol,
         'total_jobs': summary['total_jobs'] or 0,
         'total_revenue': summary['total_revenue'] or 0,
         'total_collected': summary['total_collected'] or 0,

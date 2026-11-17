@@ -533,7 +533,7 @@
             </div>
 
             <div class="summary-value">
-                ₹{{ total_revenue }}
+                {{ currency_symbol }}{{ total_revenue }}
             </div>
 
         </div>
@@ -553,7 +553,7 @@
             </div>
 
             <div class="summary-value">
-                ₹{{ total_collected }}
+                {{ currency_symbol }}{{ total_collected }}
             </div>
 
         </div>
@@ -573,7 +573,7 @@
             </div>
 
             <div class="summary-value">
-                ₹{{ total_balance }}
+                {{ currency_symbol }}{{ total_balance }}
             </div>
 
         </div>
@@ -675,7 +675,7 @@
                         <td>
 
                             <strong>
-                                ₹{{ invoice.total }}
+                                {{ invoice.branch.company.country.currency_symbol|default:currency_symbol }}{{ invoice.total }}
                             </strong>
 
                         </td>
@@ -683,7 +683,7 @@
                         <td>
 
                             <strong style="color:#059669;">
-                                ₹{{ invoice.amount_collected }}
+                                {{ invoice.branch.company.country.currency_symbol|default:currency_symbol }}{{ invoice.amount_collected }}
                             </strong>
 
                         </td>
@@ -692,7 +692,7 @@
 
                             <strong style="color:#dc2626;">
 
-                                ₹{{ invoice.balance }}
+                                {{ invoice.branch.company.country.currency_symbol|default:currency_symbol }}{{ invoice.balance }}
 
                             </strong>
 
