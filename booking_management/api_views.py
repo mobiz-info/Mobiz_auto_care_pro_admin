@@ -6555,6 +6555,8 @@ def api_job_lead_follow_up(request, lead_id):
     except JobLead.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'Lead not found'}, status=404)
     except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception("api_job_quotation_update failed: %s", exc)
         return JsonResponse({'success': False, 'message': str(exc)}, status=400)
 
 
@@ -6721,6 +6723,8 @@ def api_job_card_issue_create(request):
     except (JobCardCategory.DoesNotExist, JobCardService.DoesNotExist):
         return JsonResponse({'success': False, 'message': 'Selected category or service is invalid'}, status=400)
     except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception("api_job_quotation_update failed: %s", exc)
         return JsonResponse({'success': False, 'message': str(exc)}, status=400)
 
 
@@ -6772,6 +6776,8 @@ def api_job_card_activity_option_create(request):
             'id': str(option.id), 'name': option.name, 'service_id': str(option.service_id),
         }})
     except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception("api_job_quotation_update failed: %s", exc)
         return JsonResponse({'success': False, 'message': str(exc)}, status=400)
 
 
@@ -7032,8 +7038,10 @@ def api_job_quotation_create(request):
             )
             for row in data.get('items', []):
                 l_type = row.get('line_type') or 'legacy'
-                service = Service.objects.filter(id=row.get('service_id')).first() if row.get('service_id') else None
-                stock = Stock.objects.filter(id=row.get('stock_item_id'), company=company, is_deleted=False).first() if row.get('stock_item_id') else None
+                svc_id = _clean_uuid(row.get('service_id'))
+                service = Service.objects.filter(id=svc_id).first() if svc_id else None
+                stk_id = _clean_uuid(row.get('stock_item_id'))
+                stock = Stock.objects.filter(id=stk_id, company=company, is_deleted=False).first() if stk_id else None
                 if l_type == 'accessory' and not stock:
                     raise ValueError('One of the selected accessories is not available for this company')
                 rate = Decimal(str(row.get('rate') or 0))
@@ -7131,6 +7139,8 @@ def api_job_quotation_create(request):
         return JsonResponse({'success': False, 'message': 'Customer or vehicle not found'}, status=404)
     except Exception as exc:
         transaction.set_rollback(True)
+        import logging
+        logging.getLogger(__name__).exception("api_job_quotation_create failed: %s", exc)
         from django.core.files.storage import default_storage
         for image_name in stored_image_names:
             default_storage.delete(image_name)
@@ -7359,7 +7369,8 @@ def api_job_quotation_update(request, quotation_id):
             profile = data.get('customer_profile')
             vehicle_data = data.get('vehicle_details')
             if profile is not None:
-                customer_type = CustomerType.objects.filter(id=profile.get('customer_type_id'), is_deleted=False).first()
+                cust_type_id = _clean_uuid(profile.get('customer_type_id'))
+                customer_type = CustomerType.objects.filter(id=cust_type_id, is_deleted=False).first() if cust_type_id else None
                 name = (profile.get('name') or '').strip()
                 phone = (profile.get('phone') or '').strip()
                 state = (profile.get('state') or '').strip()
@@ -7381,9 +7392,12 @@ def api_job_quotation_update(request, quotation_id):
                 customer_updates = None
             if vehicle_data is not None:
                 plate = (vehicle_data.get('vehicle_number') or '').strip().upper()
-                segment = VehicleTypeModel.objects.filter(id=vehicle_data.get('segment_id'), is_active=True, is_deleted=False).first()
-                make = VehicleMake.objects.filter(id=vehicle_data.get('make_id'), is_active=True, is_deleted=False).first()
-                brand_model = VehicleBrandModel.objects.filter(id=vehicle_data.get('brand_model_id'), is_active=True, is_deleted=False).first()
+                seg_id = _clean_uuid(vehicle_data.get('segment_id'))
+                mk_id = _clean_uuid(vehicle_data.get('make_id'))
+                bm_id = _clean_uuid(vehicle_data.get('brand_model_id'))
+                segment = VehicleTypeModel.objects.filter(id=seg_id, is_active=True, is_deleted=False).first() if seg_id else None
+                make = VehicleMake.objects.filter(id=mk_id, is_active=True, is_deleted=False).first() if mk_id else None
+                brand_model = VehicleBrandModel.objects.filter(id=bm_id, is_active=True, is_deleted=False).first() if bm_id else None
                 if not plate or not segment or not make or not brand_model:
                     return JsonResponse({'success': False, 'message': 'Vehicle number, make, model and segment are required'}, status=400)
                 if brand_model.make_id != make.id or brand_model.vehicle_type_model_id != segment.id:
@@ -7394,8 +7408,10 @@ def api_job_quotation_update(request, quotation_id):
                 vehicle.vehicle_type_model = segment
                 vehicle.make = make
                 vehicle.brand_model = brand_model
-                vehicle.color = VehicleColor.objects.filter(id=vehicle_data.get('color_id'), is_deleted=False).first() if vehicle_data.get('color_id') else None
-                vehicle.emission_standard = EmissionStandard.objects.filter(id=vehicle_data.get('emission_standard_id'), is_deleted=False).first() if vehicle_data.get('emission_standard_id') else None
+                clr_id = _clean_uuid(vehicle_data.get('color_id'))
+                ems_id = _clean_uuid(vehicle_data.get('emission_standard_id'))
+                vehicle.color = VehicleColor.objects.filter(id=clr_id, is_deleted=False).first() if clr_id else None
+                vehicle.emission_standard = EmissionStandard.objects.filter(id=ems_id, is_deleted=False).first() if ems_id else None
                 vehicle.fuel_type = vehicle_data.get('fuel_type') or ''
                 vehicle.wheel_type = vehicle_data.get('wheel_type') or 'normal_wheel'
                 if 'engine_number' in vehicle_data or 'engine_number' in data:
@@ -7418,8 +7434,8 @@ def api_job_quotation_update(request, quotation_id):
             if 'tentative_delivery_at' in data:
                 quotation.tentative_delivery_at = parse_datetime(data['tentative_delivery_at']) if data.get('tentative_delivery_at') else None
             if 'prepared_by_id' in data:
-                prepared_by_id = (data.get('prepared_by_id') or '').strip()
-                if prepared_by_id and prepared_by_id not in ('null', 'None'):
+                prepared_by_id = _clean_uuid(data.get('prepared_by_id'))
+                if prepared_by_id:
                     staff_qs = Staff.objects.filter(id=prepared_by_id, is_deleted=False)
                     if quotation.company_id:
                         staff_qs = staff_qs.filter(company_id=quotation.company_id)
@@ -7440,7 +7456,8 @@ def api_job_quotation_update(request, quotation_id):
                 for row in data.get('items', []):
                     l_type = row.get('line_type') or 'legacy'
                     if l_type == 'accessory':
-                        stock = Stock.objects.filter(id=row.get('stock_item_id'), company=company, is_deleted=False).first() if row.get('stock_item_id') else None
+                        stk_id = _clean_uuid(row.get('stock_item_id'))
+                        stock = Stock.objects.filter(id=stk_id, company=company, is_deleted=False).first() if stk_id else None
                         if not stock:
                             transaction.set_rollback(True)
                             return JsonResponse({'success': False, 'message': 'One of the selected accessories is not available for this company'}, status=400)
@@ -7450,7 +7467,8 @@ def api_job_quotation_update(request, quotation_id):
                         if rate < 0 or quantity <= 0 or discount < 0:
                             transaction.set_rollback(True)
                             return JsonResponse({'success': False, 'message': 'Accessory rate, quantity, and discount must be valid non-negative values'}, status=400)
-                        item = JobQuotationItem.objects.filter(id=row.get('id'), quotation=quotation, line_type='accessory', is_deleted=False).first() if row.get('id') else None
+                        row_item_id = _clean_uuid(row.get('id'))
+                        item = JobQuotationItem.objects.filter(id=row_item_id, quotation=quotation, line_type='accessory', is_deleted=False).first() if row_item_id else None
                         if item is None:
                             item = JobQuotationItem(quotation=quotation, line_type='accessory', auto_id=get_auto_id(JobQuotationItem), creator=user)
                         item.stock_item = stock
@@ -7466,7 +7484,8 @@ def api_job_quotation_update(request, quotation_id):
                         item.save()
                         keep_item_ids.append(item.id)
                     elif l_type == 'service':
-                        service = Service.objects.filter(id=row.get('service_id')).first() if row.get('service_id') else None
+                        svc_id = _clean_uuid(row.get('service_id'))
+                        service = Service.objects.filter(id=svc_id).first() if svc_id else None
                         rate = Decimal(str(row.get('rate') or 0))
                         quantity = Decimal(str(row.get('quantity', row.get('qty', 1)) or 1))
                         discount = Decimal(str(row.get('discount') or 0))
@@ -7474,7 +7493,8 @@ def api_job_quotation_update(request, quotation_id):
                             transaction.set_rollback(True)
                             return JsonResponse({'success': False, 'message': 'Service rate, quantity, and discount must be valid non-negative values'}, status=400)
                         svc_name = (row.get('service_name') or (service.name if service else 'Service')).strip()
-                        item = JobQuotationItem.objects.filter(id=row.get('id'), quotation=quotation, line_type='service', is_deleted=False).first() if row.get('id') else None
+                        row_item_id = _clean_uuid(row.get('id'))
+                        item = JobQuotationItem.objects.filter(id=row_item_id, quotation=quotation, line_type='service', is_deleted=False).first() if row_item_id else None
                         if item is None:
                             item = JobQuotationItem(quotation=quotation, line_type='service', auto_id=get_auto_id(JobQuotationItem), creator=user)
                         item.service = service
@@ -7501,7 +7521,8 @@ def api_job_quotation_update(request, quotation_id):
                     if price < 0 or quantity <= 0 or discount < 0:
                         transaction.set_rollback(True)
                         return JsonResponse({'success': False, 'message': 'Extra rate, quantity, and discount must be valid non-negative values'}, status=400)
-                    extra = JobQuotationExtra.objects.filter(id=row.get('id'), quotation=quotation, line_type='quote_form', is_deleted=False).first() if row.get('id') else None
+                    row_extra_id = _clean_uuid(row.get('id'))
+                    extra = JobQuotationExtra.objects.filter(id=row_extra_id, quotation=quotation, line_type='quote_form', is_deleted=False).first() if row_extra_id else None
                     if extra is None:
                         extra = JobQuotationExtra(quotation=quotation, line_type='quote_form', auto_id=get_auto_id(JobQuotationExtra), creator=user)
                     extra.name = row.get('name') or ''
@@ -7525,9 +7546,10 @@ def api_job_quotation_update(request, quotation_id):
                     if not name or price < 0 or discount < 0:
                         transaction.set_rollback(True)
                         return JsonResponse({'success': False, 'message': 'Labour name, cost, and discount must be valid'}, status=400)
+                    row_labour_id = _clean_uuid(row.get('id'))
                     labour = JobQuotationExtra.objects.filter(
-                        id=row.get('id'), quotation=quotation, line_type='labour', is_deleted=False
-                    ).first() if row.get('id') else None
+                        id=row_labour_id, quotation=quotation, line_type='labour', is_deleted=False
+                    ).first() if row_labour_id else None
                     if labour is None:
                         labour = JobQuotationExtra(
                             quotation=quotation, line_type='labour',
@@ -7693,6 +7715,8 @@ def api_job_quotation_update(request, quotation_id):
                 quotation.save(update_fields=['subtotal', 'tax_percentage', 'tax_amount', 'discount', 'discount_percentage', 'grand_total', 'date_updated'])
         return JsonResponse({'success': True, 'quotation_id': str(quotation.id)})
     except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception("api_job_quotation_update failed: %s", exc)
         return JsonResponse({'success': False, 'message': str(exc)}, status=400)
 
 
