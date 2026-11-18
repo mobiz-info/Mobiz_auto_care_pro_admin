@@ -539,6 +539,17 @@ class JobQuotationIssuePhoto(BaseModel):
 
 
 class JobCardReportedIssue(BaseModel):
+    STATUS_PENDING = 'pending'
+    STATUS_STARTED = 'started'
+    STATUS_PARKED = 'parked'
+    STATUS_COMPLETED = 'completed'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_STARTED, 'Started'),
+        (STATUS_PARKED, 'Parked'),
+        (STATUS_COMPLETED, 'Completed'),
+    ]
+
     job_card = models.ForeignKey(JobCard, on_delete=models.CASCADE, related_name='reported_issues')
     category = models.ForeignKey('service_management.JobCardCategory', on_delete=models.PROTECT, related_name='job_card_reports')
     service = models.ForeignKey('service_management.JobCardService', on_delete=models.PROTECT, related_name='job_card_reports')
@@ -550,6 +561,20 @@ class JobCardReportedIssue(BaseModel):
     warranty = models.CharField(max_length=100, blank=True, null=True)
     remarks = models.TextField(blank=True, null=True)
     sort_order = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    assigned_staff = models.ForeignKey(
+        'client_management.Staff', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='job_card_reported_issues',
+    )
+    assigned_staffs = models.ManyToManyField(
+        'client_management.Staff', blank=True,
+        related_name='job_card_reported_issues_multi',
+    )
+    bay = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Work bay 1-10")
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    parked_at = models.DateTimeField(null=True, blank=True)
+    parked_remark = models.TextField(blank=True, null=True)
 
     class Meta:
         ordering = ['sort_order', 'date_added']
@@ -558,10 +583,12 @@ class JobCardReportedIssue(BaseModel):
 class JobCardActivity(BaseModel):
     STATUS_PENDING = 'pending'
     STATUS_STARTED = 'started'
+    STATUS_PARKED = 'parked'
     STATUS_COMPLETED = 'completed'
     STATUS_CHOICES = [
         (STATUS_PENDING, 'Pending'),
         (STATUS_STARTED, 'Started'),
+        (STATUS_PARKED, 'Parked'),
         (STATUS_COMPLETED, 'Completed'),
     ]
 
@@ -574,8 +601,15 @@ class JobCardActivity(BaseModel):
         'client_management.Staff', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='job_card_activities',
     )
+    assigned_staffs = models.ManyToManyField(
+        'client_management.Staff', blank=True,
+        related_name='job_card_activities_multi',
+    )
+    bay = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Work bay 1-10")
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    parked_at = models.DateTimeField(null=True, blank=True)
+    parked_remark = models.TextField(blank=True, null=True)
     cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     sort_order = models.PositiveIntegerField(default=0)

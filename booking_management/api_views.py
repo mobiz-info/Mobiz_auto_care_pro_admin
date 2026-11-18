@@ -4601,6 +4601,17 @@ def api_job_card_detail(request, job_card_id):
                 'name': report.issue.name if report.issue else report.issue_text,
             },
             'issue_text': report.issue_text,
+            'status': report.status,
+            'bay': report.bay,
+            'parked_at': report.parked_at.isoformat() if report.parked_at else '',
+            'parked_remark': report.parked_remark or '',
+            'started_at': report.started_at.isoformat() if report.started_at else '',
+            'completed_at': report.completed_at.isoformat() if report.completed_at else '',
+            'staff_id': str(report.assigned_staff_id or ''),
+            'staff_name': report.assigned_staff.name if report.assigned_staff else '',
+            'assigned_staff_ids': [str(s.id) for s in report.assigned_staffs.filter(is_deleted=False)],
+            'assigned_staff_names': [s.name for s in report.assigned_staffs.filter(is_deleted=False)],
+            'sort_order': report.sort_order,
             'pricing': {
                 'rate': float(report.rate or 0),
                 'quantity': float(report.quantity or 1),
@@ -4613,14 +4624,19 @@ def api_job_card_detail(request, job_card_id):
                 'id': str(activity.id),
                 'name': activity.name,
                 'status': activity.status,
+                'bay': activity.bay,
+                'parked_at': activity.parked_at.isoformat() if activity.parked_at else '',
+                'parked_remark': activity.parked_remark or '',
                 'staff_id': str(activity.assigned_staff_id or ''),
                 'staff_name': activity.assigned_staff.name if activity.assigned_staff else '',
+                'assigned_staff_ids': [str(s.id) for s in activity.assigned_staffs.filter(is_deleted=False)],
+                'assigned_staff_names': [s.name for s in activity.assigned_staffs.filter(is_deleted=False)],
                 'started_at': activity.started_at.isoformat() if activity.started_at else '',
                 'completed_at': activity.completed_at.isoformat() if activity.completed_at else '',
                 'cost': float(activity.cost or 0),
                 'discount': float(activity.discount or 0),
                 'sort_order': activity.sort_order,
-            } for activity in report.activities.filter(is_deleted=False).select_related('assigned_staff')],
+            } for activity in report.activities.filter(is_deleted=False).select_related('assigned_staff').prefetch_related('assigned_staffs')],
         })
 
     eff_es = v.emission_standard or (v.vehicle_type_model.emission_standard if (v and v.vehicle_type_model) else None)
@@ -4964,9 +4980,35 @@ def _save_job_card_reported_issues(job_card, rows, uploaded_files, user):
         report.discount = discount
         report.warranty = (row.get('warranty') or '').strip() or None
         report.remarks = (row.get('remarks') or '').strip() or None
-        report.sort_order = index
+        report.sort_order = int(row.get('sort_order', index) if row.get('sort_order') is not None else index)
+        issue_status = (row.get('status') or JobCardReportedIssue.STATUS_PENDING).strip()
+        report.status = issue_status if issue_status in dict(JobCardReportedIssue.STATUS_CHOICES) else JobCardReportedIssue.STATUS_PENDING
+        bay_val = row.get('bay')
+        report.bay = int(bay_val) if bay_val and str(bay_val).isdigit() else None
+        from django.utils.dateparse import parse_datetime
+        report.started_at = parse_datetime(row.get('started_at') or '') if row.get('started_at') else None
+        report.completed_at = parse_datetime(row.get('completed_at') or '') if row.get('completed_at') else None
+        report.parked_at = parse_datetime(row.get('parked_at') or '') if row.get('parked_at') else None
+        report.parked_remark = (row.get('parked_remark') or '').strip() or None
         report.updater = user
+
+        # Staff assignment for issue
+        rep_staff_ids = row.get('assigned_staff_ids') or []
+        if not rep_staff_ids and row.get('staff_id'):
+            rep_staff_ids = [row.get('staff_id')]
+        rep_staff_objs = []
+        for s_id in rep_staff_ids:
+            clean_s = _clean_uuid(s_id)
+            if clean_s:
+                st = Staff.objects.filter(id=clean_s, is_deleted=False).first()
+                if st:
+                    rep_staff_objs.append(st)
+        report.assigned_staff = rep_staff_objs[0] if rep_staff_objs else None
         report.save()
+        if rep_staff_objs:
+            report.assigned_staffs.set(rep_staff_objs)
+        else:
+            report.assigned_staffs.clear()
         retained_report_ids[-1] = str(report.id)
 
         if 'activities' in row:
@@ -4992,17 +5034,18 @@ def _save_job_card_reported_issues(job_card, rows, uploaded_files, user):
                     if not activity or str(activity.id) in retained_activity_ids:
                         raise ValueError(f'Activity {activity_index + 1} is not valid for this issue')
                 staff = None
-                staff_id = (activity_data.get('staff_id') or '').strip()
-                if staff_id and staff_id not in ('null', 'None'):
-                    staff_qs = Staff.objects.filter(id=staff_id, is_deleted=False)
-                    activity_company_id = job_card.company_id or getattr(job_card.branch, 'company_id', None)
-                    if activity_company_id:
-                        staff_qs = staff_qs.filter(company_id=activity_company_id)
-                    if job_card.branch_id:
-                        staff_qs = staff_qs.filter(branch_id=job_card.branch_id)
-                    staff = staff_qs.first()
-                    if not staff:
-                        raise ValueError(f'Staff for activity {activity_index + 1} is invalid')
+                act_staff_ids = activity_data.get('assigned_staff_ids') or []
+                if not act_staff_ids and activity_data.get('staff_id'):
+                    act_staff_ids = [activity_data.get('staff_id')]
+                act_staff_objs = []
+                for s_id in act_staff_ids:
+                    clean_s = _clean_uuid(s_id)
+                    if clean_s:
+                        st = Staff.objects.filter(id=clean_s, is_deleted=False).first()
+                        if st:
+                            act_staff_objs.append(st)
+                if act_staff_objs:
+                    staff = act_staff_objs[0]
                 if activity is None:
                     activity = JobCardActivity(
                         reported_issue=report,
@@ -5012,14 +5055,22 @@ def _save_job_card_reported_issues(job_card, rows, uploaded_files, user):
                 activity.name = name
                 activity.status = status
                 activity.assigned_staff = staff
+                act_bay = activity_data.get('bay')
+                activity.bay = int(act_bay) if act_bay and str(act_bay).isdigit() else None
                 from django.utils.dateparse import parse_datetime
-                activity.started_at = parse_datetime(activity_data.get('started_at') or '')
-                activity.completed_at = parse_datetime(activity_data.get('completed_at') or '')
+                activity.started_at = parse_datetime(activity_data.get('started_at') or '') if activity_data.get('started_at') else None
+                activity.completed_at = parse_datetime(activity_data.get('completed_at') or '') if activity_data.get('completed_at') else None
+                activity.parked_at = parse_datetime(activity_data.get('parked_at') or '') if activity_data.get('parked_at') else None
+                activity.parked_remark = (activity_data.get('parked_remark') or '').strip() or None
                 activity.cost = cost
                 activity.discount = activity_discount
-                activity.sort_order = activity_index
+                activity.sort_order = int(activity_data.get('sort_order', activity_index) if activity_data.get('sort_order') is not None else activity_index)
                 activity.updater = user
                 activity.save()
+                if act_staff_objs:
+                    activity.assigned_staffs.set(act_staff_objs)
+                else:
+                    activity.assigned_staffs.clear()
                 retained_activity_ids.append(str(activity.id))
             JobCardActivity.objects.filter(
                 reported_issue=report, is_deleted=False
