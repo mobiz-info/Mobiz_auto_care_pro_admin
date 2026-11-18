@@ -1435,7 +1435,7 @@
                 row.onclick = () => {
                     document.getElementById('lookup_input').value = item.vehicle_number;
                     hideAutocomplete();
-                    executeLookup();
+                    executeLookup(item.vehicle_number);
                 };
             } else {
                 row.innerHTML = `<strong>${item.name}</strong> <span style="color:#64748b; font-size:0.8rem;">${item.phone}</span>`;
@@ -1477,7 +1477,7 @@
         }
     });
 
-    function executeLookup() {
+    function executeLookup(autoVehicleNumber) {
         const enteredQuery = document.getElementById('lookup_input').value.trim();
         const query = searchType === 'mobile' ? getPhoneLookupValue(enteredQuery) : enteredQuery;
         if (!query) return;
@@ -1501,6 +1501,18 @@
                 if (data.success && data.customer) {
                     currentCustomer = data.customer;
                     renderCustomerAndVehicles(data.customer);
+
+                    if (searchType === 'vehicle') {
+                        const targetNum = (autoVehicleNumber || query).replace(/\s+/g, '').replace(/-/g, '').toLowerCase();
+                        const matchedVehicle = (data.customer.vehicles || []).find(v => 
+                            (v.no || '').replace(/\s+/g, '').replace(/-/g, '').toLowerCase() === targetNum
+                        );
+                        if (matchedVehicle) {
+                            selectVehicleAndProceed(matchedVehicle.id);
+                        } else if (data.customer.vehicles && data.customer.vehicles.length === 1) {
+                            selectVehicleAndProceed(data.customer.vehicles[0].id);
+                        }
+                    }
                 } else {
                     document.getElementById('search_not_found').style.display = 'block';
                 }
