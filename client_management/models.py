@@ -558,6 +558,51 @@ class Stock(BaseModel):
         return f"{self.item_name} ({unit_display}) - Global"
 
 
+class StockTransaction(BaseModel):
+    TYPE_IN = 'in'
+    TYPE_OUT = 'out'
+    TYPE_CHOICES = (
+        (TYPE_IN, 'Stock In'),
+        (TYPE_OUT, 'Stock Out'),
+    )
+
+    REASON_CHOICES = (
+        ('purchase', 'Direct Purchase'),
+        ('opening_stock', 'Opening Stock'),
+        ('customer_return', 'Customer Return'),
+        ('audit_addition', 'Audit / Physical Count Addition'),
+        ('internal_use', 'Internal / Workshop Use'),
+        ('damage', 'Damage / Wastage'),
+        ('expired', 'Expired'),
+        ('supplier_return', 'Return to Supplier'),
+        ('audit_reduction', 'Audit / Physical Count Reduction'),
+        ('loss', 'Loss / Theft'),
+        ('invoice_sale', 'Invoice / Service Usage'),
+        ('other', 'Other'),
+    )
+
+    company = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='stock_transactions', null=True, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='stock_transactions')
+    stock = models.ForeignKey(Stock, on_delete=models.CASCADE, related_name='transactions')
+    transaction_type = models.CharField(max_length=10, choices=TYPE_CHOICES)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    unit_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0.00, blank=True, null=True)
+    reason = models.CharField(max_length=50, choices=REASON_CHOICES, default='other')
+    notes = models.TextField(blank=True, null=True)
+    reference_number = models.CharField(max_length=100, blank=True, null=True)
+    previous_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    new_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    def save(self, *args, **kwargs):
+        if not self.auto_id:
+            from core.functions import get_auto_id
+            self.auto_id = get_auto_id(StockTransaction)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.stock.item_name} - {self.get_transaction_type_display()} ({self.quantity})"
+
+
 class StaffLeave(BaseModel):
     STATUS_CHOICES = (
         ('PENDING', 'Pending'),

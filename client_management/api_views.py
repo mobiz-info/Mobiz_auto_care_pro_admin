@@ -6305,6 +6305,171 @@ def api_delete_stock(request, id):
 
 
 @csrf_exempt
+def api_stock_adjust(request):
+    """
+    POST: Perform Stock IN or Stock OUT (Adjustment) for a general Stock item.
+    Payload:
+    - stock_id: UUID (required)
+    - transaction_type: 'in' or 'out' (required)
+    - quantity: float/decimal > 0 (required)
+    - reason: string (e.g. 'purchase', 'opening_stock', 'internal_use', 'damage', 'audit_addition', 'audit_reduction', etc.)
+    - unit_cost: float/decimal (optional)
+    - notes: string (optional)
+    - reference_number: string (optional)
+    - branch_id: UUID (optional)
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Only POST method is allowed'}, status=405)
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+
+    try:
+        from decimal import Decimal
+        from django.db import transaction
+        from .models import Stock, StockTransaction, Branch
+        from core.functions import get_auto_id
+
+        data = json.loads(request.body or '{}')
+        stock_id = data.get('stock_id')
+        transaction_type = (data.get('transaction_type') or '').strip().lower()
+        quantity = Decimal(str(data.get('quantity') or 0))
+        reason = (data.get('reason') or 'other').strip()
+        notes = (data.get('notes') or '').strip()
+        ref_no = (data.get('reference_number') or '').strip()
+        unit_cost = Decimal(str(data.get('unit_cost') or 0)) if data.get('unit_cost') is not None else Decimal('0.00')
+
+        if not stock_id:
+            return JsonResponse({'success': False, 'message': 'stock_id is required'}, status=400)
+        if transaction_type not in ['in', 'out']:
+            return JsonResponse({'success': False, 'message': 'transaction_type must be "in" or "out"'}, status=400)
+        if quantity <= 0:
+            return JsonResponse({'success': False, 'message': 'Quantity must be greater than 0'}, status=400)
+
+        company = getattr(getattr(user, 'profile', None), 'company', None)
+        branch = None
+        branch_id = data.get('branch_id')
+        if branch_id:
+            branch = Branch.objects.filter(id=branch_id, is_deleted=False).first()
+        if not branch and hasattr(user, 'staff_profile') and user.staff_profile.branch:
+            branch = user.staff_profile.branch
+
+        with transaction.atomic():
+            stock = Stock.objects.select_for_update().filter(id=stock_id, is_deleted=False).first()
+            if not stock:
+                return JsonResponse({'success': False, 'message': 'Stock item not found'}, status=404)
+            if company and stock.company and stock.company != company and not user.is_superuser:
+                return JsonResponse({'success': False, 'message': 'Permission denied'}, status=403)
+
+            previous_quantity = stock.quantity or Decimal('0.00')
+            if transaction_type == 'in':
+                new_quantity = previous_quantity + quantity
+            else:
+                new_quantity = max(Decimal('0.00'), previous_quantity - quantity)
+
+            stock.quantity = new_quantity
+            stock.save(update_fields=['quantity'])
+
+            tx = StockTransaction.objects.create(
+                company=stock.company or company,
+                branch=branch,
+                stock=stock,
+                transaction_type=transaction_type,
+                quantity=quantity,
+                unit_cost=unit_cost,
+                reason=reason,
+                notes=notes,
+                reference_number=ref_no,
+                previous_quantity=previous_quantity,
+                new_quantity=new_quantity,
+                creator=user,
+                auto_id=get_auto_id(StockTransaction),
+            )
+
+            action_label = 'Stock IN added' if transaction_type == 'in' else 'Stock OUT deducted'
+            return JsonResponse({
+                'success': True,
+                'message': f'{action_label} successfully ({quantity} {stock.unit or "Pcs"})',
+                'transaction_id': str(tx.id),
+                'stock_id': str(stock.id),
+                'item_name': stock.item_name,
+                'previous_quantity': float(previous_quantity),
+                'quantity': float(quantity),
+                'new_quantity': float(new_quantity),
+                'transaction_type': transaction_type,
+                'unit': stock.unit or 'Pcs',
+            })
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+@csrf_exempt
+def api_stock_transactions(request):
+    """
+    GET: List stock transactions / movement ledger.
+    Filter params:
+    - stock_id: UUID
+    - transaction_type: 'in' or 'out'
+    - limit: int (default 50)
+    """
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'message': 'Only GET method is allowed'}, status=405)
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+
+    try:
+        from .models import StockTransaction
+        company = getattr(getattr(user, 'profile', None), 'company', None)
+        qs = StockTransaction.objects.filter(is_deleted=False).select_related('stock', 'creator', 'branch')
+        if company and not user.is_superuser:
+            qs = qs.filter(company=company)
+
+        stock_id = request.GET.get('stock_id')
+        if stock_id:
+            qs = qs.filter(stock_id=stock_id)
+
+        tx_type = request.GET.get('transaction_type')
+        if tx_type in ['in', 'out']:
+            qs = qs.filter(transaction_type=tx_type)
+
+        limit = int(request.GET.get('limit', 50))
+        qs = qs.order_by('-date_added')[:limit]
+
+        transactions = []
+        for tx in qs:
+            creator_name = ''
+            if tx.creator:
+                creator_name = getattr(tx.creator, 'first_name', '') or tx.creator.username
+            transactions.append({
+                'id': str(tx.id),
+                'stock_id': str(tx.stock_id),
+                'stock_name': tx.stock.item_name if tx.stock else '',
+                'stock_unit': (tx.stock.unit if tx.stock else '') or 'Pcs',
+                'transaction_type': tx.transaction_type,
+                'quantity': float(tx.quantity or 0),
+                'previous_quantity': float(tx.previous_quantity or 0),
+                'new_quantity': float(tx.new_quantity or 0),
+                'unit_cost': float(tx.unit_cost or 0),
+                'reason': tx.reason,
+                'reason_display': tx.get_reason_display(),
+                'notes': tx.notes or '',
+                'reference_number': tx.reference_number or '',
+                'branch_name': tx.branch.name if tx.branch else '',
+                'created_by': creator_name,
+                'created_at': tx.date_added.isoformat() if tx.date_added else '',
+                'date': tx.date_added.strftime('%d-%m-%Y %H:%M') if tx.date_added else '',
+            })
+
+        return JsonResponse({
+            'success': True,
+            'transactions': transactions,
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+@csrf_exempt
 def api_report_expense_head_wise(request):
     """Expense head wise report: Summary of expenses grouped by head in date range."""
     if request.method != 'GET':
