@@ -413,21 +413,14 @@
                 {% endif %}
             </div>
 
-            <!-- Damage marks badge -->
-            <div style="margin-bottom: 8px;">
-                <span style="display: inline-block; padding: 3px 8px; font-size: 8pt; font-weight: 700; border-radius: 4px; border: 1px solid {% if damage_marks_count > 0 %}#f59e0b; background-color: #fef3c7; color: #92400e;{% else %}#10b981; background-color: #ecfdf5; color: #065f46;{% endif %}">
-                    {% if damage_marks_count > 0 %}Damage Inspection: {{ damage_marks_count }} points marked{% else %}Damage Inspection: No damages marked{% endif %}
-                </span>
-            </div>
-
             {% if damage_marks %}
                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 8.5pt;">
                     <thead>
-                        <tr style="background-color: #fffbeb; border-bottom: 1.5px solid #fde68a;">
-                            <th style="padding: 5px 8px; text-align: left; color: #92400e; font-weight: 700; width: 30%;">Vehicle Part / View</th>
-                            <th style="padding: 5px 8px; text-align: center; color: #92400e; font-weight: 700; width: 18%;">Damage Type</th>
-                            <th style="padding: 5px 8px; text-align: center; color: #92400e; font-weight: 700; width: 18%;">Severity</th>
-                            <th style="padding: 5px 8px; text-align: left; color: #92400e; font-weight: 700; width: 34%;">Remarks</th>
+                        <tr style="background-color: #1e3a8a; border-bottom: 1.5px solid #1e3a8a;">
+                            <th style="padding: 6px 8px; text-align: left; color: #ffffff; font-weight: 700; width: 30%;">Vehicle Part / View</th>
+                            <th style="padding: 6px 8px; text-align: center; color: #ffffff; font-weight: 700; width: 18%;">Damage Type</th>
+                            <th style="padding: 6px 8px; text-align: center; color: #ffffff; font-weight: 700; width: 18%;">Severity</th>
+                            <th style="padding: 6px 8px; text-align: left; color: #ffffff; font-weight: 700; width: 34%;">Remarks</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -504,9 +497,9 @@
     {% endif %}
 
     {% if services or accessories or labour or extras %}
-        <!-- Services & Reported Issues -->
+        <!-- Services -->
         {% if services %}
-        <div class="section-header">Services &amp; Reported Issues</div>
+        <div class="section-header">Services</div>
         <table class="items-table">
             <thead>
                 <tr>
@@ -549,19 +542,21 @@
         <table class="items-table">
             <thead>
                 <tr>
-                    <th style="width: 6%;" class="align-center">#</th>
-                    <th style="width: 42%;">Part / Item Description</th>
+                    <th style="width: 5%;" class="align-center">#</th>
+                    <th style="width: 15%;">Part No</th>
+                    <th style="width: 32%;">Part / Item Description</th>
                     <th style="width: 10%;" class="align-center">Warranty</th>
                     <th style="width: 8%;" class="align-center">Qty</th>
-                    <th style="width: 12%;" class="align-right">Rate</th>
+                    <th style="width: 10%;" class="align-right">Rate</th>
                     <th style="width: 10%;" class="align-right">Discount</th>
-                    <th style="width: 12%;" class="align-right">Amount</th>
+                    <th style="width: 10%;" class="align-right">Amount</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in accessories %}
                 <tr>
                     <td class="align-center">{{ forloop.counter }}</td>
+                    <td style="font-family: monospace; font-size: 8.5pt;">{{ item.part_number|default:"-" }}</td>
                     <td>
                         <div style="font-weight: 600; color: #0f172a;">{{ item.name }}</div>
                         {% if item.remarks %}
@@ -888,7 +883,7 @@
             Thank you for choosing {% if quotation.branch %}{{ quotation.branch.name }}{% else %}us{% endif %}!
         </div>
         <div style="font-size: 8pt; color: #94a3b8; margin-top: 4px;">
-            Powered by Mobiz Technologies
+            Powered by Mobiz Technologies FZE &nbsp;|&nbsp; www.mobiztechnologies.com
         </div>
     </div>
 </div>

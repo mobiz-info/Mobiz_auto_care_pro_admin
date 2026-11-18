@@ -2730,8 +2730,10 @@ def generate_quotation_pdf_file(quotation, base_url):
 
     # 2. Check quotation items (Accessories, standalone Services/Issues, or legacy items)
     if hasattr(quotation, 'items'):
-        for item in quotation.items.filter(is_deleted=False):
+        for item in quotation.items.filter(is_deleted=False).select_related('stock_item', 'service'):
             if item.id in handled_priced_item_ids:
+                continue
+            if getattr(item, 'reported_issue_id', None) or getattr(item, 'line_type', None) == 'issue':
                 continue
             line_type = getattr(item, 'line_type', None)
             rate = float(item.rate or 0)
@@ -2742,8 +2744,14 @@ def generate_quotation_pdf_file(quotation, base_url):
 
             if line_type == 'accessory':
                 name = item.stock_item_name or (item.stock_item.name if item.stock_item else item.service_name)
+                part_no = ''
+                if item.stock_item:
+                    part_no = getattr(item.stock_item, 'part_number', '') or getattr(item.stock_item, 'product_code', '') or ''
+                if not part_no:
+                    part_no = getattr(item, 'part_number', '') or ''
                 accessories.append({
                     'name': name,
+                    'part_number': part_no,
                     'warranty': warranty,
                     'quantity': qty,
                     'rate': rate,
@@ -2753,17 +2761,20 @@ def generate_quotation_pdf_file(quotation, base_url):
                     'free_topup': getattr(item, 'free_topup', '') or '',
                 })
             else:
-                services.append({
-                    'name': item.service_name or (item.service.name if item.service else 'Service'),
-                    'category': '',
-                    'issue_text': item.stock_item_name or getattr(item, 'remarks', '') or '',
-                    'warranty': warranty,
-                    'quantity': qty,
-                    'rate': rate,
-                    'discount': disc,
-                    'total': total,
-                    'remarks': getattr(item, 'remarks', '') or '',
-                })
+                s_name = item.service_name or (item.service.name if item.service else 'Service')
+                already = any(s.get('name') == s_name for s in services)
+                if not already:
+                    services.append({
+                        'name': s_name,
+                        'category': '',
+                        'issue_text': item.stock_item_name or getattr(item, 'remarks', '') or '',
+                        'warranty': warranty,
+                        'quantity': qty,
+                        'rate': rate,
+                        'discount': disc,
+                        'total': total,
+                        'remarks': getattr(item, 'remarks', '') or '',
+                    })
 
     # 3. Check quotation extras (Labour Charges vs Custom Extras)
     if hasattr(quotation, 'extras'):
