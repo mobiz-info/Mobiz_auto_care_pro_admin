@@ -604,7 +604,7 @@
                 <label>Select Branch *</label>
                 <select id="branch_select" class="form-control" onchange="onBranchChange()">
                     {% for b in branches %}
-                    <option value="{{ b.id }}" {% if selected_branch_id==b.id|stringformat:"s" %}selected{% endif %}>
+                    <option value="{{ b.id }}" {% if selected_branch_id == b.id|stringformat:"s" %}selected{% endif %}>
                         {{ b.name }}
                     </option>
                     {% empty %}
@@ -634,8 +634,7 @@
                 <select id="lookup_phone_country" class="form-control" style="width:145px; flex:0 0 145px;"
                     aria-label="Phone country code" onchange="onLookupInput()">
                     {% for country in phone_countries %}
-                    <option value="{{ country.phone_dial_code }}" data-iso="{{ country.phone_iso_code }}" {% if
-                        country.phone_iso_code==phone_country_iso %}selected{% endif %}>
+                    <option value="{{ country.phone_dial_code }}" data-iso="{{ country.phone_iso_code }}" {% if country.phone_iso_code == phone_country_iso %}selected{% endif %}>
                         {{ country.flag|default:'' }} {{ country.phone_dial_code }}
                     </option>
                     {% endfor %}
@@ -885,8 +884,7 @@
                     <div class="app-card-header"
                         style="display: flex; justify-content: space-between; align-items: center;">
                         <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
-                            <input type="checkbox" id="apply_tax_checkbox" style="width: 18px; height: 18px;" {% if
-                                company_taxes %}checked{% endif %} onchange="toggleTaxSection(this)">
+                            <input type="checkbox" id="apply_tax_checkbox" style="width: 18px; height: 18px;" {% if company_taxes %}checked{% endif %} onchange="toggleTaxSection(this)">
                             <span class="app-card-title" style="margin: 0;"><i class="ph ph-percent"></i> TAX</span>
                         </label>
                         <span id="tax_mode_pill"
@@ -948,8 +946,7 @@
                     <div class="form-group" id="payment_mode_group" style="margin-bottom: 12px;">
                         <label>Payment Mode</label>
                         <select id="payment_mode_select" class="form-control">
-                            {% if request.user.profile.company.country.currency_code != 'AED' and
-                            request.user.profile.company.country.phone_iso_code != 'AE' %}
+                            {% if request.user.profile.company.country.currency_code != 'AED' and request.user.profile.company.country.phone_iso_code != 'AE' %}
                             <option value="digital_payments">Digital (UPI / GPay / QR)</option>
                             {% endif %}
                             <option value="cash">Cash</option>
@@ -1044,8 +1041,7 @@
                         <select id="qc_phone_country" class="form-control" style="width:145px; flex:0 0 145px;"
                             aria-label="Phone country code">
                             {% for country in phone_countries %}
-                            <option value="{{ country.phone_dial_code }}" data-iso="{{ country.phone_iso_code }}" {% if
-                                country.phone_iso_code==phone_country_iso %}selected{% endif %}>
+                            <option value="{{ country.phone_dial_code }}" data-iso="{{ country.phone_iso_code }}" {% if country.phone_iso_code == phone_country_iso %}selected{% endif %}>
                                 {{ country.flag|default:'' }} {{ country.phone_dial_code }}
                             </option>
                             {% endfor %}
