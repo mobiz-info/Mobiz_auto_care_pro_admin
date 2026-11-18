@@ -4631,6 +4631,7 @@ def api_job_card_detail(request, job_card_id):
                 'staff_name': activity.assigned_staff.name if activity.assigned_staff else '',
                 'assigned_staff_ids': [str(s.id) for s in activity.assigned_staffs.filter(is_deleted=False)],
                 'assigned_staff_names': [s.name for s in activity.assigned_staffs.filter(is_deleted=False)],
+                'staff_labour': activity.staff_labour or [],
                 'started_at': activity.started_at.isoformat() if activity.started_at else '',
                 'completed_at': activity.completed_at.isoformat() if activity.completed_at else '',
                 'cost': float(activity.cost or 0),
@@ -5062,6 +5063,18 @@ def _save_job_card_reported_issues(job_card, rows, uploaded_files, user):
                 activity.completed_at = parse_datetime(activity_data.get('completed_at') or '') if activity_data.get('completed_at') else None
                 activity.parked_at = parse_datetime(activity_data.get('parked_at') or '') if activity_data.get('parked_at') else None
                 activity.parked_remark = (activity_data.get('parked_remark') or '').strip() or None
+                staff_labour = activity_data.get('staff_labour')
+                if isinstance(staff_labour, list):
+                    activity.staff_labour = staff_labour
+                    if staff_labour:
+                        try:
+                            s_cost = sum(Decimal(str(s.get('cost') or 0)) for s in staff_labour if isinstance(s, dict))
+                            s_disc = sum(Decimal(str(s.get('discount') or 0)) for s in staff_labour if isinstance(s, dict))
+                            if s_cost > 0 or s_disc > 0:
+                                cost = s_cost
+                                activity_discount = s_disc
+                        except Exception:
+                            pass
                 activity.cost = cost
                 activity.discount = activity_discount
                 activity.sort_order = int(activity_data.get('sort_order', activity_index) if activity_data.get('sort_order') is not None else activity_index)

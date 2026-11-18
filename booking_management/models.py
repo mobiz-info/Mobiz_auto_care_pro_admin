@@ -612,6 +612,10 @@ class JobCardActivity(BaseModel):
     parked_remark = models.TextField(blank=True, null=True)
     cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    staff_labour = models.JSONField(
+        default=list, blank=True,
+        help_text="Staff-wise labour breakdown: [{staff_id, staff_name, cost, discount, time}]"
+    )
     sort_order = models.PositiveIntegerField(default=0)
 
     class Meta:
