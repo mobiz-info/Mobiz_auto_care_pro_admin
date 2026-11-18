@@ -53,6 +53,61 @@
         cursor: not-allowed;
     }
 
+    .btn-stock-in {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 3px 8px;
+        background: #dcfce7;
+        color: #15803d;
+        border: 1px solid #86efac;
+        border-radius: 6px;
+        font-size: 0.74rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .btn-stock-in:hover {
+        background: #bbf7d0;
+        transform: translateY(-1px);
+    }
+    .btn-stock-out {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 3px 8px;
+        background: #fee2e2;
+        color: #b91c1c;
+        border: 1px solid #fca5a5;
+        border-radius: 6px;
+        font-size: 0.74rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .btn-stock-out:hover {
+        background: #fecaca;
+        transform: translateY(-1px);
+    }
+    .btn-stock-hist {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 24px;
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .btn-stock-hist:hover {
+        background: #e2e8f0;
+        color: #0f172a;
+    }
+
     /* Modal styles */
     .modal-overlay {
         position: fixed;
@@ -259,7 +314,20 @@
                     </td>
 
                     <td>
-                        <span style="font-weight:700; color:#0f172a; font-size:0.95rem;">{{ stock.quantity|default:"0" }}</span>
+                        <div style="display:flex; flex-direction:column; gap:4px;">
+                            <span id="qty-val-{{ stock.id }}" style="font-weight:700; color:#0f172a; font-size:0.95rem;">{{ stock.quantity|default:"0" }}</span>
+                            <div style="display:inline-flex; align-items:center; gap:4px;">
+                                <button type="button" class="btn-stock-in" onclick="openStockAdjustModal('{{ stock.id }}', '{{ stock.item_name|escapejs }}', '{{ stock.quantity|default:0 }}', '{{ stock.base_unit|default:stock.unit|default:"Piece"|escapejs }}', '{{ stock.purchase_rate|default:0 }}', 'in')" title="Stock IN">
+                                    <i class="ph-bold ph-plus"></i> IN
+                                </button>
+                                <button type="button" class="btn-stock-out" onclick="openStockAdjustModal('{{ stock.id }}', '{{ stock.item_name|escapejs }}', '{{ stock.quantity|default:0 }}', '{{ stock.base_unit|default:stock.unit|default:"Piece"|escapejs }}', '{{ stock.purchase_rate|default:0 }}', 'out')" title="Stock OUT">
+                                    <i class="ph-bold ph-minus"></i> OUT
+                                </button>
+                                <button type="button" class="btn-stock-hist" onclick="openStockHistoryModal('{{ stock.id }}', '{{ stock.item_name|escapejs }}', '{{ stock.base_unit|default:stock.unit|default:"Piece"|escapejs }}')" title="Movement History">
+                                    <i class="ph-bold ph-clock-counter-clockwise"></i>
+                                </button>
+                            </div>
+                        </div>
                     </td>
 
                     <td>
@@ -426,6 +494,404 @@
         if (event.target.id === "importModal") {
             closeImportModal();
         }
+    }
+</script>
+
+<!-- Modal: Stock Adjustment (IN / OUT) -->
+<div id="stockAdjustModal" class="modal-overlay" onclick="handleAdjustBackdropClick(event)">
+    <div class="modal-card" style="max-width: 480px;">
+        <div style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; background: #f8fafc;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span id="adjustModalIcon" style="width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:#dcfce7; color:#15803d; font-size:1.1rem;">
+                    <i class="ph-bold ph-arrow-down-left"></i>
+                </span>
+                <div>
+                    <h3 id="adjustModalTitle" style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #0f172a;">Stock Adjustment</h3>
+                    <div id="adjustModalSub" style="font-size: 0.8rem; color: #64748b;">Update stock quantity</div>
+                </div>
+            </div>
+            <button type="button" onclick="closeStockAdjustModal()" style="border: none; background: none; font-size: 1.25rem; color: #94a3b8; cursor: pointer;">&times;</button>
+        </div>
+
+        <form id="stockAdjustForm" onsubmit="submitStockAdjust(event)" style="padding: 20px;">
+            <input type="hidden" id="adjust_stock_id" value="">
+            <input type="hidden" id="adjust_current_qty" value="0">
+            <input type="hidden" id="adjust_unit" value="Pcs">
+
+            <!-- Type Selector Tabs: IN vs OUT -->
+            <div style="display: flex; gap: 8px; margin-bottom: 16px; background: #f1f5f9; padding: 4px; border-radius: 10px;">
+                <button type="button" id="tabStockIn" onclick="setAdjustType('in')" style="flex:1; padding:9px; border:none; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer; background:#16a34a; color:white; transition:all 0.15s; display:flex; align-items:center; justify-content:center; gap:6px;">
+                    <i class="ph-bold ph-plus-circle"></i> Stock IN (+)
+                </button>
+                <button type="button" id="tabStockOut" onclick="setAdjustType('out')" style="flex:1; padding:9px; border:none; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer; background:transparent; color:#64748b; transition:all 0.15s; display:flex; align-items:center; justify-content:center; gap:6px;">
+                    <i class="ph-bold ph-minus-circle"></i> Stock OUT (-)
+                </button>
+            </div>
+
+            <!-- Item & Current Balance Card -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-size:0.75rem; color:#64748b; font-weight:600; text-transform:uppercase;">Item</div>
+                    <div id="adjust_item_name" style="font-weight:700; color:#0f172a; font-size:0.95rem;">-</div>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:0.75rem; color:#64748b; font-weight:600; text-transform:uppercase;">Current Stock</div>
+                    <div id="adjust_current_display" style="font-weight:800; color:#0284c7; font-size:1.05rem;">0 Pcs</div>
+                </div>
+            </div>
+
+            <!-- Qty & New Balance -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px;">
+                <div>
+                    <label style="display:block; font-size:0.82rem; font-weight:600; color:#334155; margin-bottom:6px;">
+                        Quantity <span id="adjust_unit_label"></span> <span style="color:red">*</span>
+                    </label>
+                    <input type="number" step="any" min="0.01" id="adjust_qty" required oninput="calcNewBalance()" placeholder="0" style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:1rem; font-weight:700; outline:none; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.82rem; font-weight:600; color:#334155; margin-bottom:6px;">
+                        New Balance
+                    </label>
+                    <div id="adjust_new_balance" style="padding:10px 12px; background:#dcfce7; border:1px solid #86efac; border-radius:8px; font-size:1rem; font-weight:800; color:#15803d; box-sizing:border-box;">
+                        0 Pcs
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reason -->
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size:0.82rem; font-weight:600; color:#334155; margin-bottom:6px;">
+                    Reason / Category <span style="color:red">*</span>
+                </label>
+                <select id="adjust_reason" required style="width:100%; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.88rem; background:white; outline:none; box-sizing:border-box;">
+                    <!-- Populated dynamically based on type -->
+                </select>
+            </div>
+
+            <!-- Ref & Cost -->
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom: 14px;">
+                <div>
+                    <label style="display:block; font-size:0.82rem; font-weight:600; color:#334155; margin-bottom:6px;">
+                        Ref / Bill No (Optional)
+                    </label>
+                    <input type="text" id="adjust_ref" placeholder="e.g. PO-102" style="width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.85rem; outline:none; box-sizing:border-box;">
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.82rem; font-weight:600; color:#334155; margin-bottom:6px;">
+                        Unit Cost (Optional)
+                    </label>
+                    <input type="number" step="any" id="adjust_cost" placeholder="0.00" style="width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.85rem; outline:none; box-sizing:border-box;">
+                </div>
+            </div>
+
+            <div style="margin-bottom: 18px;">
+                <label style="display:block; font-size:0.82rem; font-weight:600; color:#334155; margin-bottom:6px;">
+                    Remarks / Notes (Optional)
+                </label>
+                <input type="text" id="adjust_notes" placeholder="Enter remarks..." style="width:100%; padding:9px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.85rem; outline:none; box-sizing:border-box;">
+            </div>
+
+            <div id="adjust_error" style="display:none; padding:10px; background:#fee2e2; border:1px solid #fca5a5; color:#b91c1c; border-radius:8px; font-size:0.82rem; margin-bottom:14px;"></div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" onclick="closeStockAdjustModal()" class="btn-secondary" style="padding: 10px 18px; cursor: pointer;">
+                    Cancel
+                </button>
+                <button type="submit" id="btnSubmitAdjust" class="btn-primary" style="padding: 10px 22px; background:#16a34a; border-color:#16a34a;">
+                    <i class="ph-bold ph-check"></i> Confirm Stock IN
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Movement History -->
+<div id="stockHistoryModal" class="modal-overlay" onclick="handleHistoryBackdropClick(event)">
+    <div class="modal-card" style="max-width: 760px;">
+        <div style="padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; background: #f8fafc;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span style="width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:#e0f2fe; color:#0369a1; font-size:1.1rem;">
+                    <i class="ph-bold ph-clock-counter-clockwise"></i>
+                </span>
+                <div>
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #0f172a;">Stock Movement History</h3>
+                    <div id="histModalSub" style="font-size: 0.8rem; color: #64748b;">Loading...</div>
+                </div>
+            </div>
+            <button type="button" onclick="closeStockHistoryModal()" style="border: none; background: none; font-size: 1.25rem; color: #94a3b8; cursor: pointer;">&times;</button>
+        </div>
+
+        <div style="padding: 18px 20px; max-height: 480px; overflow-y: auto;">
+            <div id="histLoading" style="text-align:center; padding:30px; color:#64748b;">
+                <i class="ph-bold ph-spinner" style="font-size:1.8rem; animation: spin 1s linear infinite; display:inline-block;"></i>
+                <div style="margin-top:8px;">Loading transaction history...</div>
+            </div>
+            <div id="histEmpty" style="display:none; text-align:center; padding:30px; color:#94a3b8;">
+                <i class="ph-bold ph-tray" style="font-size:2.2rem; color:#cbd5e1;"></i>
+                <div style="margin-top:8px; font-weight:600;">No movement transactions recorded yet</div>
+            </div>
+            <table id="histTable" style="display:none; width:100%; border-collapse:collapse; font-size:0.83rem;">
+                <thead>
+                    <tr style="background:#f1f5f9; color:#475569; text-align:left; border-bottom:1px solid #cbd5e1;">
+                        <th style="padding:8px 10px;">Date & Time</th>
+                        <th style="padding:8px 10px;">Type</th>
+                        <th style="padding:8px 10px;">Qty</th>
+                        <th style="padding:8px 10px;">Reason</th>
+                        <th style="padding:8px 10px;">Balance</th>
+                        <th style="padding:8px 10px;">By</th>
+                        <th style="padding:8px 10px;">Ref / Notes</th>
+                    </tr>
+                </thead>
+                <tbody id="histTableBody"></tbody>
+            </table>
+        </div>
+
+        <div style="padding: 12px 20px; border-top: 1px solid #e2e8f0; display:flex; justify-content:flex-end; background:#f8fafc;">
+            <button type="button" onclick="closeStockHistoryModal()" class="btn-secondary" style="padding: 8px 18px; cursor:pointer;">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentTxType = 'in';
+
+    const IN_REASONS = [
+        { key: 'purchase', label: 'Direct Purchase' },
+        { key: 'opening_stock', label: 'Opening Stock' },
+        { key: 'customer_return', label: 'Customer Return' },
+        { key: 'audit_addition', label: 'Audit Addition (Physical Count)' },
+        { key: 'other', label: 'Other' }
+    ];
+
+    const OUT_REASONS = [
+        { key: 'internal_use', label: 'Internal / Workshop Use' },
+        { key: 'damage', label: 'Damage / Wastage' },
+        { key: 'expired', label: 'Expired' },
+        { key: 'supplier_return', label: 'Return to Supplier' },
+        { key: 'audit_reduction', label: 'Audit Reduction' },
+        { key: 'loss', label: 'Loss / Theft' },
+        { key: 'other', label: 'Other' }
+    ];
+
+    function openStockAdjustModal(stockId, itemName, currentQty, unit, purchaseRate, type) {
+        document.getElementById('adjust_stock_id').value = stockId;
+        document.getElementById('adjust_current_qty').value = currentQty;
+        document.getElementById('adjust_unit').value = unit || 'Pcs';
+        document.getElementById('adjust_item_name').innerText = itemName;
+        document.getElementById('adjust_current_display').innerText = currentQty + ' ' + (unit || 'Pcs');
+        document.getElementById('adjust_unit_label').innerText = '(' + (unit || 'Pcs') + ')';
+        document.getElementById('adjust_cost').value = purchaseRate || '0.00';
+        document.getElementById('adjust_qty').value = '';
+        document.getElementById('adjust_ref').value = '';
+        document.getElementById('adjust_notes').value = '';
+        document.getElementById('adjust_error').style.display = 'none';
+
+        setAdjustType(type || 'in');
+        calcNewBalance();
+        document.getElementById('stockAdjustModal').style.display = 'flex';
+    }
+
+    function closeStockAdjustModal() {
+        document.getElementById('stockAdjustModal').style.display = 'none';
+    }
+
+    function handleAdjustBackdropClick(e) {
+        if (e.target.id === 'stockAdjustModal') closeStockAdjustModal();
+    }
+
+    function setAdjustType(type) {
+        currentTxType = type;
+        const tabIn = document.getElementById('tabStockIn');
+        const tabOut = document.getElementById('tabStockOut');
+        const title = document.getElementById('adjustModalTitle');
+        const sub = document.getElementById('adjustModalSub');
+        const icon = document.getElementById('adjustModalIcon');
+        const submitBtn = document.getElementById('btnSubmitAdjust');
+        const reasonSel = document.getElementById('adjust_reason');
+
+        if (type === 'in') {
+            tabIn.style.background = '#16a34a';
+            tabIn.style.color = '#ffffff';
+            tabOut.style.background = 'transparent';
+            tabOut.style.color = '#64748b';
+            title.innerText = 'Stock IN';
+            sub.innerText = 'Add new stock without a purchase invoice';
+            icon.style.background = '#dcfce7';
+            icon.style.color = '#15803d';
+            icon.innerHTML = '<i class="ph-bold ph-arrow-down-left"></i>';
+            submitBtn.style.background = '#16a34a';
+            submitBtn.style.borderColor = '#16a34a';
+            submitBtn.innerHTML = '<i class="ph-bold ph-check"></i> Confirm Stock IN';
+
+            reasonSel.innerHTML = IN_REASONS.map(r => `<option value="${r.key}">${r.label}</option>`).join('');
+        } else {
+            tabOut.style.background = '#dc2626';
+            tabOut.style.color = '#ffffff';
+            tabIn.style.background = 'transparent';
+            tabIn.style.color = '#64748b';
+            title.innerText = 'Stock OUT';
+            sub.innerText = 'Deduct stock for internal use, damage, or audit';
+            icon.style.background = '#fee2e2';
+            icon.style.color = '#dc2626';
+            icon.innerHTML = '<i class="ph-bold ph-arrow-up-right"></i>';
+            submitBtn.style.background = '#dc2626';
+            submitBtn.style.borderColor = '#dc2626';
+            submitBtn.innerHTML = '<i class="ph-bold ph-check"></i> Confirm Stock OUT';
+
+            reasonSel.innerHTML = OUT_REASONS.map(r => `<option value="${r.key}">${r.label}</option>`).join('');
+        }
+        calcNewBalance();
+    }
+
+    function calcNewBalance() {
+        const cur = parseFloat(document.getElementById('adjust_current_qty').value || '0');
+        const qty = parseFloat(document.getElementById('adjust_qty').value || '0');
+        const unit = document.getElementById('adjust_unit').value || 'Pcs';
+        const nbDiv = document.getElementById('adjust_new_balance');
+
+        let nb = cur;
+        if (currentTxType === 'in') {
+            nb = cur + qty;
+            nbDiv.style.background = '#dcfce7';
+            nbDiv.style.borderColor = '#86efac';
+            nbDiv.style.color = '#15803d';
+        } else {
+            nb = cur - qty;
+            if (nb < 0) {
+                nbDiv.style.background = '#fee2e2';
+                nbDiv.style.borderColor = '#fca5a5';
+                nbDiv.style.color = '#b91c1c';
+            } else {
+                nbDiv.style.background = '#fef3c7';
+                nbDiv.style.borderColor = '#fde68a';
+                nbDiv.style.color = '#b45309';
+            }
+        }
+        nbDiv.innerText = nb.toFixed(2).replace(/\.00$/, '') + ' ' + unit;
+    }
+
+    async function submitStockAdjust(e) {
+        e.preventDefault();
+        const stockId = document.getElementById('adjust_stock_id').value;
+        const qty = parseFloat(document.getElementById('adjust_qty').value || '0');
+        const cur = parseFloat(document.getElementById('adjust_current_qty').value || '0');
+        const reason = document.getElementById('adjust_reason').value;
+        const ref = document.getElementById('adjust_ref').value.trim();
+        const notes = document.getElementById('adjust_notes').value.trim();
+        const cost = parseFloat(document.getElementById('adjust_cost').value || '0');
+        const errDiv = document.getElementById('adjust_error');
+        const submitBtn = document.getElementById('btnSubmitAdjust');
+
+        errDiv.style.display = 'none';
+
+        if (!qty || qty <= 0) {
+            errDiv.innerText = 'Please enter a valid quantity greater than 0.';
+            errDiv.style.display = 'block';
+            return;
+        }
+
+        if (currentTxType === 'out' && qty > cur) {
+            if (!confirm('Warning: Quantity to deduct (' + qty + ') exceeds current stock (' + cur + '). Continue anyway?')) {
+                return;
+            }
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="ph-bold ph-spinner" style="animation: spin 1s linear infinite; display:inline-block;"></i> Updating...';
+
+        try {
+            const resp = await fetch('/api/stock/adjust/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    stock_id: stockId,
+                    transaction_type: currentTxType,
+                    quantity: qty,
+                    reason: reason,
+                    unit_cost: cost,
+                    reference_number: ref,
+                    notes: notes
+                })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                closeStockAdjustModal();
+                // Update the quantity display in row dynamically!
+                const qtySpan = document.getElementById('qty-val-' + stockId);
+                if (qtySpan) {
+                    qtySpan.innerText = data.data.new_quantity;
+                }
+                alert(data.message || 'Stock updated successfully!');
+            } else {
+                errDiv.innerText = data.message || 'Failed to update stock.';
+                errDiv.style.display = 'block';
+            }
+        } catch (err) {
+            errDiv.innerText = 'Error: ' + err.message;
+            errDiv.style.display = 'block';
+        } finally {
+            submitBtn.disabled = false;
+            setAdjustType(currentTxType);
+        }
+    }
+
+    async function openStockHistoryModal(stockId, itemName, unit) {
+        document.getElementById('histModalSub').innerText = itemName + ' (' + unit + ')';
+        document.getElementById('histLoading').style.display = 'block';
+        document.getElementById('histEmpty').style.display = 'none';
+        document.getElementById('histTable').style.display = 'none';
+        document.getElementById('histTableBody').innerHTML = '';
+        document.getElementById('stockHistoryModal').style.display = 'flex';
+
+        try {
+            const resp = await fetch('/api/stock/transactions/?stock_id=' + stockId);
+            const data = await resp.json();
+            document.getElementById('histLoading').style.display = 'none';
+
+            if (data.success && data.transactions && data.transactions.length > 0) {
+                const rows = data.transactions.map(t => {
+                    const isIn = t.transaction_type === 'in';
+                    const sign = isIn ? '+' : '-';
+                    const badge = isIn
+                        ? '<span style="background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:4px; font-weight:700;">IN</span>'
+                        : '<span style="background:#fee2e2; color:#b91c1c; padding:2px 8px; border-radius:4px; font-weight:700;">OUT</span>';
+                    const qtyColor = isIn ? '#16a34a' : '#dc2626';
+
+                    return `<tr style="border-bottom:1px solid #e2e8f0;">
+                        <td style="padding:10px;">${t.date}</td>
+                        <td style="padding:10px;">${badge}</td>
+                        <td style="padding:10px; font-weight:800; color:${qtyColor};">${sign}${t.quantity} ${unit}</td>
+                        <td style="padding:10px; font-weight:600;">${t.reason_display || t.reason}</td>
+                        <td style="padding:10px; color:#475569;">${t.previous_quantity} → <strong style="color:#0f172a;">${t.new_quantity}</strong></td>
+                        <td style="padding:10px; color:#64748b;">${t.created_by || '-'}</td>
+                        <td style="padding:10px; color:#64748b; font-size:0.78rem;">
+                            ${t.reference_number ? '<strong>Ref:</strong> ' + t.reference_number + '<br>' : ''}
+                            ${t.notes || '-'}
+                        </td>
+                    </tr>`;
+                }).join('');
+                document.getElementById('histTableBody').innerHTML = rows;
+                document.getElementById('histTable').style.display = 'table';
+            } else {
+                document.getElementById('histEmpty').style.display = 'block';
+            }
+        } catch (err) {
+            document.getElementById('histLoading').style.display = 'none';
+            document.getElementById('histEmpty').innerText = 'Error loading history: ' + err.message;
+            document.getElementById('histEmpty').style.display = 'block';
+        }
+    }
+
+    function closeStockHistoryModal() {
+        document.getElementById('stockHistoryModal').style.display = 'none';
+    }
+
+    function handleHistoryBackdropClick(e) {
+        if (e.target.id === 'stockHistoryModal') closeStockHistoryModal();
     }
 </script>
 
