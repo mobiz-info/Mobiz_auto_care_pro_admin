@@ -647,9 +647,20 @@
 
     <!-- LAST: NET CASH IN HAND, CARD, DIGITAL PAYMENT -->
     <div style="margin-top: 6px;">
-        <h3 style="margin: 0 0 12px 4px; font-size: 1.15rem; font-weight: 800; color: #0f172a;">
-            <i class="ph ph-wallet"></i> Cash & Settlement Position
-        </h3>
+        <div style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; padding: 16px 20px; margin-bottom: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <i class="ph ph-wallet" style="font-size: 1.5rem; color: #4f46e5;"></i>
+                <div>
+                    <h4 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">Cash & Settlement Reconciliation</h4>
+                    <span style="font-size: 0.83rem; color: #64748b;">
+                        Sales Received (<strong>{{ currency_symbol }}{{ sales_totals.received|floatformat:2 }}</strong>) + Previous Collection (<strong>{{ currency_symbol }}{{ collection_totals.amount|floatformat:2 }}</strong>)
+                    </span>
+                </div>
+            </div>
+            <div style="background: #e0e7ff; color: #4338ca; padding: 8px 18px; border-radius: 12px; font-weight: 800; font-size: 1rem;">
+                Total Collections Inflow: {{ currency_symbol }} {{ total_inflow|floatformat:2 }}
+            </div>
+        </div>
         <div class="bottom-kpi-grid">
 
             <!-- Net Cash In Hand -->

@@ -418,6 +418,13 @@
 
     <!-- LAST: NET CASH IN HAND, CARD, DIGITAL PAYMENT -->
     <div class="section-heading" style="margin-top: 12px;">Cash & Settlement Position</div>
+    <table class="report-table" style="margin-bottom: 6px;">
+        <tr class="table-total-row" style="background-color: #f8fafc !important;">
+            <td style="width: 33.3%;">Today's Sales Received: <strong>{{ currency_symbol }} {{ sales_totals.received|floatformat:2 }}</strong></td>
+            <td style="width: 33.3%;">Previous Collection: <strong>{{ currency_symbol }} {{ collection_totals.amount|floatformat:2 }}</strong></td>
+            <td style="width: 33.4%; text-align: right;">Total Collections Received: <strong>{{ currency_symbol }} {{ total_inflow|floatformat:2 }}</strong></td>
+        </tr>
+    </table>
     <table class="cash-box-table">
         <thead>
             <tr>
@@ -442,6 +449,13 @@
                 </td>
             </tr>
         </tbody>
+        <tfoot>
+            <tr style="background-color: #f2f2f2; font-weight: 800; font-size: 8pt;">
+                <td colspan="3" style="text-align: center; padding: 6px;">
+                    Total Inflow Received (Cash + Card + Digital): <strong>{{ currency_symbol }} {{ total_inflow|floatformat:2 }}</strong>
+                </td>
+            </tr>
+        </tfoot>
     </table>
 
     <!-- Footer Notes & Signatures -->

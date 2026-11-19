@@ -4060,12 +4060,14 @@ def _build_daily_summary_data(request):
             services_map[s_name]['received'] += inv.amount_collected
             services_map[s_name]['balance'] += (inv.total - inv.amount_collected)
         else:
-            for it in items:
+            raw_amts = [it.net_taxable_amount if (it.net_taxable_amount is not None and it.net_taxable_amount > 0) else (it.rate * it.qty - it.discount) for it in items]
+            sum_raw = sum(raw_amts)
+            for it, r_amt in zip(items, raw_amts):
                 s_name = (it.service_name or 'General Service').strip()
-                if inv.subtotal and inv.subtotal > 0:
-                    it_amt = (it.net_taxable_amount / inv.subtotal) * inv.total
+                if sum_raw > 0:
+                    it_amt = (r_amt / sum_raw) * inv.total
                 else:
-                    it_amt = it.net_taxable_amount or (it.rate * it.qty - it.discount)
+                    it_amt = inv.total / Decimal(str(len(items)))
                 it_rec = it_amt * ratio
                 it_bal = it_amt - it_rec
 
