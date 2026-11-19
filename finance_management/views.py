@@ -2814,7 +2814,16 @@ def generate_quotation_pdf_file(quotation, base_url):
     discount = float(quotation.discount or 0)
     tax_percentage = float(quotation.tax_percentage or 0)
     tax_amount = float(quotation.tax_amount or 0)
-    grand_total = float(quotation.grand_total) if quotation.grand_total else max(0.0, subtotal - discount + tax_amount)
+
+    if tax_percentage == 0 and tax_amount == 0 and company:
+        from tax_management.models import CompanyTax
+        enabled_taxes = CompanyTax.objects.filter(company=company, is_enabled=True, is_deleted=False).select_related('tax')
+        if enabled_taxes.exists():
+            tax_percentage = sum(float(ct.tax.percent) for ct in enabled_taxes)
+            taxable = max(0.0, subtotal - discount)
+            tax_amount = round(taxable * (tax_percentage / 100.0), 2)
+
+    grand_total = float(quotation.grand_total) if (quotation.grand_total and (tax_amount == 0 or float(quotation.grand_total) > (subtotal - discount))) else round(max(0.0, subtotal - discount) + tax_amount, 2)
 
     # 4. Inspection details & checklist
     raw_inspection = getattr(quotation, 'inspection_details', None) or {}
@@ -3297,10 +3306,18 @@ def invoice_create(request):
         company_taxes = CompanyTax.objects.filter(company=company, is_deleted=False, is_enabled=True).select_related('tax')
 
     from client_management.models import WhatsAppSetting
+    selected_branch_obj = None
+    if selected_branch_id:
+        selected_branch_obj = branches_qs.filter(id=selected_branch_id).first()
+    elif branches_qs.exists():
+        selected_branch_obj = branches_qs.first()
+
+    customisation = getattr(selected_branch_obj, 'invoice_customisation', None) if selected_branch_obj else None
+    auto_wa_enabled = customisation.send_invoice_via_whatsapp if customisation else False
+
     whatsapp_invoice_enabled = WhatsAppSetting.objects.filter(
         company=company,
         is_deleted=False,
-        is_official_api=True,
     ).exclude(username='').exclude(password='').exists() if company else False
 
     currency_symbol = '₹'
@@ -3313,6 +3330,8 @@ def invoice_create(request):
         'selected_customer_id': selected_customer_id,
         'selected_vehicle_id': selected_vehicle_id,
         'user_role': role,
+        'auto_wa_enabled': auto_wa_enabled,
+        'whatsapp_invoice_enabled': whatsapp_invoice_enabled,
         'currency_symbol': currency_symbol,
         'customers': customer_qs,
         'services': service_qs,
@@ -4569,6 +4588,7 @@ def invoice_customisation_manage(request, branch_id):
             'show_vehicle_wheel_type': True,
             'show_vehicle_emission_std': True,
             'show_vehicle_odometer': True,
+            'send_invoice_via_whatsapp': False,
         }
     )
 
@@ -4588,6 +4608,7 @@ def invoice_customisation_manage(request, branch_id):
         customisation.show_vehicle_wheel_type = (request.POST.get('show_vehicle_wheel_type') == 'on')
         customisation.show_vehicle_emission_std = (request.POST.get('show_vehicle_emission_std') == 'on')
         customisation.show_vehicle_odometer = (request.POST.get('show_vehicle_odometer') == 'on')
+        customisation.send_invoice_via_whatsapp = (request.POST.get('send_invoice_via_whatsapp') == 'on')
         customisation.save()
 
         messages.success(request, f"Invoice customisation for {branch.name} saved successfully.")

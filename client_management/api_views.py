@@ -603,7 +603,7 @@ def api_customer_search(request):
     today = timezone.now().date()
     vehicles_data = []
     
-    for v in customer.vehicles.filter(is_deleted=False):
+    for v in customer.vehicles.filter(is_deleted=False).order_by('-date_added', '-auto_id'):
         from finance_management.models import Invoice
         scheme_name = None
         paid_visits = 0
@@ -660,7 +660,9 @@ def api_customer_search(request):
             'make': v.make.name if (v and v.make) else '',
             'model': (v.brand_model.name if (v and v.brand_model) else '') or (v.vehicle_type_model.name if (v and v.vehicle_type_model) else ''),
             'color': v.color.name if (v and v.color) else '',
-            'current_odometer_km': getattr(v, 'current_odometer_km', None) or 0
+            'current_odometer_km': getattr(v, 'current_odometer_km', None) or 0,
+            'auto_id': v.auto_id,
+            'date_added': v.date_added.isoformat() if v.date_added else ''
         })
         
     data = {
@@ -1834,17 +1836,20 @@ def api_create_invoice(request):
             except Booking.DoesNotExist:
                 pass
             
-        # Web invoice creation passes an explicit checkbox value. Older app callers
-        # omit it and retain their existing automatic-send behavior.
+        # Check branch invoice customisation for WhatsApp auto-send
+        customisation = getattr(invoice.branch, 'invoice_customisation', None) if invoice.branch_id else None
+        customisation_wa_enabled = customisation.send_invoice_via_whatsapp if customisation else False
+
         whatsapp_triggered = False
-        should_send_whatsapp = data.get('send_whatsapp', True)
         from client_management.models import WhatsAppSetting
-        whatsapp_company = invoice.branch.company if invoice.branch_id else invoice.customer.company
+        whatsapp_company = (invoice.branch.company if invoice.branch_id else None) or (invoice.customer.company if invoice.customer_id else None)
         whatsapp_setting_enabled = WhatsAppSetting.objects.filter(
             company=whatsapp_company,
             is_deleted=False,
-            is_official_api=True,
         ).exclude(username='').exclude(password='').exists() if whatsapp_company else False
+
+        # Only send if enabled in Customisation -> Invoice and WhatsApp settings exist
+        should_send_whatsapp = customisation_wa_enabled and bool(data.get('send_whatsapp', True))
         if should_send_whatsapp and whatsapp_setting_enabled:
             import threading
             base_url = request.build_absolute_uri('/')
@@ -3205,7 +3210,7 @@ def api_get_customer(request):
         customer = Customer.objects.get(id=customer_id, company=company, is_deleted=False)
 
         vehicles_data = []
-        for v in customer.vehicles.filter(is_deleted=False):
+        for v in customer.vehicles.filter(is_deleted=False).order_by('-date_added', '-auto_id'):
             eff_es = v.emission_standard or (v.vehicle_type_model.emission_standard if (v.vehicle_type_model and v.vehicle_type_model.emission_standard) else None)
             std_name = eff_es.name if eff_es else ''
             vehicles_data.append({

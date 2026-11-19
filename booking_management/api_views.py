@@ -5769,7 +5769,17 @@ def api_job_card_invoice(request, job_card_id):
                 return JsonResponse({'success': False, 'message': 'Add priced items to the Job Card before creating an invoice'}, status=400)
             subtotal = sum((line[6] for line in lines), Decimal('0'))
             tax_amount = sum((line[7] for line in lines), Decimal('0'))
-            total = subtotal + tax_amount
+
+            discount_type = data.get('discount_type') or 'amount'
+            discount_percentage = Decimal(str(data.get('discount_percentage') or 0))
+            discount_val = Decimal(str(data.get('discount') or 0))
+            if discount_type in ('percent', 'percentage') and discount_percentage > 0:
+                invoice_discount = (subtotal * discount_percentage / Decimal('100')).quantize(Decimal('0.01'))
+            else:
+                invoice_discount = discount_val
+
+            taxable_after_discount = max(Decimal('0'), subtotal - invoice_discount)
+            total = max(Decimal('0'), taxable_after_discount + tax_amount)
             if amount_collected > total:
                 return JsonResponse({'success': False, 'message': 'Collected amount cannot exceed the invoice total'}, status=400)
 
@@ -5789,7 +5799,7 @@ def api_job_card_invoice(request, job_card_id):
 
             invoice = Invoice.objects.create(
                 invoice_number=invoice_number, customer=job.customer, vehicle=job.vehicle,
-                branch=branch_obj, job_card=job, subtotal=subtotal, discount=Decimal('0'),
+                branch=branch_obj, job_card=job, subtotal=subtotal, discount=invoice_discount,
                 tax_amount=tax_amount, total=total, amount_collected=amount_collected,
                 invoice_type='cashinvoice' if amount_collected >= total else 'creditinvoice',
                 remarks=(data.get('remarks') or '').strip() or f'Job Card {job.job_number}',
@@ -5815,6 +5825,31 @@ def api_job_card_invoice(request, job_card_id):
                 )
             job.status = JobCard.STATUS_COMPLETED
             job.save(update_fields=['status'])
+
+            # Automatically send invoice via WhatsApp if enabled in branch customisation & settings exist
+            try:
+                from finance_management.models import BranchInvoiceCustomisation
+                from client_management.models import WhatsAppSetting
+                from client_management.api_views import send_invoice_whatsapp_background
+                import threading
+
+                customisation = BranchInvoiceCustomisation.objects.filter(branch=branch_obj).first()
+                if customisation and customisation.send_invoice_via_whatsapp:
+                    company = branch_obj.company if branch_obj else None
+                    wa_setting = WhatsAppSetting.objects.filter(
+                        company=company,
+                        is_deleted=False
+                    ).exclude(username='').exclude(password='').first() if company else None
+                    if wa_setting:
+                        base_url = request.build_absolute_uri('/')
+                        threading.Thread(
+                            target=send_invoice_whatsapp_background,
+                            args=(invoice.id, base_url),
+                            daemon=False
+                        ).start()
+            except Exception:
+                pass
+
             return response_for(invoice)
     except (InvalidOperation, ValueError) as exc:
         return JsonResponse({'success': False, 'message': str(exc)}, status=400)
@@ -6665,8 +6700,19 @@ def api_job_lead_form_data(request):
         states = states.filter(country=country)
     seal = getattr(company, 'company_seal', None)
     seal_url = request.build_absolute_uri(seal.url) if seal else ''
+    from tax_management.models import CompanyTax
+    taxes_data = []
+    if company:
+        enabled_taxes = CompanyTax.objects.filter(company=company, is_enabled=True, is_deleted=False).select_related('tax')
+        for ct in enabled_taxes:
+            taxes_data.append({
+                'id': str(ct.tax.id),
+                'name': ct.tax.name,
+                'percent': float(ct.tax.percent),
+            })
     return JsonResponse({'success': True,
         'company_seal_url': seal_url,
+        'taxes': taxes_data,
         'states': [{'id': str(s.id), 'name': s.name} for s in states.order_by('name')],
         'staff': [{'id': str(s.id), 'name': s.name} for s in staff.order_by('name')],
         'customer_types': [{'id': str(c.id), 'name': c.name} for c in CustomerType.objects.filter(is_deleted=False).exclude(name__icontains='Workshop').order_by('name')],
@@ -7187,13 +7233,40 @@ def api_job_quotation_create(request):
                 (extra.total for extra in quotation.extras.filter(is_deleted=False)),
                 Decimal('0'),
             )
+            from tax_management.models import CompanyTax
+            passed_tax_pct = Decimal(str(data.get('tax_percentage') or 0))
+            if passed_tax_pct > 0:
+                tax_percentage = passed_tax_pct
+            else:
+                enabled_taxes = CompanyTax.objects.filter(company=company, is_enabled=True, is_deleted=False).select_related('tax') if company else []
+                tax_percentage = sum((Decimal(str(ct.tax.percent)) for ct in enabled_taxes), Decimal('0'))
+
+            discount_type = data.get('discount_type') or 'amount'
+            discount_percentage = Decimal(str(data.get('discount_percentage') or 0))
+            passed_discount = Decimal(str(data.get('discount') or 0))
+
+            if discount_type == 'percentage' and discount_percentage > 0:
+                discount = (row_subtotal * discount_percentage / Decimal('100')).quantize(Decimal('0.01'))
+            else:
+                discount = passed_discount
+
+            taxable_amount = max(Decimal('0'), row_subtotal - discount)
+            passed_tax_amt = Decimal(str(data.get('tax_amount') or 0))
+            if passed_tax_amt > 0 and passed_tax_pct > 0:
+                tax_amount = passed_tax_amt
+            else:
+                tax_amount = (taxable_amount * tax_percentage / Decimal('100')).quantize(Decimal('0.01')) if tax_percentage > 0 else Decimal('0')
+
+            grand_total = taxable_amount + tax_amount
+
             quotation.subtotal = row_subtotal
-            quotation.tax_percentage = Decimal('0')
-            quotation.tax_amount = Decimal('0')
-            quotation.discount = Decimal('0')
-            quotation.discount_percentage = Decimal('0')
-            quotation.grand_total = row_subtotal
-            quotation.save(update_fields=['subtotal', 'tax_percentage', 'tax_amount', 'discount', 'discount_percentage', 'grand_total', 'date_updated'])
+            quotation.tax_percentage = tax_percentage
+            quotation.tax_amount = tax_amount
+            quotation.discount = discount
+            quotation.discount_type = discount_type
+            quotation.discount_percentage = discount_percentage
+            quotation.grand_total = grand_total
+            quotation.save(update_fields=['subtotal', 'tax_percentage', 'tax_amount', 'discount', 'discount_type', 'discount_percentage', 'grand_total', 'date_updated'])
             if lead:
                 lead.status = JobLead.STATUS_QUOTED
                 lead.save(update_fields=['status', 'date_updated'])
@@ -7781,18 +7854,46 @@ def api_job_quotation_update(request, quotation_id):
                 JobQuotationItem.objects.filter(reported_issue_id__in=removed_report_ids, is_deleted=False).update(is_deleted=True, updater=user)
                 JobQuotationIssuePhoto.objects.filter(reported_issue_id__in=removed_report_ids, is_deleted=False).update(is_deleted=True, updater=user)
                 removed_reports.update(is_deleted=True, updater=user)
-            if any(key in data for key in ('items', 'extras', 'labour_charges', 'reported_issues')):
+            if any(key in data for key in ('items', 'extras', 'labour_charges', 'reported_issues', 'subtotal', 'tax_percentage', 'discount')):
+                from tax_management.models import CompanyTax
                 row_subtotal = sum(
                     (_job_quotation_item_total(item) for item in quotation.items.filter(is_deleted=False)),
                     Decimal('0'),
                 ) + sum((extra.total for extra in quotation.extras.filter(is_deleted=False)), Decimal('0'))
+
+                passed_tax_pct = Decimal(str(data.get('tax_percentage') if data.get('tax_percentage') is not None else (quotation.tax_percentage or 0)))
+                if passed_tax_pct > 0:
+                    tax_percentage = passed_tax_pct
+                else:
+                    enabled_taxes = CompanyTax.objects.filter(company=company, is_enabled=True, is_deleted=False).select_related('tax') if company else []
+                    tax_percentage = sum((Decimal(str(ct.tax.percent)) for ct in enabled_taxes), Decimal('0'))
+
+                discount_type = data.get('discount_type') or quotation.discount_type or 'amount'
+                discount_percentage = Decimal(str(data.get('discount_percentage') if data.get('discount_percentage') is not None else (quotation.discount_percentage or 0)))
+                passed_discount = Decimal(str(data.get('discount') if data.get('discount') is not None else (quotation.discount or 0)))
+
+                if discount_type == 'percentage' and discount_percentage > 0:
+                    discount = (row_subtotal * discount_percentage / Decimal('100')).quantize(Decimal('0.01'))
+                else:
+                    discount = passed_discount
+
+                taxable_amount = max(Decimal('0'), row_subtotal - discount)
+                passed_tax_amt = Decimal(str(data.get('tax_amount') if data.get('tax_amount') is not None else 0))
+                if passed_tax_amt > 0 and passed_tax_pct > 0:
+                    tax_amount = passed_tax_amt
+                else:
+                    tax_amount = (taxable_amount * tax_percentage / Decimal('100')).quantize(Decimal('0.01')) if tax_percentage > 0 else Decimal('0')
+
+                grand_total = taxable_amount + tax_amount
+
                 quotation.subtotal = row_subtotal
-                quotation.tax_percentage = Decimal('0')
-                quotation.tax_amount = Decimal('0')
-                quotation.discount = Decimal('0')
-                quotation.discount_percentage = Decimal('0')
-                quotation.grand_total = row_subtotal
-                quotation.save(update_fields=['subtotal', 'tax_percentage', 'tax_amount', 'discount', 'discount_percentage', 'grand_total', 'date_updated'])
+                quotation.tax_percentage = tax_percentage
+                quotation.tax_amount = tax_amount
+                quotation.discount = discount
+                quotation.discount_type = discount_type
+                quotation.discount_percentage = discount_percentage
+                quotation.grand_total = grand_total
+                quotation.save(update_fields=['subtotal', 'tax_percentage', 'tax_amount', 'discount', 'discount_type', 'discount_percentage', 'grand_total', 'date_updated'])
         return JsonResponse({'success': True, 'quotation_id': str(quotation.id)})
     except Exception as exc:
         import logging

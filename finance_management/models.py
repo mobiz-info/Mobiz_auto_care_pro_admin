@@ -229,6 +229,12 @@ class BranchInvoiceCustomisation(BaseModel):
     show_vehicle_emission_std = models.BooleanField(default=True)
     show_vehicle_odometer = models.BooleanField(default=True)
 
+    # WhatsApp automation
+    send_invoice_via_whatsapp = models.BooleanField(
+        default=False,
+        help_text="Automatically send invoice via WhatsApp upon creation if WhatsApp settings exist"
+    )
+
     def __str__(self):
         return f"Invoice Customisation - {self.branch.name}"
 

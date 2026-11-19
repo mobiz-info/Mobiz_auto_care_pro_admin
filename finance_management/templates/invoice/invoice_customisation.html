@@ -150,6 +150,65 @@
         accent-color: #3b82f6;
         cursor: pointer;
     }
+
+    /* Switch toggle styling */
+    .switch-toggle-card {
+        background: #ffffff;
+        border: 1.5px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 18px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        transition: all 0.2s;
+    }
+    .switch-toggle-card:hover {
+        border-color: #cbd5e1;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .switch {
+        position: relative;
+        display: inline-block;
+        width: 48px;
+        height: 26px;
+        flex-shrink: 0;
+        margin: 0;
+    }
+    .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #cbd5e1;
+        transition: .3s;
+        border-radius: 26px;
+    }
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .3s;
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .switch input:checked + .slider {
+        background-color: #25D366;
+    }
+    .switch input:checked + .slider:before {
+        transform: translateX(22px);
+    }
 </style>
 
 <div class="premium-form-container">
@@ -259,6 +318,29 @@
             <label class="custom-check-item">
                 <input type="checkbox" name="show_vehicle_odometer" {% if customisation.show_vehicle_odometer %}checked{% endif %}>
                 <span>Odometer Reading</span>
+            </label>
+        </div>
+
+        <!-- 3. WhatsApp Notification -->
+        <div class="form-section-label" style="margin-top: 28px;">
+            <i class="ph ph-whatsapp-logo" style="color: #25D366; font-size: 1.15rem;"></i> WhatsApp Automation
+        </div>
+
+        <div class="switch-toggle-card">
+            <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <span style="font-size: 0.95rem; font-weight: 600; color: #1e293b;">Send Invoice via WhatsApp</span>
+                    <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 600; background: #dcfce7; color: #15803d;">
+                        <i class="ph ph-lightning"></i> Auto Send
+                    </span>
+                </div>
+                <p style="font-size: 0.85rem; color: #64748b; margin: 0; line-height: 1.45;">
+                    Automatically send invoice PDF and details to the customer's WhatsApp upon invoice creation. (Requires active WhatsApp settings).
+                </p>
+            </div>
+            <label class="switch">
+                <input type="checkbox" name="send_invoice_via_whatsapp" id="send_invoice_via_whatsapp" {% if customisation.send_invoice_via_whatsapp %}checked{% endif %}>
+                <span class="slider"></span>
             </label>
         </div>
 

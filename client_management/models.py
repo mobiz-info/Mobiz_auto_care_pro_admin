@@ -343,6 +343,9 @@ class CustomerVehicle(BaseModel):
     def __str__(self):
         return f"{self.vehicle_number} - {self.vehicle_type_model.name}"
 
+    class Meta:
+        ordering = ['-date_added', '-auto_id']
+
 
 class Scheme(BaseModel):
     SCHEME_BENEFIT_QTY = 'Quantity'
