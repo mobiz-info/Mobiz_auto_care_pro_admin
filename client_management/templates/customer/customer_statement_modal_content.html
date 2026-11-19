@@ -1,0 +1,123 @@
+<div class="modal-soa-wrapper" style="padding: 6px 10px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000;">
+
+    <!-- Top Action Buttons -->
+    <div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
+        <a href="{% url 'customer_statement_pdf' %}?customer={{ customer.id }}&from_date={{ from_date }}&to_date={{ to_date }}" target="_blank"
+           class="btn-action" style="height: 36px; padding: 0 14px; background: #dc2626; color: white; border-radius: 8px; text-decoration: none; font-size: 0.84rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+            <i class="ph ph-file-pdf"></i> Download PDF
+        </a>
+        <button type="button" onclick="printModalStatement()"
+           class="btn-action" style="height: 36px; padding: 0 14px; background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; border-radius: 8px; font-size: 0.84rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+            <i class="ph ph-printer"></i> Print
+        </button>
+        <a href="{% url 'customer_ledger' %}?customer={{ customer.id }}&from_date={{ from_date }}&to_date={{ to_date }}" target="_blank"
+           class="btn-action" style="height: 36px; padding: 0 14px; background: #4f46e5; color: white; border-radius: 8px; text-decoration: none; font-size: 0.84rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+            <i class="ph ph-arrow-square-out"></i> Full Screen
+        </a>
+    </div>
+
+    <!-- Header: Left Customer, Right Company (No black boxes) -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 14px; flex-wrap: wrap;">
+        <!-- Left: Customer Details -->
+        <div style="flex: 1; min-width: 250px;">
+            <div style="font-size: 1.25rem; font-weight: 800; color: #000000; margin-bottom: 4px;">
+                {{ customer.name }}
+            </div>
+            <div style="font-size: 0.88rem; color: #111111; line-height: 1.5;">
+                <div><strong>Phone:</strong> {{ customer.phone }}{% if customer.whatsapp_number and customer.whatsapp_number != customer.phone %} | <span style="color:#16a34a;">WA: {{ customer.whatsapp_number }}</span>{% endif %}</div>
+                {% if customer.tax_number %}
+                    <div><strong>TRN:</strong> <span style="font-weight: 700;">{{ customer.tax_number }}</span></div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Right: Company Details -->
+        <div style="flex: 1; min-width: 250px; text-align: right;">
+            {% if company.logo_color %}
+                <img src="{{ company.logo_color.url }}" alt="Company Logo" style="max-height: 44px; max-width: 150px; object-fit: contain; margin-bottom: 4px;">
+            {% elif company.logo_bw %}
+                <img src="{{ company.logo_bw.url }}" alt="Company Logo" style="max-height: 44px; max-width: 150px; object-fit: contain; margin-bottom: 4px;">
+            {% endif %}
+            <div style="font-size: 1.15rem; font-weight: 800; color: #000000; margin-bottom: 2px;">
+                {% if company %}{{ company.company_name }}{% else %}Mobiz Car Wash{% endif %}
+            </div>
+            <div style="font-size: 0.84rem; color: #333333; line-height: 1.4;">
+                {% if company.business_name and company.business_name != company.company_name %}
+                    <div><strong>Trading As:</strong> {{ company.business_name }}</div>
+                {% endif %}
+                {% if company.address %}
+                    <div>{{ company.address }}</div>
+                {% endif %}
+                <div>
+                    {% if company.phone %}<span>Phone: {{ company.phone }}</span>{% endif %}
+                    {% if company.email %}<span> | Email: {{ company.email }}</span>{% endif %}
+                </div>
+                {% if company.gst_number %}
+                    <div><strong>TRN:</strong> {{ company.gst_number }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Title Section: Clean text, no black box -->
+    <div style="text-align: center; margin: 12px 0 16px 0; padding-bottom: 6px; border-bottom: 1.5px solid #000000;">
+        <div style="font-size: 1.15rem; font-weight: 800; color: #000000; letter-spacing: 0.8px; text-transform: uppercase;">
+            STATEMENT OF ACCOUNT
+        </div>
+        <div style="font-size: 0.84rem; color: #333333; margin-top: 3px;">
+            Period: <strong>{{ from_date_display }}</strong> &mdash; <strong>{{ to_date_display }}</strong> &nbsp;|&nbsp; Date: <strong>{{ statement_date }}</strong>
+        </div>
+    </div>
+
+    <!-- Statement Table: Exact 9 columns with crisp black borders, matching photo -->
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #000000;">
+            <thead>
+                <tr style="background-color: #f2f2f2; color: #000000;">
+                    <th style="padding: 7px 5px; border: 1px solid #000000; font-size: 0.8rem; font-weight: 700; width: 55px; text-align: center;">Sl No#</th>
+                    <th style="padding: 7px 5px; border: 1px solid #000000; font-size: 0.8rem; font-weight: 700; width: 95px; text-align: center;">Date</th>
+                    <th style="padding: 7px 5px; border: 1px solid #000000; font-size: 0.8rem; font-weight: 700; width: 110px; text-align: center;">Inv No#</th>
+                    <th style="padding: 7px 5px; border: 1px solid #000000; font-size: 0.8rem; font-weight: 700; width: 110px; text-align: center;">Vehicle Number</th>
+                    <th style="padding: 7px 5px; border: 1px solid #000000; font-size: 0.8rem; font-weight: 700; width: 130px; text-align: center;">Vehicle Name</th>
+                    <th style="padding: 7px 8px; border: 1px solid #000000; font-size: 0.8rem; font-weight: 700; text-align: left;">Description</th>
+                    <th style="padding: 7px 6px; border: 1px solid #000000; font-size: 0.8rem; font-weight: 700; width: 95px; text-align: right;">Amount</th>
+                    <th style="padding: 7px 6px; border: 1px solid #000000; font-size: 0.8rem; font-weight: 700; width: 95px; text-align: right;">Tax Amount</th>
+                    <th style="padding: 7px 6px; border: 1px solid #000000; font-size: 0.8rem; font-weight: 700; width: 105px; text-align: right;">Total Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in ledger_items %}
+                <tr>
+                    <td style="padding: 6px 5px; border: 1px solid #000000; text-align: center; color: #475569;">{{ item.sl_no }}</td>
+                    <td style="padding: 6px 5px; border: 1px solid #000000; text-align: center; font-weight: 600;">{{ item.date|date:"d/m/Y" }}</td>
+                    <td style="padding: 6px 5px; border: 1px solid #000000; text-align: center; font-weight: 700;">{{ item.invoice_number }}</td>
+                    <td style="padding: 6px 5px; border: 1px solid #000000; text-align: center; font-family: monospace; font-weight: 600;">{{ item.vehicle_no }}</td>
+                    <td style="padding: 6px 5px; border: 1px solid #000000; text-align: center; text-transform: uppercase; font-weight: 600;">{{ item.vehicle_name }}</td>
+                    <td style="padding: 6px 8px; border: 1px solid #000000; text-transform: uppercase;">{{ item.service }}</td>
+                    <td style="padding: 6px 6px; border: 1px solid #000000; text-align: right; font-variant-numeric: tabular-nums;">{{ item.amount|floatformat:2 }}</td>
+                    <td style="padding: 6px 6px; border: 1px solid #000000; text-align: right; font-variant-numeric: tabular-nums;">{{ item.tax_amount|floatformat:2 }}</td>
+                    <td style="padding: 6px 6px; border: 1px solid #000000; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums;">{{ item.total_amount|floatformat:2 }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" style="padding: 24px; text-align: center; border: 1px solid #000000; color: #64748b;">
+                        No invoice transactions recorded during this period.
+                    </td>
+                </tr>
+                {% endfor %}
+
+                <!-- Total Row -->
+                <tr style="background-color: #f2f2f2; font-weight: 800; color: #000000;">
+                    <td colspan="6" style="padding: 8px 10px; border: 1px solid #000000; text-align: right; text-transform: uppercase; letter-spacing: 0.3px;">
+                        Total:
+                    </td>
+                    <td style="padding: 8px 6px; border: 1px solid #000000; text-align: right; font-variant-numeric: tabular-nums;">{{ period_subtotal|floatformat:2 }}</td>
+                    <td style="padding: 8px 6px; border: 1px solid #000000; text-align: right; font-variant-numeric: tabular-nums;">{{ period_tax|floatformat:2 }}</td>
+                    <td style="padding: 8px 6px; border: 1px solid #000000; text-align: right; font-variant-numeric: tabular-nums; font-size: 0.95rem;">{{ period_invoiced|floatformat:2 }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+

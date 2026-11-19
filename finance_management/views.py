@@ -3830,14 +3830,28 @@ def outstanding_report(request):
 
     aging_filter = (request.GET.get('aging') or 'all').strip()
 
-    # Process invoice list, calculate balance and days passed
-    invoice_list_data = []
-    total_inv_amount = Decimal('0.00')
-    total_paid_amount = Decimal('0.00')
-    total_balance_amount = Decimal('0.00')
+    # Aggregate by customer for summary outstanding report
+    from collections import defaultdict
+    customer_summary = defaultdict(lambda: {
+        'customer': None,
+        'customer_id': '',
+        'customer_name': '',
+        'customer_phone': '',
+        'customer_type': '',
+        'total_outstanding': Decimal('0.00'),
+        'total_invoiced': Decimal('0.00'),
+        'total_paid': Decimal('0.00'),
+        'invoices_count': 0,
+        'max_days_passed': 0,
+    })
+
+    total_invoices_count = 0
     total_days_passed = 0
 
     for inv in invoices:
+        if not inv.customer:
+            continue
+        cid = str(inv.customer.id)
         inv_amt = inv.total or Decimal('0.00')
         paid_amt = inv.amount_collected or Decimal('0.00')
         balance = inv_amt - paid_amt
@@ -3858,38 +3872,49 @@ def outstanding_report(request):
         elif aging_filter == '90_plus' and not (days_passed > 90):
             continue
 
-        total_inv_amount += inv_amt
-        total_paid_amount += paid_amt
-        total_balance_amount += balance
+        c = customer_summary[cid]
+        c['customer'] = inv.customer
+        c['customer_id'] = cid
+        c['customer_name'] = inv.customer.name
+        c['customer_phone'] = inv.customer.phone or ''
+        c['customer_type'] = inv.customer.customer_type.name if inv.customer.customer_type else ''
+        c['total_outstanding'] += balance
+        c['total_invoiced'] += inv_amt
+        c['total_paid'] += paid_amt
+        c['invoices_count'] += 1
+        if days_passed > c['max_days_passed']:
+            c['max_days_passed'] = days_passed
+
         total_days_passed += days_passed
+        total_invoices_count += 1
 
-        invoice_list_data.append({
-            'invoice': inv,
-            'customer_name': inv.customer.name if inv.customer else '-',
-            'customer_phone': inv.customer.phone if inv.customer else '-',
-            'vehicle_number': inv.vehicle.vehicle_number if inv.vehicle else '-',
-            'vehicle_model': inv.vehicle.vehicle_type_model.name if inv.vehicle and inv.vehicle.vehicle_type_model else '',
-            'branch_name': inv.branch.name if inv.branch else '',
-            'inv_date': inv.date,
-            'inv_amount': inv_amt,
-            'paid': paid_amt,
-            'balance': balance,
-            'days_passed': days_passed,
-        })
+    customer_list = [item for item in customer_summary.values() if item['total_outstanding'] > 0]
+    customer_list.sort(key=lambda x: x['total_outstanding'], reverse=True)
 
-    count = len(invoice_list_data)
-    avg_days_passed = round(total_days_passed / count) if count > 0 else 0
+    total_balance_amount = Decimal('0.00')
+    total_inv_amount = Decimal('0.00')
+    total_paid_amount = Decimal('0.00')
+
+    for idx, item in enumerate(customer_list, start=1):
+        item['sl_no'] = idx
+        total_balance_amount += item['total_outstanding']
+        total_inv_amount += item['total_invoiced']
+        total_paid_amount += item['total_paid']
+
+    avg_days_passed = round(total_days_passed / total_invoices_count) if total_invoices_count > 0 else 0
 
     currency_symbol = '₹'
     if company and company.country and company.country.currency_symbol:
         currency_symbol = company.country.currency_symbol
 
     context = {
-        'invoices': invoice_list_data,
+        'customer_list': customer_list,
+        'invoices': customer_list,
+        'total_customers_count': len(customer_list),
         'total_inv_amount': total_inv_amount,
         'total_paid_amount': total_paid_amount,
         'total_balance_amount': total_balance_amount,
-        'total_count': count,
+        'total_count': total_invoices_count,
         'avg_days_passed': avg_days_passed,
         'currency_symbol': currency_symbol,
         'from_date': from_date,

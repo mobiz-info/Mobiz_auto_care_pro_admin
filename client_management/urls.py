@@ -197,6 +197,7 @@ urlpatterns = [
     path('customer-ledger/', views.customer_ledger, name='customer_ledger'),
     path('customer-ledger/search-ajax/', views.customer_search_ajax, name='customer_search_ajax'),
     path('customer-ledger/pdf/', views.customer_statement_pdf, name='customer_statement_pdf'),
+    path('customer-ledger/statement-modal/<uuid:customer_id>/', views.customer_statement_modal_ajax, name='customer_statement_modal_ajax'),
     path('inactive-customer/', views.inactive_customer, name='inactive_customer'),
     path('new-customer/', views.new_customer, name='new_customer'),
     

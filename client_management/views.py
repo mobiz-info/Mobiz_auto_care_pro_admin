@@ -2497,6 +2497,44 @@ def customer_ledger(request):
 
 
 @login_required
+def customer_statement_modal_ajax(request, customer_id):
+    """AJAX endpoint to render Statement of Account inside a popup modal."""
+    from datetime import datetime
+    user = request.user
+    role = user.profile.role.name if hasattr(user, 'profile') and user.profile.role else None
+
+    customers = Customer.objects.filter(is_deleted=False)
+    if role == 'BRANCH_ADMIN' and hasattr(user, 'managed_branch'):
+        customers = customers.filter(branch=user.managed_branch)
+    elif role == 'COMPANY_ADMIN' and hasattr(user.profile, 'company') and user.profile.company:
+        customers = customers.filter(company=user.profile.company)
+
+    customer = get_object_or_404(customers, id=customer_id)
+    today = now().date()
+    from_date_str = request.GET.get('from_date', '').strip()
+    to_date_str = request.GET.get('to_date', '').strip()
+
+    if from_date_str:
+        try:
+            from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            from_date = today.replace(day=1)
+    else:
+        from_date = today.replace(day=1)
+
+    if to_date_str:
+        try:
+            to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            to_date = today
+    else:
+        to_date = today
+
+    context = _build_customer_statement_context(request, customer, from_date, to_date)
+    return render(request, 'customer/customer_statement_modal_content.html', context)
+
+
+@login_required
 def inactive_customer(request):
     
     inactive_days = 60
