@@ -3971,6 +3971,291 @@ def outstanding_report_pdf(request):
     return response
 
 
+def _build_daily_summary_data(request):
+    user = request.user
+    role = user.profile.role.name if hasattr(user, 'profile') and user.profile.role else None
+
+    from decimal import Decimal
+    from django.utils import timezone
+    from datetime import datetime
+    from django.db.models import Sum, Count, Q
+    from finance_management.models import Invoice, InvoiceItem, Receipt
+    from master.models import ExpenseEntry, PurchaseInvoice, Supplier
+    from client_management.models import Branch, Client
+
+    today = timezone.localdate() if hasattr(timezone, 'localdate') else timezone.now().date()
+    today_str = today.strftime('%Y-%m-%d')
+
+    from_date_raw = (request.GET.get('from_date') or request.GET.get('fromdate') or '').strip()
+    to_date_raw = (request.GET.get('to_date') or request.GET.get('todate') or '').strip()
+
+    from_date = from_date_raw if from_date_raw else today_str
+    to_date = to_date_raw if to_date_raw else today_str
+
+    branch_id = (request.GET.get('branch_id') or request.GET.get('branch') or '').strip()
+
+    company = getattr(user.profile, 'company', None) if hasattr(user, 'profile') else None
+    managed_branch = getattr(user, 'managed_branch', None)
+    if not company and managed_branch:
+        company = managed_branch.company
+
+    if role == 'SUPER_ADMIN' or getattr(user, 'is_superuser', False):
+        branches = Branch.objects.filter(is_deleted=False).order_by('name')
+        if branch_id:
+            sel_b = Branch.objects.filter(id=branch_id, is_deleted=False).first()
+            if sel_b:
+                company = sel_b.company
+        if not company:
+            company = Client.objects.filter(is_deleted=False).first()
+    elif role == 'COMPANY_ADMIN' and company:
+        branches = Branch.objects.filter(company=company, is_deleted=False).order_by('name')
+    elif role == 'BRANCH_ADMIN' and managed_branch:
+        branches = Branch.objects.filter(id=managed_branch.id, is_deleted=False)
+        branch_id = str(managed_branch.id)
+    else:
+        branches = Branch.objects.filter(is_deleted=False).order_by('name')
+        if not company:
+            company = Client.objects.filter(is_deleted=False).first()
+
+    currency_symbol = '₹'
+    if company and company.country and company.country.currency_symbol:
+        currency_symbol = company.country.currency_symbol
+
+    # Base QuerySets with scope
+    inv_qs = Invoice.objects.filter(is_deleted=False, date__gte=from_date, date__lte=to_date)
+    exp_qs = ExpenseEntry.objects.filter(is_deleted=False, expense_date__gte=from_date, expense_date__lte=to_date)
+    rcpt_qs = Receipt.objects.filter(is_deleted=False, invoice__is_deleted=False, created_at__date__gte=from_date, created_at__date__lte=to_date)
+    purch_qs = PurchaseInvoice.objects.filter(is_deleted=False, invoice_date__gte=from_date, invoice_date__lte=to_date)
+
+    if branch_id:
+        inv_qs = inv_qs.filter(branch_id=branch_id)
+        exp_qs = exp_qs.filter(branch_id=branch_id)
+        rcpt_qs = rcpt_qs.filter(invoice__branch_id=branch_id)
+        purch_qs = purch_qs.filter(branch_id=branch_id)
+    elif role == 'COMPANY_ADMIN' and company:
+        inv_qs = inv_qs.filter(branch__company=company)
+        exp_qs = exp_qs.filter(branch__company=company)
+        rcpt_qs = rcpt_qs.filter(invoice__branch__company=company)
+        purch_qs = purch_qs.filter(branch__company=company)
+    elif role == 'BRANCH_ADMIN' and managed_branch:
+        inv_qs = inv_qs.filter(branch=managed_branch)
+        exp_qs = exp_qs.filter(branch=managed_branch)
+        rcpt_qs = rcpt_qs.filter(invoice__branch=managed_branch)
+        purch_qs = purch_qs.filter(branch=managed_branch)
+
+    # 1. Sales Table (slno, service, totalno, amount, recived, balance)
+    inv_list = inv_qs.prefetch_related('items').order_by('-date', '-auto_id')
+    services_map = {}
+    for inv in inv_list:
+        ratio = (inv.amount_collected / inv.total) if (inv.total and inv.total > 0) else Decimal('0.00')
+        if ratio > Decimal('1.00'):
+            ratio = Decimal('1.00')
+        items = list(inv.items.filter(is_deleted=False))
+        if not items:
+            s_name = 'General / Direct Sale'
+            if s_name not in services_map:
+                services_map[s_name] = {'service': s_name, 'totalno': Decimal('0'), 'amount': Decimal('0'), 'received': Decimal('0'), 'balance': Decimal('0')}
+            services_map[s_name]['totalno'] += Decimal('1')
+            services_map[s_name]['amount'] += inv.total
+            services_map[s_name]['received'] += inv.amount_collected
+            services_map[s_name]['balance'] += (inv.total - inv.amount_collected)
+        else:
+            for it in items:
+                s_name = (it.service_name or 'General Service').strip()
+                if inv.subtotal and inv.subtotal > 0:
+                    it_amt = (it.net_taxable_amount / inv.subtotal) * inv.total
+                else:
+                    it_amt = it.net_taxable_amount or (it.rate * it.qty - it.discount)
+                it_rec = it_amt * ratio
+                it_bal = it_amt - it_rec
+
+                if s_name not in services_map:
+                    services_map[s_name] = {'service': s_name, 'totalno': Decimal('0'), 'amount': Decimal('0'), 'received': Decimal('0'), 'balance': Decimal('0')}
+                services_map[s_name]['totalno'] += (it.qty or Decimal('1'))
+                services_map[s_name]['amount'] += it_amt
+                services_map[s_name]['received'] += it_rec
+                services_map[s_name]['balance'] += it_bal
+
+    sales_rows = sorted(services_map.values(), key=lambda x: x['amount'], reverse=True)
+    for idx, row in enumerate(sales_rows, start=1):
+        row['slno'] = idx
+
+    sales_totals = {
+        'totalno': sum((r['totalno'] for r in sales_rows), Decimal('0')),
+        'amount': sum((r['amount'] for r in sales_rows), Decimal('0')),
+        'received': sum((r['received'] for r in sales_rows), Decimal('0')),
+        'balance': sum((r['balance'] for r in sales_rows), Decimal('0')),
+    }
+
+    # 2. Expense Table (slno, expensehead, amount, paid, balance)
+    exp_filtered = exp_qs.exclude(expense__expense_head__name__iexact='Purchase')
+    exp_grouped = exp_filtered.values('expense__expense_head__name').annotate(
+        amount=Sum('amount'),
+        paid=Sum('paid_amount')
+    ).order_by('-amount')
+
+    expense_rows = []
+    for idx, e in enumerate(exp_grouped, start=1):
+        amt = e['amount'] or Decimal('0.00')
+        pd = e['paid'] or Decimal('0.00')
+        bal = amt - pd
+        expense_rows.append({
+            'slno': idx,
+            'expensehead': e['expense__expense_head__name'] or 'General Expense',
+            'amount': amt,
+            'paid': pd,
+            'balance': bal,
+        })
+
+    expense_totals = {
+        'amount': sum((r['amount'] for r in expense_rows), Decimal('0.00')),
+        'paid': sum((r['paid'] for r in expense_rows), Decimal('0.00')),
+        'balance': sum((r['balance'] for r in expense_rows), Decimal('0.00')),
+    }
+
+    # 3. Collection Table (previous outstanding collection: slno, customername, amount)
+    prev_coll_qs = rcpt_qs.filter(invoice__date__lt=from_date).values(
+        'invoice__customer__id',
+        'invoice__customer__name',
+        'invoice__customer__phone'
+    ).annotate(total_amount=Sum('amount')).order_by('-total_amount')
+
+    collection_rows = []
+    for idx, c in enumerate(prev_coll_qs, start=1):
+        name = c['invoice__customer__name'] or 'Unknown Customer'
+        phone = c['invoice__customer__phone'] or ''
+        amt = c['total_amount'] or Decimal('0.00')
+        collection_rows.append({
+            'slno': idx,
+            'customername': name,
+            'customerphone': phone,
+            'amount': amt,
+        })
+
+    collection_totals = {
+        'amount': sum((r['amount'] for r in collection_rows), Decimal('0.00')),
+    }
+
+    # 4. Purchase Table (slno, supplier, invo.no, amount, paid, balance)
+    purch_list = purch_qs.select_related('supplier').order_by('-invoice_date', '-date_added')
+    purchase_rows = []
+    for idx, p in enumerate(purch_list, start=1):
+        purchase_rows.append({
+            'slno': idx,
+            'supplier': p.supplier.name if p.supplier else 'Unknown Supplier',
+            'invo_no': p.purchase_inv_number or '-',
+            'amount': p.grand_total or Decimal('0.00'),
+            'paid': p.amount_paid or Decimal('0.00'),
+            'balance': p.balance_to_pay or Decimal('0.00'),
+        })
+
+    purchase_totals = {
+        'amount': sum((r['amount'] for r in purchase_rows), Decimal('0.00')),
+        'paid': sum((r['paid'] for r in purchase_rows), Decimal('0.00')),
+        'balance': sum((r['balance'] for r in purchase_rows), Decimal('0.00')),
+    }
+
+    # Cash / Payment breakdown at bottom
+    # Receipts collected during this period
+    cash_collected = rcpt_qs.filter(Q(payment_mode__iexact='cash')).aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
+    card_collected = rcpt_qs.filter(Q(payment_mode__iexact='card')).aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
+    digital_collected = rcpt_qs.filter(
+        Q(payment_mode__iexact='digital_payments') |
+        Q(payment_mode__iexact='online') |
+        Q(payment_mode__iexact='cheque')
+    ).aggregate(s=Sum('amount'))['s'] or Decimal('0.00')
+
+    # Cash expenses & purchases paid out in cash during this period
+    cash_expense_paid = exp_qs.filter(Q(payment_mode__iexact='CASH')).aggregate(s=Sum('paid_amount'))['s'] or Decimal('0.00')
+    cash_purchase_paid = purch_qs.filter(Q(payment_mode__iexact='CASH')).aggregate(s=Sum('amount_paid'))['s'] or Decimal('0.00')
+    total_cash_out = cash_expense_paid + cash_purchase_paid
+
+    net_cash_in_hand = cash_collected - total_cash_out
+    total_inflow = cash_collected + card_collected + digital_collected
+
+    from_date_display = ''
+    to_date_display = ''
+    try:
+        from_date_display = datetime.strptime(from_date, '%Y-%m-%d').strftime('%d %b %Y')
+    except Exception:
+        from_date_display = from_date
+    try:
+        to_date_display = datetime.strptime(to_date, '%Y-%m-%d').strftime('%d %b %Y')
+    except Exception:
+        to_date_display = to_date
+
+    selected_branch_name = ''
+    if branch_id and branches:
+        for b in branches:
+            if str(b.id) == str(branch_id):
+                selected_branch_name = b.name
+                break
+
+    return {
+        'company': company,
+        'branches': branches,
+        'branch_id': branch_id,
+        'selected_branch_name': selected_branch_name,
+        'from_date': from_date,
+        'to_date': to_date,
+        'from_date_display': from_date_display,
+        'to_date_display': to_date_display,
+        'report_date': today.strftime('%d %b %Y'),
+        'currency_symbol': currency_symbol,
+
+        'sales_rows': sales_rows,
+        'sales_totals': sales_totals,
+
+        'expense_rows': expense_rows,
+        'expense_totals': expense_totals,
+
+        'collection_rows': collection_rows,
+        'collection_totals': collection_totals,
+
+        'purchase_rows': purchase_rows,
+        'purchase_totals': purchase_totals,
+
+        'cash_collected': cash_collected,
+        'cash_expense_paid': cash_expense_paid,
+        'cash_purchase_paid': cash_purchase_paid,
+        'total_cash_out': total_cash_out,
+        'net_cash_in_hand': net_cash_in_hand,
+        'card_collected': card_collected,
+        'digital_collected': digital_collected,
+        'total_inflow': total_inflow,
+
+        'title': 'Daily Summary Report',
+    }
+
+
+@login_required
+def daily_summary_report(request):
+    if request.GET.get('pdf') == '1':
+        return daily_summary_report_pdf(request)
+    context = _build_daily_summary_data(request)
+    return render(request, 'reports/daily_summary_report.html', context)
+
+
+@login_required
+def daily_summary_report_pdf(request):
+    import sys, os
+    if sys.platform == 'darwin':
+        os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = '/opt/homebrew/lib:' + os.environ.get('DYLD_FALLBACK_LIBRARY_PATH', '')
+    from weasyprint import HTML
+
+    context = _build_daily_summary_data(request)
+    html_string = render_to_string('reports/daily_summary_report_pdf.html', context)
+    base_url = request.build_absolute_uri('/')
+    html = HTML(string=html_string, base_url=base_url)
+    pdf = html.write_pdf()
+
+    clean_date = context['report_date'].replace(' ', '_')
+    filename = f"Daily_Summary_Report_{clean_date}.pdf"
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
+
+
 @login_required
 def stock_report(request):
     """

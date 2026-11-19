@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Daily Summary Report - {{ company.company_name|default:"Mobiz Car Wash" }}</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 12mm 14mm 14mm 14mm;
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 8pt;
+                color: #64748b;
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            }
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 8pt;
+            color: #000000;
+            line-height: 1.35;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Top Header: Company Details only (Right side) */
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 8px;
+        }
+
+        .header-table td {
+            vertical-align: top;
+        }
+
+        .company-header-box {
+            text-align: right;
+        }
+
+        .company-logo {
+            max-height: 44px;
+            max-width: 150px;
+            object-fit: contain;
+            margin-bottom: 3px;
+        }
+
+        .company-header-title {
+            font-size: 12pt;
+            font-weight: 800;
+            color: #000000;
+            margin-bottom: 2px;
+            letter-spacing: -0.2px;
+        }
+
+        .company-header-meta {
+            font-size: 8pt;
+            color: #000000;
+            line-height: 1.3;
+        }
+
+        /* Title: DAILY SUMMARY REPORT (Clean text, no black box) */
+        .report-title-section {
+            text-align: center;
+            margin: 6px 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 1.5px solid #000000;
+        }
+
+        .report-main-title {
+            font-size: 13pt;
+            font-weight: 800;
+            color: #000000;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .report-period-sub {
+            font-size: 8pt;
+            color: #111111;
+            margin-top: 3px;
+        }
+
+        /* Section Title */
+        .section-heading {
+            font-size: 9pt;
+            font-weight: 800;
+            color: #000000;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 10px;
+            margin-bottom: 4px;
+        }
+
+        /* Table styling: Crisp black borders and light gray header */
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+            border: 1px solid #000000;
+            page-break-inside: auto;
+        }
+
+        .report-table tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+        }
+
+        .report-table th {
+            background-color: #f2f2f2;
+            color: #000000;
+            font-size: 7.5pt;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            padding: 4px 6px;
+            border: 1px solid #000000;
+            text-align: left;
+        }
+
+        .report-table th.center-col { text-align: center; }
+        .report-table th.num-col { text-align: right; }
+
+        .report-table td {
+            padding: 4px 6px;
+            font-size: 7.5pt;
+            border: 1px solid #000000;
+            color: #000000;
+            vertical-align: middle;
+        }
+
+        .report-table td.center-col { text-align: center; }
+        .report-table td.num-col {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .table-total-row td {
+            background-color: #f2f2f2 !important;
+            font-weight: 800;
+            font-size: 8pt;
+            border: 1px solid #000000;
+            color: #000000;
+        }
+
+        .table-total-row td.num-col {
+            text-align: right;
+        }
+
+        /* Bottom Cash Breakdown Box */
+        .cash-box-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 12px;
+            border: 1.5px solid #000000;
+            page-break-inside: avoid;
+        }
+
+        .cash-box-table th {
+            background-color: #f2f2f2;
+            padding: 6px;
+            font-size: 8pt;
+            font-weight: 800;
+            text-transform: uppercase;
+            text-align: center;
+            border: 1px solid #000000;
+        }
+
+        .cash-box-table td {
+            padding: 8px 10px;
+            text-align: center;
+            border: 1px solid #000000;
+            vertical-align: middle;
+        }
+
+        .cash-box-val {
+            font-size: 11pt;
+            font-weight: 800;
+            color: #000000;
+        }
+
+        .cash-box-sub {
+            font-size: 7pt;
+            color: #444444;
+            margin-top: 2px;
+        }
+
+        /* Footer & Signatures */
+        .footer-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 14px;
+            page-break-inside: avoid;
+        }
+
+        .footer-table td {
+            vertical-align: bottom;
+            width: 50%;
+        }
+
+        .signature-box {
+            text-align: right;
+            padding-right: 5px;
+        }
+
+        .signature-box .seal-img {
+            max-height: 44px;
+            margin-bottom: 3px;
+            display: inline-block;
+        }
+
+        .signature-line {
+            border-top: 1px solid #000000;
+            width: 160px;
+            margin-left: auto;
+            margin-top: 20px;
+            padding-top: 4px;
+            font-size: 7.5pt;
+            font-weight: 700;
+            color: #000000;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Header: Company Details only -->
+    <table class="header-table">
+        <tr>
+            <td style="width: 45%;"></td>
+            <td style="width: 55%;" class="company-header-box">
+                {% if company.logo_color %}
+                    <img src="{{ company.logo_color.url }}" alt="Company Logo" class="company-logo">
+                {% elif company.logo_bw %}
+                    <img src="{{ company.logo_bw.url }}" alt="Company Logo" class="company-logo">
+                {% endif %}
+                <div class="company-header-title">
+                    {% if company %}{{ company.company_name }}{% else %}Mobiz Car Wash{% endif %}
+                </div>
+                <div class="company-header-meta">
+                    {% if company.business_name and company.business_name != company.company_name %}
+                        <div><strong>Trading As:</strong> {{ company.business_name }}</div>
+                    {% endif %}
+                    {% if company.address %}
+                        <div>{{ company.address }}</div>
+                    {% endif %}
+                    <div>
+                        {% if company.phone %}<span>Phone: {{ company.phone }}</span>{% endif %}
+                        {% if company.email %}<span> | Email: {{ company.email }}</span>{% endif %}
+                    </div>
+                    {% if company.gst_number %}
+                        <div><strong>TRN:</strong> {{ company.gst_number }}</div>
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Title: DAILY SUMMARY REPORT -->
+    <div class="report-title-section">
+        <div class="report-main-title">DAILY SUMMARY REPORT</div>
+        <div class="report-period-sub">
+            {% if from_date == to_date %}
+                Date: <strong>{{ from_date_display }}</strong>
+            {% else %}
+                Period: <strong>{{ from_date_display }}</strong> &mdash; <strong>{{ to_date_display }}</strong>
+            {% endif %}
+            {% if selected_branch_name %}
+                &nbsp;|&nbsp; Branch: <strong>{{ selected_branch_name }}</strong>
+            {% endif %}
+            &nbsp;|&nbsp; Generated On: <strong>{{ report_date }}</strong>
+        </div>
+    </div>
+
+    <!-- 1. SALES TABLE -->
+    <div class="section-heading">1. Sales</div>
+    <table class="report-table">
+        <thead>
+            <tr>
+                <th class="center-col" style="width: 35px;">Sl No</th>
+                <th>Service</th>
+                <th class="center-col" style="width: 55px;">Total No</th>
+                <th class="num-col" style="width: 85px;">Amount</th>
+                <th class="num-col" style="width: 85px;">Received</th>
+                <th class="num-col" style="width: 85px;">Balance</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in sales_rows %}
+            <tr>
+                <td class="center-col">{{ row.slno }}</td>
+                <td style="font-weight: 700;">{{ row.service }}</td>
+                <td class="center-col">{{ row.totalno|floatformat:0 }}</td>
+                <td class="num-col">{{ row.amount|floatformat:2 }}</td>
+                <td class="num-col">{{ row.received|floatformat:2 }}</td>
+                <td class="num-col">{{ row.balance|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 8px; color: #666666;">No sales recorded for this period.</td>
+            </tr>
+            {% endfor %}
+            <tr class="table-total-row">
+                <td colspan="2" style="text-align: right; text-transform: uppercase;">Total Sales:</td>
+                <td class="center-col">{{ sales_totals.totalno|floatformat:0 }}</td>
+                <td class="num-col">{{ sales_totals.amount|floatformat:2 }}</td>
+                <td class="num-col">{{ sales_totals.received|floatformat:2 }}</td>
+                <td class="num-col">{{ sales_totals.balance|floatformat:2 }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 2. EXPENSE TABLE -->
+    <div class="section-heading">2. Expense</div>
+    <table class="report-table">
+        <thead>
+            <tr>
+                <th class="center-col" style="width: 35px;">Sl No</th>
+                <th>Expense Head</th>
+                <th class="num-col" style="width: 95px;">Amount</th>
+                <th class="num-col" style="width: 95px;">Paid</th>
+                <th class="num-col" style="width: 95px;">Balance</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in expense_rows %}
+            <tr>
+                <td class="center-col">{{ row.slno }}</td>
+                <td style="font-weight: 700;">{{ row.expensehead }}</td>
+                <td class="num-col">{{ row.amount|floatformat:2 }}</td>
+                <td class="num-col">{{ row.paid|floatformat:2 }}</td>
+                <td class="num-col">{{ row.balance|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" style="text-align: center; padding: 8px; color: #666666;">No expenses recorded for this period.</td>
+            </tr>
+            {% endfor %}
+            <tr class="table-total-row">
+                <td colspan="2" style="text-align: right; text-transform: uppercase;">Total Expenses:</td>
+                <td class="num-col">{{ expense_totals.amount|floatformat:2 }}</td>
+                <td class="num-col">{{ expense_totals.paid|floatformat:2 }}</td>
+                <td class="num-col">{{ expense_totals.balance|floatformat:2 }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 3. COLLECTION (PREVIOUS OUTSTANDING COLLECTION) -->
+    <div class="section-heading">3. Collection (Previous Outstanding Collection)</div>
+    <table class="report-table">
+        <thead>
+            <tr>
+                <th class="center-col" style="width: 35px;">Sl No</th>
+                <th>Customer Name</th>
+                <th class="num-col" style="width: 120px;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in collection_rows %}
+            <tr>
+                <td class="center-col">{{ row.slno }}</td>
+                <td>
+                    <strong>{{ row.customername }}</strong>
+                    {% if row.customerphone %}<span style="color:#555555; font-size: 7pt;"> ({{ row.customerphone }})</span>{% endif %}
+                </td>
+                <td class="num-col" style="font-weight: 700;">{{ row.amount|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="3" style="text-align: center; padding: 8px; color: #666666;">No previous outstanding collections received for this period.</td>
+            </tr>
+            {% endfor %}
+            <tr class="table-total-row">
+                <td colspan="2" style="text-align: right; text-transform: uppercase;">Total Previous Collection:</td>
+                <td class="num-col">{{ collection_totals.amount|floatformat:2 }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 4. PURCHASE TABLE -->
+    <div class="section-heading">4. Purchase</div>
+    <table class="report-table">
+        <thead>
+            <tr>
+                <th class="center-col" style="width: 35px;">Sl No</th>
+                <th>Supplier</th>
+                <th style="width: 90px;">Invo.No</th>
+                <th class="num-col" style="width: 85px;">Amount</th>
+                <th class="num-col" style="width: 85px;">Paid</th>
+                <th class="num-col" style="width: 85px;">Balance</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in purchase_rows %}
+            <tr>
+                <td class="center-col">{{ row.slno }}</td>
+                <td style="font-weight: 700;">{{ row.supplier }}</td>
+                <td style="font-family: monospace;">{{ row.invo_no }}</td>
+                <td class="num-col">{{ row.amount|floatformat:2 }}</td>
+                <td class="num-col">{{ row.paid|floatformat:2 }}</td>
+                <td class="num-col">{{ row.balance|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 8px; color: #666666;">No purchases recorded for this period.</td>
+            </tr>
+            {% endfor %}
+            <tr class="table-total-row">
+                <td colspan="3" style="text-align: right; text-transform: uppercase;">Total Purchases:</td>
+                <td class="num-col">{{ purchase_totals.amount|floatformat:2 }}</td>
+                <td class="num-col">{{ purchase_totals.paid|floatformat:2 }}</td>
+                <td class="num-col">{{ purchase_totals.balance|floatformat:2 }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- LAST: NET CASH IN HAND, CARD, DIGITAL PAYMENT -->
+    <div class="section-heading" style="margin-top: 12px;">Cash & Settlement Position</div>
+    <table class="cash-box-table">
+        <thead>
+            <tr>
+                <th style="width: 33.3%;">Net Cash in Hand</th>
+                <th style="width: 33.3%;">Card</th>
+                <th style="width: 33.3%;">Digital Payment</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>
+                    <div class="cash-box-val">{{ currency_symbol }} {{ net_cash_in_hand|floatformat:2 }}</div>
+                    <div class="cash-box-sub">Cash In: {{ currency_symbol }}{{ cash_collected|floatformat:2 }} &nbsp;|&nbsp; Cash Out: {{ currency_symbol }}{{ total_cash_out|floatformat:2 }}</div>
+                </td>
+                <td>
+                    <div class="cash-box-val">{{ currency_symbol }} {{ card_collected|floatformat:2 }}</div>
+                    <div class="cash-box-sub">Total Card Settlements</div>
+                </td>
+                <td>
+                    <div class="cash-box-val">{{ currency_symbol }} {{ digital_collected|floatformat:2 }}</div>
+                    <div class="cash-box-sub">UPI, Online & Bank Receipts</div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Footer Notes & Signatures -->
+    <table class="footer-table">
+        <tr>
+            <td style="width: 60%;"></td>
+            <td class="signature-box" style="width: 40%;">
+                {% if company.company_seal %}
+                    <img src="{{ company.company_seal.url }}" alt="Company Seal" class="seal-img">
+                {% endif %}
+                <div class="signature-line">
+                    Authorized Signatory
+                </div>
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>

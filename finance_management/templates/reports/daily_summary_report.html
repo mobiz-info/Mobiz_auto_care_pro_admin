@@ -1,0 +1,752 @@
+{% extends 'base.html' %}
+
+{% block title %}Daily Summary Report - Mobiz Autocare Pro{% endblock %}
+{% block page_title %}Daily Summary Report{% endblock %}
+{% block breadcrumb_active %}Daily Summary Report{% endblock %}
+
+{% block content %}
+
+<style>
+.daily-report-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* Header */
+.daily-header {
+    background: linear-gradient(135deg, #0f172a, #1e293b, #334155);
+    border-radius: 20px;
+    padding: 28px 32px;
+    color: white;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.15);
+}
+
+.daily-header::after {
+    content: '';
+    position: absolute;
+    width: 240px;
+    height: 240px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 50%;
+    right: -60px;
+    top: -60px;
+}
+
+.daily-title h2 {
+    margin: 0;
+    font-size: 1.85rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+}
+
+.daily-title p {
+    margin-top: 6px;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.92rem;
+}
+
+.period-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-top: 12px;
+}
+
+/* Filter Card */
+.filter-card {
+    background: white;
+    border-radius: 18px;
+    padding: 20px 24px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+}
+
+.filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+}
+
+.date-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    padding: 6px 14px;
+    border-radius: 12px;
+}
+
+.date-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+}
+
+.date-input {
+    border: none;
+    background: transparent;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #0f172a;
+    outline: none;
+}
+
+.select-filter {
+    height: 46px;
+    padding: 0 16px;
+    border-radius: 12px;
+    border: 1.5px solid #e2e8f0;
+    background: #f8fafc;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #0f172a;
+    outline: none;
+    cursor: pointer;
+}
+
+.filter-btn {
+    background: #4f46e5;
+    color: white;
+    border: none;
+    height: 46px;
+    padding: 0 20px;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: 0.2s;
+}
+
+.filter-btn:hover {
+    background: #4338ca;
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    height: 46px;
+    padding: 0 16px;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    transition: 0.2s;
+}
+
+.btn-secondary:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+.btn-pdf {
+    background: #dc2626;
+    color: white;
+    border: none;
+    height: 46px;
+    padding: 0 18px;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    transition: 0.2s;
+}
+
+.btn-pdf:hover {
+    background: #b91c1c;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+}
+
+.btn-csv {
+    background: #065f46;
+    color: white;
+    border: none;
+    height: 46px;
+    padding: 0 18px;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: 0.2s;
+}
+
+.btn-csv:hover {
+    background: #047857;
+    transform: translateY(-1px);
+}
+
+/* Section Table Card */
+.report-section-card {
+    background: white;
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+}
+
+.section-header {
+    padding: 18px 24px;
+    border-bottom: 1.5px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8fafc;
+}
+
+.section-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #0f172a;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-badge {
+    background: #e0e7ff;
+    color: #4338ca;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.daily-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.daily-table th {
+    background: #f1f5f9;
+    padding: 12px 16px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #475569;
+    font-weight: 700;
+    border-bottom: 1.5px solid #cbd5e1;
+    white-space: nowrap;
+}
+
+.daily-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+    font-size: 0.88rem;
+    color: #1e293b;
+}
+
+.daily-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-bold { font-weight: 700; }
+
+.daily-table tfoot tr {
+    background: #f8fafc;
+    font-weight: 800;
+    border-top: 2px solid #cbd5e1;
+}
+
+.daily-table tfoot td {
+    padding: 14px 16px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.empty-cell {
+    text-align: center;
+    padding: 32px 16px;
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+/* Bottom Payment KPI Cards */
+.bottom-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+    margin-top: 8px;
+}
+
+.kpi-card {
+    background: white;
+    border-radius: 18px;
+    padding: 24px;
+    position: relative;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+}
+
+.kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 6px;
+    height: 100%;
+}
+
+.kpi-card.cash-card::before { background: #10b981; }
+.kpi-card.card-card::before { background: #2563eb; }
+.kpi-card.digital-card::before { background: #8b5cf6; }
+
+.kpi-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #64748b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.kpi-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+}
+
+.kpi-card.cash-card .kpi-icon { background: #d1fae5; color: #059669; }
+.kpi-card.card-card .kpi-icon { background: #dbeafe; color: #2563eb; }
+.kpi-card.digital-card .kpi-icon { background: #ede9fe; color: #7c3aed; }
+
+.kpi-value {
+    margin-top: 14px;
+    font-size: 1.85rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #0f172a;
+}
+
+.kpi-subtext {
+    margin-top: 6px;
+    font-size: 0.82rem;
+    color: #64748b;
+}
+</style>
+
+<div class="daily-report-wrapper">
+
+    <!-- Header -->
+    <div class="daily-header">
+        <div class="daily-title">
+            <h2>Daily Summary Report</h2>
+            <p>Day-wise consolidated summary of sales, expenses, previous outstanding collections, and purchases.</p>
+            
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px;">
+                <div class="period-pill">
+                    <i class="ph ph-calendar"></i>
+                    {% if from_date == to_date %}
+                        <span>Date: {{ from_date_display }}</span>
+                    {% else %}
+                        <span>Period: {{ from_date_display }} &mdash; {{ to_date_display }}</span>
+                    {% endif %}
+                </div>
+
+                {% if selected_branch_name %}
+                <div class="period-pill" style="background: rgba(255,255,255,0.18);">
+                    <i class="ph ph-storefront"></i>
+                    <span>Branch: {{ selected_branch_name }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Card -->
+    <div class="filter-card">
+        <form method="GET" class="filter-form" id="dailyReportFilterForm">
+            <div class="date-group">
+                <span class="date-label">From:</span>
+                <input type="date" name="from_date" value="{{ from_date }}" class="date-input" required>
+            </div>
+
+            <div class="date-group">
+                <span class="date-label">To:</span>
+                <input type="date" name="to_date" value="{{ to_date }}" class="date-input" required>
+            </div>
+
+            {% if branches %}
+            <select name="branch_id" class="select-filter">
+                <option value="">All Branches</option>
+                {% for b in branches %}
+                <option value="{{ b.id }}" {% if branch_id == b.id|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+
+            <button type="submit" class="filter-btn">
+                <i class="ph ph-funnel"></i>
+                Filter
+            </button>
+
+            <a href="{% url 'daily_summary_report' %}" class="btn-secondary" title="Reset to Today">
+                <i class="ph ph-arrow-counter-clockwise"></i>
+                Today
+            </a>
+
+            <a href="{% url 'daily_summary_report_pdf' %}?{% if from_date %}from_date={{ from_date }}&{% endif %}{% if to_date %}to_date={{ to_date }}&{% endif %}{% if branch_id %}branch_id={{ branch_id }}{% endif %}"
+               target="_blank"
+               class="btn-pdf"
+               title="Download Daily Summary PDF">
+                <i class="ph ph-file-pdf"></i>
+                Download PDF
+            </a>
+
+            <button type="button" onclick="exportSummaryToCSV()" class="btn-csv" title="Export as CSV">
+                <i class="ph ph-download-simple"></i>
+                Export CSV
+            </button>
+        </form>
+    </div>
+
+    <!-- 1. SALES TABLE -->
+    <div class="report-section-card">
+        <div class="section-header">
+            <h3>
+                <i class="ph-bold ph-receipt" style="color: #4f46e5;"></i>
+                1. Sales Summary
+            </h3>
+            <span class="section-badge">{{ sales_rows|length }} Service{{ sales_rows|length|pluralize }}</span>
+        </div>
+        <div class="table-responsive">
+            <table class="daily-table" id="salesTable">
+                <thead>
+                    <tr>
+                        <th class="text-center" style="width: 70px;">Sl No</th>
+                        <th>Service</th>
+                        <th class="text-center" style="width: 120px;">Total No</th>
+                        <th class="text-right" style="width: 160px;">Amount</th>
+                        <th class="text-right" style="width: 160px;">Received</th>
+                        <th class="text-right" style="width: 160px;">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in sales_rows %}
+                    <tr>
+                        <td class="text-center text-bold" style="color: #64748b;">{{ row.slno }}</td>
+                        <td class="text-bold" style="color: #0f172a;">{{ row.service }}</td>
+                        <td class="text-center">{{ row.totalno|floatformat:0 }}</td>
+                        <td class="text-right text-bold">{{ currency_symbol }} {{ row.amount|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #059669; font-weight: 700;">{{ currency_symbol }} {{ row.received|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #dc2626; font-weight: 700;">{{ currency_symbol }} {{ row.balance|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="empty-cell">No sales recorded for the selected period.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if sales_rows %}
+                <tfoot>
+                    <tr>
+                        <td colspan="2" class="text-right">TOTAL SALES:</td>
+                        <td class="text-center">{{ sales_totals.totalno|floatformat:0 }}</td>
+                        <td class="text-right">{{ currency_symbol }} {{ sales_totals.amount|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #059669;">{{ currency_symbol }} {{ sales_totals.received|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #dc2626;">{{ currency_symbol }} {{ sales_totals.balance|floatformat:2 }}</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+    <!-- 2. EXPENSE TABLE -->
+    <div class="report-section-card">
+        <div class="section-header">
+            <h3>
+                <i class="ph-bold ph-trend-down" style="color: #dc2626;"></i>
+                2. Expense Summary
+            </h3>
+            <span class="section-badge" style="background: #fee2e2; color: #dc2626;">{{ expense_rows|length }} Head{{ expense_rows|length|pluralize }}</span>
+        </div>
+        <div class="table-responsive">
+            <table class="daily-table" id="expenseTable">
+                <thead>
+                    <tr>
+                        <th class="text-center" style="width: 70px;">Sl No</th>
+                        <th>Expense Head</th>
+                        <th class="text-right" style="width: 180px;">Amount</th>
+                        <th class="text-right" style="width: 180px;">Paid</th>
+                        <th class="text-right" style="width: 180px;">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in expense_rows %}
+                    <tr>
+                        <td class="text-center text-bold" style="color: #64748b;">{{ row.slno }}</td>
+                        <td class="text-bold" style="color: #0f172a;">{{ row.expensehead }}</td>
+                        <td class="text-right text-bold">{{ currency_symbol }} {{ row.amount|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #059669; font-weight: 700;">{{ currency_symbol }} {{ row.paid|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #dc2626; font-weight: 700;">{{ currency_symbol }} {{ row.balance|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="empty-cell">No expenses recorded for the selected period.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if expense_rows %}
+                <tfoot>
+                    <tr>
+                        <td colspan="2" class="text-right">TOTAL EXPENSES:</td>
+                        <td class="text-right">{{ currency_symbol }} {{ expense_totals.amount|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #059669;">{{ currency_symbol }} {{ expense_totals.paid|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #dc2626;">{{ currency_symbol }} {{ expense_totals.balance|floatformat:2 }}</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+    <!-- 3. COLLECTION (PREVIOUS OUTSTANDING COLLECTION) -->
+    <div class="report-section-card">
+        <div class="section-header">
+            <h3>
+                <i class="ph-bold ph-hand-coins" style="color: #059669;"></i>
+                3. Collection (Previous Outstanding Collection)
+            </h3>
+            <span class="section-badge" style="background: #d1fae5; color: #059669;">{{ collection_rows|length }} Customer{{ collection_rows|length|pluralize }}</span>
+        </div>
+        <div class="table-responsive">
+            <table class="daily-table" id="collectionTable">
+                <thead>
+                    <tr>
+                        <th class="text-center" style="width: 70px;">Sl No</th>
+                        <th>Customer Name</th>
+                        <th class="text-right" style="width: 220px;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in collection_rows %}
+                    <tr>
+                        <td class="text-center text-bold" style="color: #64748b;">{{ row.slno }}</td>
+                        <td>
+                            <div class="text-bold" style="color: #0f172a;">{{ row.customername }}</div>
+                            {% if row.customerphone %}
+                                <div style="font-size: 0.8rem; color: #64748b;">{{ row.customerphone }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="text-right text-bold" style="color: #059669; font-size: 1rem;">
+                            {{ currency_symbol }} {{ row.amount|floatformat:2 }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" class="empty-cell">No previous outstanding collections received for the selected period.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if collection_rows %}
+                <tfoot>
+                    <tr>
+                        <td colspan="2" class="text-right">TOTAL PREVIOUS COLLECTION:</td>
+                        <td class="text-right" style="color: #059669; font-size: 1.05rem;">
+                            {{ currency_symbol }} {{ collection_totals.amount|floatformat:2 }}
+                        </td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+    <!-- 4. PURCHASE TABLE -->
+    <div class="report-section-card">
+        <div class="section-header">
+            <h3>
+                <i class="ph-bold ph-shopping-cart" style="color: #d97706;"></i>
+                4. Purchase Summary
+            </h3>
+            <span class="section-badge" style="background: #fef3c7; color: #b45309;">{{ purchase_rows|length }} Invoice{{ purchase_rows|length|pluralize }}</span>
+        </div>
+        <div class="table-responsive">
+            <table class="daily-table" id="purchaseTable">
+                <thead>
+                    <tr>
+                        <th class="text-center" style="width: 70px;">Sl No</th>
+                        <th>Supplier</th>
+                        <th style="width: 170px;">Invo.No</th>
+                        <th class="text-right" style="width: 160px;">Amount</th>
+                        <th class="text-right" style="width: 160px;">Paid</th>
+                        <th class="text-right" style="width: 160px;">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in purchase_rows %}
+                    <tr>
+                        <td class="text-center text-bold" style="color: #64748b;">{{ row.slno }}</td>
+                        <td class="text-bold" style="color: #0f172a;">{{ row.supplier }}</td>
+                        <td><span style="font-family: monospace; font-weight: 600;">{{ row.invo_no }}</span></td>
+                        <td class="text-right text-bold">{{ currency_symbol }} {{ row.amount|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #059669; font-weight: 700;">{{ currency_symbol }} {{ row.paid|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #dc2626; font-weight: 700;">{{ currency_symbol }} {{ row.balance|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="empty-cell">No purchases recorded for the selected period.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if purchase_rows %}
+                <tfoot>
+                    <tr>
+                        <td colspan="3" class="text-right">TOTAL PURCHASES:</td>
+                        <td class="text-right">{{ currency_symbol }} {{ purchase_totals.amount|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #059669;">{{ currency_symbol }} {{ purchase_totals.paid|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #dc2626;">{{ currency_symbol }} {{ purchase_totals.balance|floatformat:2 }}</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+    <!-- LAST: NET CASH IN HAND, CARD, DIGITAL PAYMENT -->
+    <div style="margin-top: 6px;">
+        <h3 style="margin: 0 0 12px 4px; font-size: 1.15rem; font-weight: 800; color: #0f172a;">
+            <i class="ph ph-wallet"></i> Cash & Settlement Position
+        </h3>
+        <div class="bottom-kpi-grid">
+
+            <!-- Net Cash In Hand -->
+            <div class="kpi-card cash-card">
+                <div class="kpi-label">
+                    <span>Net Cash in Hand</span>
+                    <div class="kpi-icon">
+                        <i class="ph-bold ph-money"></i>
+                    </div>
+                </div>
+                <div class="kpi-value" style="color: #059669;">
+                    {{ currency_symbol }} {{ net_cash_in_hand|floatformat:2 }}
+                </div>
+                <div class="kpi-subtext">
+                    Cash In: <strong>{{ currency_symbol }}{{ cash_collected|floatformat:2 }}</strong> &nbsp;|&nbsp; Cash Out: <strong>{{ currency_symbol }}{{ total_cash_out|floatformat:2 }}</strong>
+                </div>
+            </div>
+
+            <!-- Card -->
+            <div class="kpi-card card-card">
+                <div class="kpi-label">
+                    <span>Card</span>
+                    <div class="kpi-icon">
+                        <i class="ph-bold ph-credit-card"></i>
+                    </div>
+                </div>
+                <div class="kpi-value" style="color: #2563eb;">
+                    {{ currency_symbol }} {{ card_collected|floatformat:2 }}
+                </div>
+                <div class="kpi-subtext">
+                    Total Card settlements received
+                </div>
+            </div>
+
+            <!-- Digital Payment -->
+            <div class="kpi-card digital-card">
+                <div class="kpi-label">
+                    <span>Digital Payment</span>
+                    <div class="kpi-icon">
+                        <i class="ph-bold ph-device-mobile"></i>
+                    </div>
+                </div>
+                <div class="kpi-value" style="color: #7c3aed;">
+                    {{ currency_symbol }} {{ digital_collected|floatformat:2 }}
+                </div>
+                <div class="kpi-subtext">
+                    UPI, Online, Transfer & Digital receipts
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<script>
+function exportSummaryToCSV() {
+    let csv = [];
+    const dateStr = "{{ from_date }}" + (("{{ from_date }}" !== "{{ to_date }}") ? ("_to_" + "{{ to_date }}") : "");
+    
+    function addTable(title, tableId) {
+        const table = document.getElementById(tableId);
+        if (!table) return;
+        csv.push(`"${title}"`);
+        const rows = table.querySelectorAll('tr');
+        for (let i = 0; i < rows.length; i++) {
+            let row = [], cols = rows[i].querySelectorAll('td, th');
+            if (cols.length === 1 && cols[0].hasAttribute('colspan')) continue;
+            for (let j = 0; j < cols.length; j++) {
+                let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, ' ').replace(/\s+/g, ' ').trim();
+                data = data.replace(/"/g, '""');
+                row.push('"' + data + '"');
+            }
+            if (row.length > 0) csv.push(row.join(','));
+        }
+        csv.push('');
+    }
+
+    addTable('1. SALES SUMMARY', 'salesTable');
+    addTable('2. EXPENSE SUMMARY', 'expenseTable');
+    addTable('3. PREVIOUS OUTSTANDING COLLECTION', 'collectionTable');
+    addTable('4. PURCHASE SUMMARY', 'purchaseTable');
+
+    csv.push('"CASH POSITION"');
+    csv.push('"Net Cash In Hand","{{ net_cash_in_hand|floatformat:2 }}"');
+    csv.push('"Card Payments","{{ card_collected|floatformat:2 }}"');
+    csv.push('"Digital Payments","{{ digital_collected|floatformat:2 }}"');
+
+    const csvFile = new Blob([csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const downloadLink = document.createElement('a');
+    downloadLink.download = `Daily_Summary_Report_${dateStr}.csv`;
+    downloadLink.href = window.URL.createObjectURL(csvFile);
+    downloadLink.style.display = 'none';
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+}
+</script>
+
+{% endblock %}
