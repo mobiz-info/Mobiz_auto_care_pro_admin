@@ -544,74 +544,6 @@
     margin-top: 6px;
 }
 
-/* SOA Modal Styles */
-.soa-modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(15, 23, 42, 0.65);
-    backdrop-filter: blur(5px);
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-}
-
-.soa-modal-container {
-    background: #ffffff;
-    border-radius: 18px;
-    width: 100%;
-    max-width: 1100px;
-    max-height: 92vh;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
-    overflow: hidden;
-    animation: soaModalIn 0.22s ease-out;
-}
-
-@keyframes soaModalIn {
-    from { opacity: 0; transform: scale(0.96); }
-    to { opacity: 1; transform: scale(1); }
-}
-
-.soa-modal-header {
-    padding: 16px 24px;
-    border-bottom: 1px solid #e2e8f0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #f8fafc;
-}
-
-.soa-modal-close-btn {
-    background: none;
-    border: none;
-    font-size: 1.35rem;
-    color: #64748b;
-    cursor: pointer;
-    border-radius: 50%;
-    padding: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-}
-
-.soa-modal-close-btn:hover {
-    background: #fee2e2;
-    color: #ef4444;
-}
-
-.soa-modal-body {
-    padding: 22px 26px;
-    overflow-y: auto;
-    flex: 1;
-}
-
 .btn-view-soa {
     background: #4f46e5;
     color: white;
@@ -915,13 +847,13 @@
                             </span>
                         </td>
 
-                        <!-- View Action -->
+                        <!-- View Action: Direct navigation to Statement of Account screen -->
                         <td style="text-align: center; white-space: nowrap;">
-                            <button type="button" class="btn-view-soa"
-                                    onclick="openCustomerSOA('{{ item.customer_id }}', '{{ item.customer_name|escapejs }}')"
-                                    title="View Statement of Account">
+                            <a href="{% url 'customer_ledger' %}?customer={{ item.customer_id }}{% if from_date %}&from_date={{ from_date }}{% endif %}{% if to_date %}&to_date={{ to_date }}{% endif %}"
+                               class="btn-view-soa"
+                               title="View Statement of Account">
                                 <i class="ph ph-file-text"></i> View
-                            </button>
+                            </a>
                         </td>
                     </tr>
                     {% empty %}
@@ -955,105 +887,7 @@
 
 </div>
 
-<!-- Statement of Account Popup Modal -->
-<div id="soaModal" class="soa-modal-backdrop" style="display: none;">
-    <div class="soa-modal-container">
-        <div class="soa-modal-header">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <i class="ph ph-file-text" style="font-size: 1.35rem; color: #4f46e5;"></i>
-                <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700; color: #0f172a;" id="soaModalTitle">
-                    Statement of Account
-                </h3>
-            </div>
-            <button type="button" class="soa-modal-close-btn" onclick="closeSOAModal()" title="Close (Esc)">
-                <i class="ph ph-x"></i>
-            </button>
-        </div>
-        <div class="soa-modal-body" id="soaModalBody">
-            <div style="text-align: center; padding: 40px; color: #64748b;">
-                <i class="ph ph-spinner ph-spin" style="font-size: 2rem; color: #4f46e5; margin-bottom: 8px;"></i>
-                <p style="margin: 0;">Loading Statement of Account...</p>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
-function openCustomerSOA(customerId, customerName) {
-    const modal = document.getElementById('soaModal');
-    const modalTitle = document.getElementById('soaModalTitle');
-    const modalBody = document.getElementById('soaModalBody');
-    const fromDate = document.querySelector('input[name="from_date"]')?.value || '';
-    const toDate = document.querySelector('input[name="to_date"]')?.value || '';
-
-    modalTitle.textContent = `Statement of Account — ${customerName}`;
-    modalBody.innerHTML = `
-        <div style="text-align: center; padding: 50px 20px; color: #64748b;">
-            <i class="ph ph-spinner ph-spin" style="font-size: 2.4rem; color: #4f46e5; margin-bottom: 12px; display: block;"></i>
-            <p style="margin: 0; font-size: 0.95rem; font-weight: 600;">Generating Statement of Account for ${escapeHtml(customerName)}...</p>
-        </div>
-    `;
-    modal.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-
-    const url = `/customer/customer-ledger/statement-modal/${customerId}/?from_date=${encodeURIComponent(fromDate)}&to_date=${encodeURIComponent(toDate)}`;
-    fetch(url)
-        .then(res => {
-            if (!res.ok) throw new Error('Failed to load statement');
-            return res.text();
-        })
-        .then(html => {
-            modalBody.innerHTML = html;
-        })
-        .catch(err => {
-            console.error('SOA load error:', err);
-            modalBody.innerHTML = `
-                <div style="text-align: center; padding: 40px; color: #ef4444;">
-                    <i class="ph ph-warning-circle" style="font-size: 2.5rem; margin-bottom: 10px; display: block;"></i>
-                    <p style="font-size: 1rem; font-weight: 600; margin-bottom: 16px;">Unable to load statement preview.</p>
-                    <a href="/customer/customer-ledger/?customer=${customerId}" target="_blank" class="btn-view-soa" style="display: inline-flex;">
-                        <i class="ph ph-arrow-square-out"></i> Open Statement Page Directly
-                    </a>
-                </div>
-            `;
-        });
-}
-
-function closeSOAModal() {
-    const modal = document.getElementById('soaModal');
-    if (modal) modal.style.display = 'none';
-    document.body.style.overflow = '';
-}
-
-function printModalStatement() {
-    window.print();
-}
-
-// Close on backdrop click
-document.addEventListener('click', function(e) {
-    const modal = document.getElementById('soaModal');
-    if (e.target === modal) {
-        closeSOAModal();
-    }
-});
-
-// Close on Escape key
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        closeSOAModal();
-    }
-});
-
-function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
-
 function exportCurrentTableToCSV() {
     const table = document.getElementById('outstandingReportTable');
     if (!table) return;

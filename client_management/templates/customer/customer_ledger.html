@@ -590,6 +590,9 @@
             Statement Period: <strong>{{ from_date_display }}</strong> to <strong>{{ to_date_display }}</strong>
         </div>
         <div class="soa-buttons-group">
+            <a href="{% url 'outstanding_report' %}" class="btn-action btn-print" title="Back to Outstanding Report">
+                <i class="ph ph-arrow-left"></i> Back to Outstanding Report
+            </a>
             <a href="{% url 'customer_statement_pdf' %}?customer={{ customer.id }}&from_date={{ from_date }}&to_date={{ to_date }}" target="_blank" class="btn-action btn-pdf">
                 <i class="ph ph-file-pdf"></i> Download PDF
             </a>
