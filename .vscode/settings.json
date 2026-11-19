@@ -1,0 +1,8 @@
+{
+    "html.format.wrapLineLength": 0,
+    "html.format.unformatted": "wbr",
+    "html.format.templating": true,
+    "files.associations": {
+        "**/templates/**/*.html": "django-html"
+    }
+}
