@@ -451,14 +451,14 @@
     }
 
     .soa-table th {
-        background: #f8fafc;
-        color: #475569;
-        font-weight: 600;
+        background: #000000;
+        color: #ffffff;
+        font-weight: 700;
         font-size: 0.78rem;
         text-transform: uppercase;
         letter-spacing: 0.4px;
         padding: 12px 14px;
-        border-bottom: 2px solid #e2e8f0;
+        border-bottom: 2px solid #000000;
         text-align: left;
     }
 
@@ -488,11 +488,11 @@
     }
 
     .table-totals-ui td {
-        background: #eef2ff !important;
+        background: #f8fafc !important;
         font-weight: 700;
-        color: #1e1b4b;
-        border-top: 2px solid #6366f1;
-        border-bottom: 2px solid #6366f1;
+        color: #000000;
+        border-top: 2px solid #000000;
+        border-bottom: 2px solid #000000;
     }
 
     /* Empty state */
@@ -594,89 +594,61 @@
         </div>
     </div>
 
-    <!-- 3. Customer Info Summary Card -->
-    <div class="soa-cust-card">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3 style="margin:0; font-size:1.1rem; font-weight:700; color:#0f172a;">
-                Customer & Account Information
-            </h3>
-            {% if customer.customer_type %}
-                <span class="cust-badge">{{ customer.customer_type.name }} Customer</span>
-            {% endif %}
-        </div>
-        <div class="info-grid">
-            <div class="info-cell">
-                <label>Customer Name</label>
-                <span>{{ customer.name }}</span>
+    <!-- 3. Statement Header: Customer Details (Left) & Company Details (Right) -->
+    <div class="soa-cust-card" style="padding: 22px 26px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 20px;">
+            <!-- Left: Customer Details -->
+            <div style="flex: 1; min-width: 260px;">
+                <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: #64748b; letter-spacing: 0.5px; margin-bottom: 4px;">
+                    Customer Details
+                </div>
+                <div style="font-size: 1.3rem; font-weight: 700; color: #000000; margin-bottom: 4px;">
+                    {{ customer.name }}
+                </div>
+                <div style="font-size: 0.9rem; color: #334155; line-height: 1.5;">
+                    <div><strong>Phone:</strong> {{ customer.phone }}{% if customer.whatsapp_number and customer.whatsapp_number != customer.phone %} | <span style="color:#16a34a;">WA: {{ customer.whatsapp_number }}</span>{% endif %}</div>
+                    {% if customer.tax_number %}
+                        <div style="margin-top: 2px;"><strong>TRN / Tax No:</strong> <span style="font-weight: 700; color: #000000;">{{ customer.tax_number }}</span></div>
+                    {% endif %}
+                    {% if customer.email %}
+                        <div style="color: #64748b; font-size: 0.85rem;">{{ customer.email }}</div>
+                    {% endif %}
+                </div>
             </div>
-            <div class="info-cell">
-                <label>Mobile Number</label>
-                <span>{{ customer.phone }}</span>
+
+            <!-- Right: Company Details -->
+            <div style="flex: 1; min-width: 260px; text-align: right;">
+                {% if company.logo_color %}
+                    <img src="{{ company.logo_color.url }}" alt="Company Logo" style="max-height: 48px; max-width: 160px; object-fit: contain; margin-bottom: 6px;">
+                {% elif company.logo_bw %}
+                    <img src="{{ company.logo_bw.url }}" alt="Company Logo" style="max-height: 48px; max-width: 160px; object-fit: contain; margin-bottom: 6px;">
+                {% endif %}
+                <div style="font-size: 1.15rem; font-weight: 700; color: #000000; margin-bottom: 2px;">
+                    {% if company %}{{ company.company_name }}{% else %}Mobiz Car Wash{% endif %}
+                </div>
+                <div style="font-size: 0.85rem; color: #475569; line-height: 1.4;">
+                    {% if company.business_name and company.business_name != company.company_name %}
+                        <div><strong>Trading As:</strong> {{ company.business_name }}</div>
+                    {% endif %}
+                    {% if company.address %}
+                        <div>{{ company.address }}</div>
+                    {% endif %}
+                    <div>
+                        {% if company.phone %}<span>Phone: {{ company.phone }}</span>{% endif %}
+                        {% if company.email %}<span> | {{ company.email }}</span>{% endif %}
+                    </div>
+                    {% if company.gst_number %}
+                        <div><strong>TRN / GST:</strong> {{ company.gst_number }}</div>
+                    {% endif %}
+                </div>
             </div>
-            {% if customer.whatsapp_number %}
-            <div class="info-cell">
-                <label>WhatsApp</label>
-                <span>{{ customer.whatsapp_number }}</span>
-            </div>
-            {% endif %}
-            {% if customer.email %}
-            <div class="info-cell">
-                <label>Email</label>
-                <span>{{ customer.email }}</span>
-            </div>
-            {% endif %}
-            {% if customer.tax_number %}
-            <div class="info-cell">
-                <label>Tax / TRN Number</label>
-                <span style="color:#4338ca;">{{ customer.tax_number }}</span>
-            </div>
-            {% endif %}
-            {% if customer.tin_number %}
-            <div class="info-cell">
-                <label>TIN Number</label>
-                <span>{{ customer.tin_number }}</span>
-            </div>
-            {% endif %}
-            {% if customer.address %}
-            <div class="info-cell" style="grid-column: span 2;">
-                <label>Full Address</label>
-                <span>{{ customer.address }}</span>
-            </div>
-            {% endif %}
         </div>
     </div>
 
-    <!-- 4. Account Summary KPI Cards -->
-    <div class="kpi-grid">
-        <div class="kpi-card kpi-opening">
-            <div class="kpi-label">Opening Balance</div>
-            <div class="kpi-value">{{ currency }} {{ opening_balance|floatformat:2 }}</div>
-        </div>
-        <div class="kpi-card kpi-invoiced">
-            <div class="kpi-label">Period Invoiced (Debits)</div>
-            <div class="kpi-value">{{ currency }} {{ period_invoiced|floatformat:2 }}</div>
-        </div>
-        <div class="kpi-card kpi-collected">
-            <div class="kpi-label">Period Paid (Credits)</div>
-            <div class="kpi-value">{{ currency }} {{ period_collected|floatformat:2 }}</div>
-        </div>
-        <div class="kpi-card kpi-closing">
-            <div class="kpi-label">Closing Balance Due</div>
-            <div class="kpi-value">{{ currency }} {{ closing_balance|floatformat:2 }}</div>
-        </div>
-        {% if overdue_amount > 0 %}
-        <div class="kpi-card kpi-overdue">
-            <div class="kpi-label">⚠️ Overdue (>30 Days)</div>
-            <div class="kpi-value">{{ currency }} {{ overdue_amount|floatformat:2 }}</div>
-            <small style="font-weight:600; color:#991b1b;">{{ overdue_invoices_count }} overdue invoice(s)</small>
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- 5. Statement of Account Table -->
+    <!-- 4. Statement of Account Table: 9 Columns, Black Header -->
     <div class="soa-table-card">
         <div class="soa-table-header">
-            <h3>Statement Transactions (Running Balance)</h3>
+            <h3 style="color:#000000; font-weight:700;">Statement of Account</h3>
             <span style="font-size:0.85rem; color:#64748b; font-weight:600;">
                 {{ ledger_items|length }} Transaction(s)
             </span>
@@ -685,59 +657,50 @@
             <table class="soa-table">
                 <thead>
                     <tr>
-                        <th style="width: 40px; text-align:center;">#</th>
-                        <th style="width: 100px;">Date</th>
-                        <th>Particulars / Description</th>
-                        <th style="width: 130px;">Invoice #</th>
-                        <th style="width: 120px;">Vehicle #</th>
-                        <th class="num-col" style="width: 120px;">Debit ({{ currency }})</th>
-                        <th class="num-col" style="width: 120px;">Credit ({{ currency }})</th>
-                        <th class="num-col" style="width: 130px;">Balance ({{ currency }})</th>
+                        <th style="width: 50px; text-align:center;">Sl No</th>
+                        <th style="width: 110px; text-align:center;">Date</th>
+                        <th style="width: 130px;">Inv No</th>
+                        <th style="width: 120px;">Vehicle No</th>
+                        <th style="width: 160px;">Vehicle Name(brand)</th>
+                        <th>Service</th>
+                        <th class="num-col" style="width: 110px;">Amount ({{ currency }})</th>
+                        <th class="num-col" style="width: 110px;">Tax Amount ({{ currency }})</th>
+                        <th class="num-col" style="width: 125px;">Total Amount ({{ currency }})</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Row 0: Opening Balance -->
-                    <tr class="opening-row-ui">
-                        <td style="text-align:center;">-</td>
-                        <td>{{ from_date_display }}</td>
-                        <td colspan="3"><strong>OPENING BALANCE B/F</strong></td>
-                        <td class="num-col">-</td>
-                        <td class="num-col">-</td>
-                        <td class="num-col"><strong>{{ currency }} {{ opening_balance|floatformat:2 }}</strong></td>
-                    </tr>
-
                     {% for item in ledger_items %}
                     <tr>
-                        <td style="text-align:center; color:#94a3b8;">{{ item.sl_no }}</td>
-                        <td>{{ item.date|date:"d M Y" }}</td>
-                        <td>{{ item.particulars }}</td>
+                        <td style="text-align:center; color:#64748b; font-weight:500;">{{ item.sl_no }}</td>
+                        <td style="text-align:center; font-weight:600;">{{ item.date|date:"d-m-Y" }}</td>
                         <td><strong>{{ item.invoice_number }}</strong></td>
-                        <td>{{ item.vehicle_no }}</td>
-                        <td class="num-col" style="color:#1e293b;">{{ item.debit|floatformat:2 }}</td>
-                        <td class="num-col" style="color:#16a34a;">
-                            {% if item.credit > 0 %}{{ item.credit|floatformat:2 }}{% else %}-{% endif %}
-                        </td>
-                        <td class="num-col" style="{% if item.balance > 0 %}color:#dc2626;{% else %}color:#16a34a;{% endif %}">
-                            {{ item.balance|floatformat:2 }}
+                        <td><span style="font-weight:600; font-family:monospace; font-size:0.9rem;">{{ item.vehicle_no }}</span></td>
+                        <td>{{ item.vehicle_name }}</td>
+                        <td>{{ item.service }}</td>
+                        <td class="num-col" style="color:#0f172a;">{{ item.amount|floatformat:2 }}</td>
+                        <td class="num-col" style="color:#0f172a;">{{ item.tax_amount|floatformat:2 }}</td>
+                        <td class="num-col" style="color:#000000; font-weight:700;">
+                            {{ item.total_amount|floatformat:2 }}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" style="text-align:center; padding:24px; color:#94a3b8;">
-                            No invoice transactions found in this date range.
+                        <td colspan="9" style="text-align:center; padding:32px; color:#94a3b8;">
+                            <i class="ph ph-receipt" style="font-size:2rem; color:#cbd5e1; display:block; margin-bottom:8px;"></i>
+                            No invoice transactions recorded during this period.
                         </td>
                     </tr>
                     {% endfor %}
 
                     <!-- Totals Row -->
                     <tr class="table-totals-ui">
-                        <td colspan="5" style="text-align:right; text-transform:uppercase;">
-                            Period Totals & Closing Balance:
+                        <td colspan="6" style="text-align:right; text-transform:uppercase; font-weight:700; letter-spacing:0.3px;">
+                            Total:
                         </td>
-                        <td class="num-col">{{ period_invoiced|floatformat:2 }}</td>
-                        <td class="num-col">{{ period_collected|floatformat:2 }}</td>
-                        <td class="num-col" style="{% if closing_balance > 0 %}color:#dc2626;{% else %}color:#16a34a;{% endif %}">
-                            {{ currency }} {{ closing_balance|floatformat:2 }}
+                        <td class="num-col">{{ period_subtotal|floatformat:2 }}</td>
+                        <td class="num-col">{{ period_tax|floatformat:2 }}</td>
+                        <td class="num-col" style="font-weight:800; font-size:0.95rem;">
+                            {{ period_invoiced|floatformat:2 }}
                         </td>
                     </tr>
                 </tbody>

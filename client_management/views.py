@@ -2211,7 +2211,13 @@ def _build_customer_statement_context(request, customer, from_date, to_date):
         date__gte=from_date,
         date__lte=to_date,
         is_deleted=False
-    ).select_related('vehicle', 'branch').prefetch_related('items').order_by('date', 'auto_id')
+    ).select_related(
+        'vehicle__make',
+        'vehicle__brand_model',
+        'vehicle__vehicle_type_model',
+        'vehicle__vehicle_type',
+        'branch'
+    ).prefetch_related('items__service').order_by('date', 'auto_id')
 
     if role == 'BRANCH_ADMIN' and hasattr(user, 'managed_branch'):
         invoices_period = invoices_period.filter(branch=user.managed_branch)
@@ -2224,20 +2230,53 @@ def _build_customer_statement_context(request, customer, from_date, to_date):
     sl_no = 1
 
     for invoice in invoices_period:
-        debit = invoice.total
-        credit = invoice.amount_collected
+        debit = invoice.total or Decimal('0.00')
+        credit = invoice.amount_collected or Decimal('0.00')
         running_balance = running_balance + debit - credit
 
-        items_list = [item.service_name for item in invoice.items.all() if item.service_name]
-        particulars = ", ".join(items_list) if items_list else "Service Invoice"
+        # Extract service names
+        items_list = []
+        for item in invoice.items.all():
+            if getattr(item, 'is_deleted', False):
+                continue
+            name = (item.service_name or (item.service.name if item.service else '')).strip()
+            if name and name not in items_list:
+                items_list.append(name)
+        service_names = ", ".join(items_list) if items_list else "Service"
+
+        # Extract vehicle brand/make/model
+        vehicle_brand = "-"
+        if invoice.vehicle:
+            v = invoice.vehicle
+            parts = []
+            if v.make and v.make.name:
+                parts.append(v.make.name)
+            if v.brand_model and v.brand_model.name:
+                parts.append(v.brand_model.name)
+            if parts:
+                vehicle_brand = " ".join(parts)
+            elif v.vehicle_type_model and v.vehicle_type_model.name:
+                vehicle_brand = v.vehicle_type_model.name
+            elif v.vehicle_type and v.vehicle_type.name:
+                vehicle_brand = v.vehicle_type.name
+
+        amount = invoice.subtotal or Decimal('0.00')
+        tax_amount = invoice.tax_amount or Decimal('0.00')
+        total_amount = invoice.total or Decimal('0.00')
 
         ledger_items.append({
             'sl_no': sl_no,
             'date': invoice.date,
+            'date_formatted': invoice.date.strftime('%d-%m-%Y'),
             'invoice_number': invoice.invoice_number,
             'invoice_id': str(invoice.id),
             'vehicle_no': invoice.vehicle.vehicle_number if invoice.vehicle else '-',
-            'particulars': particulars,
+            'vehicle_name': vehicle_brand,
+            'service': service_names,
+            'particulars': service_names,
+            'amount': amount,
+            'tax_amount': tax_amount,
+            'total_amount': total_amount,
             'debit': debit,
             'credit': credit,
             'balance': running_balance,
@@ -2248,9 +2287,13 @@ def _build_customer_statement_context(request, customer, from_date, to_date):
     closing_balance = running_balance
 
     period_agg = invoices_period.aggregate(
+        subtotal_sum=Coalesce(Sum('subtotal'), Decimal('0.00'), output_field=DecimalField()),
+        tax_sum=Coalesce(Sum('tax_amount'), Decimal('0.00'), output_field=DecimalField()),
         tot=Coalesce(Sum('total'), Decimal('0.00'), output_field=DecimalField()),
         col=Coalesce(Sum('amount_collected'), Decimal('0.00'), output_field=DecimalField())
     )
+    period_subtotal = period_agg['subtotal_sum']
+    period_tax = period_agg['tax_sum']
     period_invoiced = period_agg['tot']
     period_collected = period_agg['col']
     total_services = InvoiceItem.objects.filter(invoice__in=invoices_period, is_deleted=False).count()
@@ -2307,6 +2350,8 @@ def _build_customer_statement_context(request, customer, from_date, to_date):
         'to_date_display': to_date.strftime('%d %b %Y'),
         'statement_date': now().date().strftime('%d %b %Y'),
         'opening_balance': opening_balance,
+        'period_subtotal': period_subtotal,
+        'period_tax': period_tax,
         'period_invoiced': period_invoiced,
         'period_collected': period_collected,
         'closing_balance': closing_balance,
