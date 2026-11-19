@@ -6,7 +6,7 @@
     <style>
         @page {
             size: A4 portrait;
-            margin: 12mm 14mm 14mm 14mm;
+            margin: 12mm 12mm 12mm 12mm;
             @bottom-right {
                 content: "Page " counter(page) " of " counter(pages);
                 font-size: 8pt;
@@ -18,17 +18,17 @@
         body {
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             font-size: 8.5pt;
-            color: #1e293b;
+            color: #000000;
             line-height: 1.4;
             margin: 0;
             padding: 0;
         }
 
-        /* Header table: Left Customer, Right Company */
+        /* Header table: Left Customer, Right Company (No black boxes) */
         .header-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
 
         .header-table td {
@@ -42,7 +42,7 @@
 
         .customer-header-name {
             font-size: 13pt;
-            font-weight: 700;
+            font-weight: 800;
             color: #000000;
             margin-bottom: 3px;
             letter-spacing: -0.2px;
@@ -50,8 +50,8 @@
 
         .customer-header-meta {
             font-size: 8.5pt;
-            color: #334155;
-            line-height: 1.4;
+            color: #000000;
+            line-height: 1.45;
         }
 
         .company-header-box {
@@ -60,7 +60,7 @@
         }
 
         .company-logo {
-            max-height: 50px;
+            max-height: 48px;
             max-width: 160px;
             object-fit: contain;
             margin-bottom: 4px;
@@ -68,7 +68,7 @@
 
         .company-header-title {
             font-size: 13pt;
-            font-weight: 700;
+            font-weight: 800;
             color: #000000;
             margin-bottom: 2px;
             letter-spacing: -0.2px;
@@ -76,70 +76,65 @@
 
         .company-header-meta {
             font-size: 8.5pt;
-            color: #334155;
+            color: #000000;
             line-height: 1.35;
         }
 
-        /* Banner - Black styling */
-        .soa-banner {
-            background-color: #000000;
-            color: #ffffff;
-            padding: 7px 12px;
-            border-radius: 4px;
-            margin: 8px 0 12px 0;
+        /* Title & Period Header - Clean text, no black box */
+        .soa-title-section {
+            text-align: center;
+            margin: 10px 0 12px 0;
+            padding-bottom: 6px;
+            border-bottom: 1.5px solid #000000;
         }
 
-        .soa-banner-table {
-            width: 100%;
-            border-collapse: collapse;
-            color: #ffffff;
-        }
-
-        .soa-banner-title {
-            font-size: 11pt;
-            font-weight: 700;
-            letter-spacing: 0.5px;
+        .soa-main-title {
+            font-size: 13pt;
+            font-weight: 800;
+            color: #000000;
+            letter-spacing: 1px;
             text-transform: uppercase;
         }
 
-        .soa-banner-meta {
-            text-align: right;
-            font-size: 8pt;
+        .soa-period-sub {
+            font-size: 8.5pt;
+            color: #111111;
+            margin-top: 3px;
         }
 
-        /* Statement Table - Black theme */
+        /* Statement Table - Grid layout with black borders, like sample photo */
         .statement-table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 6px;
             margin-bottom: 16px;
+            border: 1px solid #000000;
         }
 
         .statement-table th {
-            background-color: #000000;
-            color: #ffffff;
-            font-size: 7.5pt;
+            background-color: #f2f2f2;
+            color: #000000;
+            font-size: 8pt;
             font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            padding: 6px 5px;
-            text-align: left;
+            letter-spacing: 0.1px;
+            padding: 6px 4px;
             border: 1px solid #000000;
+            text-align: center;
         }
 
         .statement-table th.num-col {
             text-align: right;
         }
 
-        .statement-table th.center-col {
-            text-align: center;
+        .statement-table th.left-col {
+            text-align: left;
         }
 
         .statement-table td {
-            padding: 5px 5px;
+            padding: 4px 4px;
             font-size: 7.5pt;
-            border: 1px solid #cbd5e1;
-            color: #1e293b;
+            border: 1px solid #000000;
+            color: #000000;
             vertical-align: middle;
         }
 
@@ -153,16 +148,20 @@
             white-space: nowrap;
         }
 
-        .statement-table tr:nth-child(even) td {
-            background-color: #f8fafc;
+        .statement-table td.vehicle-name-col {
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .statement-table td.service-col {
+            text-transform: uppercase;
         }
 
         .table-total-row td {
-            background-color: #f1f5f9 !important;
-            font-weight: 700;
+            background-color: #f2f2f2 !important;
+            font-weight: 800;
             font-size: 8pt;
-            border-top: 2px solid #000000;
-            border-bottom: 2px solid #000000;
+            border: 1px solid #000000;
             color: #000000;
         }
 
@@ -174,7 +173,7 @@
         .footer-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 20px;
+            margin-top: 24px;
         }
 
         .footer-table td {
@@ -200,7 +199,7 @@
             margin-top: 25px;
             padding-top: 4px;
             font-size: 8pt;
-            font-weight: 600;
+            font-weight: 700;
             color: #000000;
             text-align: center;
         }
@@ -208,7 +207,7 @@
 </head>
 <body>
 
-    <!-- Header Section: Customer on Left, Company on Right -->
+    <!-- Header Section: Customer on Left, Company on Right (No black boxes) -->
     <table class="header-table">
         <tr>
             <!-- Left: Customer Details -->
@@ -217,7 +216,7 @@
                 <div class="customer-header-meta">
                     <div><strong>Phone:</strong> {{ customer.phone }}{% if customer.whatsapp_number and customer.whatsapp_number != customer.phone %} | {{ customer.whatsapp_number }}{% endif %}</div>
                     {% if customer.tax_number %}
-                        <div><strong>TRN / Tax No:</strong> {{ customer.tax_number }}</div>
+                        <div><strong>TRN:</strong> {{ customer.tax_number }}</div>
                     {% endif %}
                 </div>
             </td>
@@ -244,59 +243,52 @@
                         {% if company.email %}<span> | Email: {{ company.email }}</span>{% endif %}
                     </div>
                     {% if company.gst_number %}
-                        <div><strong>TRN / GST:</strong> {{ company.gst_number }}</div>
+                        <div><strong>TRN:</strong> {{ company.gst_number }}</div>
                     {% endif %}
                 </div>
             </td>
         </tr>
     </table>
 
-    <!-- Black Statement Banner -->
-    <div class="soa-banner">
-        <table class="soa-banner-table">
-            <tr>
-                <td class="soa-banner-title">
-                    STATEMENT OF ACCOUNT
-                </td>
-                <td class="soa-banner-meta">
-                    <div><strong>Period:</strong> {{ from_date_display }} &mdash; {{ to_date_display }}</div>
-                    <div><strong>Date:</strong> {{ statement_date }}</div>
-                </td>
-            </tr>
-        </table>
+    <!-- Title & Period Header (Clean text, no black box) -->
+    <div class="soa-title-section">
+        <div class="soa-main-title">STATEMENT OF ACCOUNT</div>
+        <div class="soa-period-sub">
+            Period: <strong>{{ from_date_display }}</strong> &mdash; <strong>{{ to_date_display }}</strong> &nbsp;|&nbsp; Date: <strong>{{ statement_date }}</strong>
+        </div>
     </div>
 
-    <!-- Statement Table: Exact 9 Columns, Black Header -->
+    <!-- Statement Table: 9 Columns with full black borders and subtle gray header, matching sample -->
     <table class="statement-table">
         <thead>
             <tr>
-                <th class="center-col" style="width: 26px;">Sl No</th>
-                <th class="center-col" style="width: 68px;">Date</th>
-                <th style="width: 78px;">Inv No</th>
-                <th style="width: 76px;">Vehicle No</th>
-                <th style="width: 88px;">Vehicle Name(brand)</th>
-                <th>Service</th>
-                <th class="num-col" style="width: 68px;">Amount</th>
-                <th class="num-col" style="width: 65px;">Tax Amount</th>
-                <th class="num-col" style="width: 74px;">Total Amount</th>
+                <th style="width: 32px;">Sl No#</th>
+                <th style="width: 70px;">Date</th>
+                <th style="width: 80px;">Inv No#</th>
+                <th style="width: 78px;">Vehicle Number</th>
+                <th style="width: 90px;">Vehicle Name</th>
+                <th class="left-col">Description</th>
+                <th class="num-col" style="width: 65px;">Amount</th>
+                <th class="num-col" style="width: 62px;">Tax Amount</th>
+                <th class="num-col" style="width: 72px;">Total Amount</th>
             </tr>
         </thead>
         <tbody>
             {% for item in ledger_items %}
             <tr>
-                <td class="center-col" style="color: #64748b;">{{ item.sl_no }}</td>
-                <td class="center-col">{{ item.date|date:"d-m-Y" }}</td>
-                <td><strong>{{ item.invoice_number }}</strong></td>
-                <td>{{ item.vehicle_no }}</td>
-                <td>{{ item.vehicle_name }}</td>
-                <td>{{ item.service }}</td>
+                <td class="center-col">{{ item.sl_no }}</td>
+                <td class="center-col">{{ item.date|date:"d/m/Y" }}</td>
+                <td class="center-col"><strong>{{ item.invoice_number }}</strong></td>
+                <td class="center-col">{{ item.vehicle_no }}</td>
+                <td class="center-col vehicle-name-col">{{ item.vehicle_name }}</td>
+                <td class="service-col">{{ item.service }}</td>
                 <td class="num-col">{{ item.amount|floatformat:2 }}</td>
                 <td class="num-col">{{ item.tax_amount|floatformat:2 }}</td>
                 <td class="num-col"><strong>{{ item.total_amount|floatformat:2 }}</strong></td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="9" style="text-align: center; padding: 18px; color: #94a3b8;">
+                <td colspan="9" style="text-align: center; padding: 18px; color: #666666;">
                     No invoice transactions recorded during this period.
                 </td>
             </tr>

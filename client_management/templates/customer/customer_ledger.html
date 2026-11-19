@@ -450,24 +450,31 @@
         font-size: 0.88rem;
     }
 
+    .soa-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88rem;
+        border: 1px solid #cbd5e1;
+    }
+
     .soa-table th {
-        background: #000000;
-        color: #ffffff;
+        background: #f1f5f9;
+        color: #000000;
         font-weight: 700;
-        font-size: 0.78rem;
-        text-transform: uppercase;
-        letter-spacing: 0.4px;
-        padding: 12px 14px;
-        border-bottom: 2px solid #000000;
-        text-align: left;
+        font-size: 0.82rem;
+        letter-spacing: 0.1px;
+        padding: 11px 12px;
+        border: 1px solid #cbd5e1;
+        text-align: center;
     }
 
     .soa-table th.num-col { text-align: right; }
+    .soa-table th.left-col { text-align: left; }
 
     .soa-table td {
-        padding: 13px 14px;
-        border-bottom: 1px solid #f1f5f9;
-        color: #1e293b;
+        padding: 10px 12px;
+        border: 1px solid #e2e8f0;
+        color: #000000;
         vertical-align: middle;
     }
 
@@ -475,6 +482,10 @@
         text-align: right;
         font-variant-numeric: tabular-nums;
         font-weight: 600;
+    }
+
+    .soa-table td.center-col {
+        text-align: center;
     }
 
     .soa-table tr:hover td {
@@ -488,11 +499,10 @@
     }
 
     .table-totals-ui td {
-        background: #f8fafc !important;
+        background: #f1f5f9 !important;
         font-weight: 700;
         color: #000000;
-        border-top: 2px solid #000000;
-        border-bottom: 2px solid #000000;
+        border: 1px solid #94a3b8;
     }
 
     /* Empty state */
@@ -645,7 +655,7 @@
         </div>
     </div>
 
-    <!-- 4. Statement of Account Table: 9 Columns, Black Header -->
+    <!-- 4. Statement of Account Table: 9 Columns, Grid with Clean Borders -->
     <div class="soa-table-card">
         <div class="soa-table-header">
             <h3 style="color:#000000; font-weight:700;">Statement of Account</h3>
@@ -657,28 +667,28 @@
             <table class="soa-table">
                 <thead>
                     <tr>
-                        <th style="width: 50px; text-align:center;">Sl No</th>
-                        <th style="width: 110px; text-align:center;">Date</th>
-                        <th style="width: 130px;">Inv No</th>
-                        <th style="width: 120px;">Vehicle No</th>
-                        <th style="width: 160px;">Vehicle Name(brand)</th>
-                        <th>Service</th>
-                        <th class="num-col" style="width: 110px;">Amount ({{ currency }})</th>
-                        <th class="num-col" style="width: 110px;">Tax Amount ({{ currency }})</th>
-                        <th class="num-col" style="width: 125px;">Total Amount ({{ currency }})</th>
+                        <th style="width: 60px;">Sl No#</th>
+                        <th style="width: 110px;">Date</th>
+                        <th style="width: 120px;">Inv No#</th>
+                        <th style="width: 125px;">Vehicle Number</th>
+                        <th style="width: 150px;">Vehicle Name</th>
+                        <th class="left-col">Description</th>
+                        <th class="num-col" style="width: 115px;">Amount ({{ currency }})</th>
+                        <th class="num-col" style="width: 115px;">Tax Amount ({{ currency }})</th>
+                        <th class="num-col" style="width: 130px;">Total Amount ({{ currency }})</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in ledger_items %}
                     <tr>
-                        <td style="text-align:center; color:#64748b; font-weight:500;">{{ item.sl_no }}</td>
-                        <td style="text-align:center; font-weight:600;">{{ item.date|date:"d-m-Y" }}</td>
-                        <td><strong>{{ item.invoice_number }}</strong></td>
-                        <td><span style="font-weight:600; font-family:monospace; font-size:0.9rem;">{{ item.vehicle_no }}</span></td>
-                        <td>{{ item.vehicle_name }}</td>
-                        <td>{{ item.service }}</td>
-                        <td class="num-col" style="color:#0f172a;">{{ item.amount|floatformat:2 }}</td>
-                        <td class="num-col" style="color:#0f172a;">{{ item.tax_amount|floatformat:2 }}</td>
+                        <td class="center-col" style="color:#64748b; font-weight:500;">{{ item.sl_no }}</td>
+                        <td class="center-col" style="font-weight:600;">{{ item.date|date:"d/m/Y" }}</td>
+                        <td class="center-col"><strong>{{ item.invoice_number }}</strong></td>
+                        <td class="center-col"><span style="font-weight:600; font-family:monospace; font-size:0.9rem;">{{ item.vehicle_no }}</span></td>
+                        <td class="center-col" style="text-transform: uppercase; font-weight: 600;">{{ item.vehicle_name }}</td>
+                        <td style="text-transform: uppercase;">{{ item.service }}</td>
+                        <td class="num-col" style="color:#000000;">{{ item.amount|floatformat:2 }}</td>
+                        <td class="num-col" style="color:#000000;">{{ item.tax_amount|floatformat:2 }}</td>
                         <td class="num-col" style="color:#000000; font-weight:700;">
                             {{ item.total_amount|floatformat:2 }}
                         </td>
