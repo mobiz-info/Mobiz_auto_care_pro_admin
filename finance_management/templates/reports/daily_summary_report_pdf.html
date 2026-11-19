@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Daily Summary Report - {{ company.company_name|default:"Mobiz Car Wash" }}</title>
@@ -7,6 +8,7 @@
         @page {
             size: A4 portrait;
             margin: 12mm 14mm 14mm 14mm;
+
             @bottom-right {
                 content: "Page " counter(page) " of " counter(pages);
                 font-size: 8pt;
@@ -118,8 +120,13 @@
             text-align: left;
         }
 
-        .report-table th.center-col { text-align: center; }
-        .report-table th.num-col { text-align: right; }
+        .report-table th.center-col {
+            text-align: center;
+        }
+
+        .report-table th.num-col {
+            text-align: right;
+        }
 
         .report-table td {
             padding: 4px 6px;
@@ -129,7 +136,10 @@
             vertical-align: middle;
         }
 
-        .report-table td.center-col { text-align: center; }
+        .report-table td.center-col {
+            text-align: center;
+        }
+
         .report-table td.num-col {
             text-align: right;
             font-variant-numeric: tabular-nums;
@@ -224,6 +234,7 @@
         }
     </style>
 </head>
+
 <body>
 
     <!-- Top Header: Company Details only -->
@@ -232,26 +243,26 @@
             <td style="width: 45%;"></td>
             <td style="width: 55%;" class="company-header-box">
                 {% if company.logo_color %}
-                    <img src="{{ company.logo_color.url }}" alt="Company Logo" class="company-logo">
+                <img src="{{ company.logo_color.url }}" alt="Company Logo" class="company-logo">
                 {% elif company.logo_bw %}
-                    <img src="{{ company.logo_bw.url }}" alt="Company Logo" class="company-logo">
+                <img src="{{ company.logo_bw.url }}" alt="Company Logo" class="company-logo">
                 {% endif %}
                 <div class="company-header-title">
                     {% if company %}{{ company.company_name }}{% else %}Mobiz Car Wash{% endif %}
                 </div>
                 <div class="company-header-meta">
                     {% if company.business_name and company.business_name != company.company_name %}
-                        <div><strong>Trading As:</strong> {{ company.business_name }}</div>
+                    <div><strong>Trading As:</strong> {{ company.business_name }}</div>
                     {% endif %}
                     {% if company.address %}
-                        <div>{{ company.address }}</div>
+                    <div>{{ company.address }}</div>
                     {% endif %}
                     <div>
                         {% if company.phone %}<span>Phone: {{ company.phone }}</span>{% endif %}
                         {% if company.email %}<span> | Email: {{ company.email }}</span>{% endif %}
                     </div>
                     {% if company.gst_number %}
-                        <div><strong>TRN:</strong> {{ company.gst_number }}</div>
+                    <div><strong>TRN:</strong> {{ company.gst_number }}</div>
                     {% endif %}
                 </div>
             </td>
@@ -263,12 +274,12 @@
         <div class="report-main-title">DAILY SUMMARY REPORT</div>
         <div class="report-period-sub">
             {% if from_date == to_date %}
-                Date: <strong>{{ from_date_display }}</strong>
+            Date: <strong>{{ from_date_display }}</strong>
             {% else %}
-                Period: <strong>{{ from_date_display }}</strong> &mdash; <strong>{{ to_date_display }}</strong>
+            Period: <strong>{{ from_date_display }}</strong> &mdash; <strong>{{ to_date_display }}</strong>
             {% endif %}
             {% if selected_branch_name %}
-                &nbsp;|&nbsp; Branch: <strong>{{ selected_branch_name }}</strong>
+            &nbsp;|&nbsp; Branch: <strong>{{ selected_branch_name }}</strong>
             {% endif %}
             &nbsp;|&nbsp; Generated On: <strong>{{ report_date }}</strong>
         </div>
@@ -299,7 +310,8 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="6" style="text-align: center; padding: 8px; color: #666666;">No sales recorded for this period.</td>
+                <td colspan="6" style="text-align: center; padding: 8px; color: #666666;">No sales recorded for this
+                    period.</td>
             </tr>
             {% endfor %}
             <tr class="table-total-row">
@@ -335,7 +347,8 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="5" style="text-align: center; padding: 8px; color: #666666;">No expenses recorded for this period.</td>
+                <td colspan="5" style="text-align: center; padding: 8px; color: #666666;">No expenses recorded for this
+                    period.</td>
             </tr>
             {% endfor %}
             <tr class="table-total-row">
@@ -363,13 +376,15 @@
                 <td class="center-col">{{ row.slno }}</td>
                 <td>
                     <strong>{{ row.customername }}</strong>
-                    {% if row.customerphone %}<span style="color:#555555; font-size: 7pt;"> ({{ row.customerphone }})</span>{% endif %}
+                    {% if row.customerphone %}<span style="color:#555555; font-size: 7pt;"> ({{ row.customerphone
+                        }})</span>{% endif %}
                 </td>
                 <td class="num-col" style="font-weight: 700;">{{ row.amount|floatformat:2 }}</td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="3" style="text-align: center; padding: 8px; color: #666666;">No previous outstanding collections received for this period.</td>
+                <td colspan="3" style="text-align: center; padding: 8px; color: #666666;">No previous outstanding
+                    collections received for this period.</td>
             </tr>
             {% endfor %}
             <tr class="table-total-row">
@@ -404,7 +419,8 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="6" style="text-align: center; padding: 8px; color: #666666;">No purchases recorded for this period.</td>
+                <td colspan="6" style="text-align: center; padding: 8px; color: #666666;">No purchases recorded for this
+                    period.</td>
             </tr>
             {% endfor %}
             <tr class="table-total-row">
@@ -420,9 +436,12 @@
     <div class="section-heading" style="margin-top: 12px;">Cash & Settlement Position</div>
     <table class="report-table" style="margin-bottom: 6px;">
         <tr class="table-total-row" style="background-color: #f8fafc !important;">
-            <td style="width: 33.3%;">Today's Sales Received: <strong>{{ currency_symbol }} {{ sales_totals.received|floatformat:2 }}</strong></td>
-            <td style="width: 33.3%;">Previous Collection: <strong>{{ currency_symbol }} {{ collection_totals.amount|floatformat:2 }}</strong></td>
-            <td style="width: 33.4%; text-align: right;">Total Collections Received: <strong>{{ currency_symbol }} {{ total_inflow|floatformat:2 }}</strong></td>
+            <td style="width: 33.3%;">Today's Sales Received: <strong>{{ currency_symbol }} {{
+                    sales_totals.received|floatformat:2 }}</strong></td>
+            <td style="width: 33.3%;">Previous Collection: <strong>{{ currency_symbol }} {{
+                    collection_totals.amount|floatformat:2 }}</strong></td>
+            <td style="width: 33.4%; text-align: right;">Total Collections Received: <strong>{{ currency_symbol }} {{
+                    total_inflow|floatformat:2 }}</strong></td>
         </tr>
     </table>
     <table class="cash-box-table">
@@ -437,7 +456,8 @@
             <tr>
                 <td>
                     <div class="cash-box-val">{{ currency_symbol }} {{ net_cash_in_hand|floatformat:2 }}</div>
-                    <div class="cash-box-sub">Cash In: {{ currency_symbol }}{{ cash_collected|floatformat:2 }} &nbsp;|&nbsp; Cash Out: {{ currency_symbol }}{{ total_cash_out|floatformat:2 }}</div>
+                    <div class="cash-box-sub">Cash In: {{ currency_symbol }}{{ cash_collected|floatformat:2 }}
+                        &nbsp;|&nbsp; Cash Out: {{ currency_symbol }}{{ total_cash_out|floatformat:2 }}</div>
                 </td>
                 <td>
                     <div class="cash-box-val">{{ currency_symbol }} {{ card_collected|floatformat:2 }}</div>
@@ -452,7 +472,8 @@
         <tfoot>
             <tr style="background-color: #f2f2f2; font-weight: 800; font-size: 8pt;">
                 <td colspan="3" style="text-align: center; padding: 6px;">
-                    Total Inflow Received (Cash + Card + Digital): <strong>{{ currency_symbol }} {{ total_inflow|floatformat:2 }}</strong>
+                    Total Received (Cash + Card + Digital): <strong>{{ currency_symbol }} {{ total_inflow|floatformat:2
+                        }}</strong>
                 </td>
             </tr>
         </tfoot>
@@ -464,7 +485,7 @@
             <td style="width: 60%;"></td>
             <td class="signature-box" style="width: 40%;">
                 {% if company.company_seal %}
-                    <img src="{{ company.company_seal.url }}" alt="Company Seal" class="seal-img">
+                <img src="{{ company.company_seal.url }}" alt="Company Seal" class="seal-img">
                 {% endif %}
                 <div class="signature-line">
                     Authorized Signatory
@@ -474,5 +495,5 @@
     </table>
 
 </body>
-</html>
 
+</html>
