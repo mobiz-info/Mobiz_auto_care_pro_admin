@@ -687,6 +687,15 @@
                 Reset
             </a>
 
+            <a href="{% url 'outstanding_report_pdf' %}?{% if from_date %}from_date={{ from_date }}&{% endif %}{% if to_date %}to_date={{ to_date }}&{% endif %}{% if branch_id %}branch_id={{ branch_id }}&{% endif %}{% if search %}search={{ search }}&{% endif %}{% if aging %}aging={{ aging }}{% endif %}"
+               target="_blank"
+               class="btn-export"
+               style="background: #dc2626;"
+               title="Download Outstanding Report PDF">
+                <i class="ph ph-file-pdf"></i>
+                Download PDF
+            </a>
+
             <button type="button" onclick="exportCurrentTableToCSV()" class="btn-export" title="Export as CSV">
                 <i class="ph ph-download-simple"></i>
                 Export CSV
@@ -818,26 +827,14 @@
 
                         <!-- Customer name -->
                         <td>
-                            <div class="customer-name" style="font-size: 1rem; color: #0f172a;">
+                            <div class="customer-name" style="font-size: 0.95rem; font-weight: 700; color: #0f172a;">
                                 {{ item.customer_name }}
-                                {% if item.customer_type %}
-                                    <span class="cust-badge" style="font-size: 0.75rem; background: #e0e7ff; color: #4338ca; padding: 2px 8px; border-radius: 12px; font-weight: 600; margin-left: 6px;">{{ item.customer_type }}</span>
-                                {% endif %}
                             </div>
-                            <div style="font-size: 0.85rem; color: #64748b; margin-top: 3px; display: flex; align-items: center; gap: 8px;">
-                                {% if item.customer_phone %}
-                                    <a href="tel:{{ item.customer_phone }}" class="phone-link" style="color: #475569; text-decoration: none;">
-                                        <i class="ph ph-phone"></i> {{ item.customer_phone }}
-                                    </a>
-                                    <a href="https://wa.me/{{ item.customer_phone }}?text=Dear%20{{ item.customer_name|urlencode }},%20your%20total%20outstanding%20balance%20is%20{{ currency_symbol }}{{ item.total_outstanding|floatformat:2 }}.%20Kindly%20review%20and%20arrange%20payment."
-                                       target="_blank"
-                                       class="wa-btn"
-                                       title="Send WhatsApp Reminder">
-                                        <i class="ph-bold ph-whatsapp-logo"></i>
-                                    </a>
-                                {% endif %}
-                                <span style="color: #94a3b8; font-size: 0.8rem;">({{ item.invoices_count }} invoice{{ item.invoices_count|pluralize }})</span>
+                            {% if item.customer_phone %}
+                            <div style="font-size: 0.85rem; color: #64748b; margin-top: 2px;">
+                                <i class="ph ph-phone" style="font-size: 0.82rem;"></i> {{ item.customer_phone }}
                             </div>
+                            {% endif %}
                         </td>
 
                         <!-- Total Outstanding -->

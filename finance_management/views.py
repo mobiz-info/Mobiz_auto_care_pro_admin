@@ -3775,8 +3775,7 @@ def tax_report(request):
     return render(request, 'reports/tax_report.html', context)
 
 
-@login_required
-def outstanding_report(request):
+def _build_outstanding_report_data(request):
     user = request.user
     role = user.profile.role.name if hasattr(user, 'profile') and user.profile.role else None
 
@@ -3798,7 +3797,7 @@ def outstanding_report(request):
         customer__is_deleted=False,
         amount_collected__lt=F('total')
     ).select_related(
-        'customer', 'vehicle', 'vehicle__vehicle_type_model', 'branch'
+        'customer', 'branch'
     ).order_by('-date', '-auto_id')
 
     # Scope by role
@@ -3837,7 +3836,6 @@ def outstanding_report(request):
         'customer_id': '',
         'customer_name': '',
         'customer_phone': '',
-        'customer_type': '',
         'total_outstanding': Decimal('0.00'),
         'total_invoiced': Decimal('0.00'),
         'total_paid': Decimal('0.00'),
@@ -3877,7 +3875,6 @@ def outstanding_report(request):
         c['customer_id'] = cid
         c['customer_name'] = inv.customer.name
         c['customer_phone'] = inv.customer.phone or ''
-        c['customer_type'] = inv.customer.customer_type.name if inv.customer.customer_type else ''
         c['total_outstanding'] += balance
         c['total_invoiced'] += inv_amt
         c['total_paid'] += paid_amt
@@ -3907,7 +3904,23 @@ def outstanding_report(request):
     if company and company.country and company.country.currency_symbol:
         currency_symbol = company.country.currency_symbol
 
-    context = {
+    from_date_display = ''
+    to_date_display = ''
+    if from_date:
+        try:
+            from datetime import datetime
+            from_date_display = datetime.strptime(from_date, '%Y-%m-%d').strftime('%d %b %Y')
+        except Exception:
+            from_date_display = from_date
+    if to_date:
+        try:
+            from datetime import datetime
+            to_date_display = datetime.strptime(to_date, '%Y-%m-%d').strftime('%d %b %Y')
+        except Exception:
+            to_date_display = to_date
+
+    return {
+        'company': company,
         'customer_list': customer_list,
         'invoices': customer_list,
         'total_customers_count': len(customer_list),
@@ -3919,13 +3932,43 @@ def outstanding_report(request):
         'currency_symbol': currency_symbol,
         'from_date': from_date,
         'to_date': to_date,
+        'from_date_display': from_date_display,
+        'to_date_display': to_date_display,
+        'report_date': today.strftime('%d %b %Y'),
         'branch_id': branch_id,
         'branches': branches,
         'aging': aging_filter,
         'search': search,
         'title': 'Outstanding Report',
     }
+
+
+@login_required
+def outstanding_report(request):
+    if request.GET.get('pdf') == '1':
+        return outstanding_report_pdf(request)
+    context = _build_outstanding_report_data(request)
     return render(request, 'reports/outstanding_report.html', context)
+
+
+@login_required
+def outstanding_report_pdf(request):
+    import sys, os
+    if sys.platform == 'darwin':
+        os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = '/opt/homebrew/lib:' + os.environ.get('DYLD_FALLBACK_LIBRARY_PATH', '')
+    from weasyprint import HTML
+
+    context = _build_outstanding_report_data(request)
+    html_string = render_to_string('reports/outstanding_report_pdf.html', context)
+    base_url = request.build_absolute_uri('/')
+    html = HTML(string=html_string, base_url=base_url)
+    pdf = html.write_pdf()
+
+    clean_date = context['report_date'].replace(' ', '_')
+    filename = f"Outstanding_Report_{clean_date}.pdf"
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
 
 
 @login_required

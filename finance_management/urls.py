@@ -44,6 +44,7 @@ urlpatterns = [
     path('reports/tax-report/', views.tax_report, name='tax_report'),
     path('tax-report/', views.tax_report),
     path('reports/outstanding-report/', views.outstanding_report, name='outstanding_report'),
+    path('reports/outstanding-report/pdf/', views.outstanding_report_pdf, name='outstanding_report_pdf'),
     path('reports/stock-report/', views.stock_report, name='stock_report'),
     path('stock-report/', views.stock_report),
     path('reports/credit-note-report/', views.credit_note_report, name='credit_note_report'),

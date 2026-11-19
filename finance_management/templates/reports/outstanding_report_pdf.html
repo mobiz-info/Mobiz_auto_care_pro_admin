@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Outstanding Report - {{ company.company_name|default:"Mobiz Car Wash" }}</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 12mm 14mm 14mm 14mm;
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 8pt;
+                color: #64748b;
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            }
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 8.5pt;
+            color: #000000;
+            line-height: 1.4;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Top Header: Company Details only (Right side) */
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+
+        .header-table td {
+            vertical-align: top;
+        }
+
+        .company-header-box {
+            text-align: right;
+        }
+
+        .company-logo {
+            max-height: 48px;
+            max-width: 160px;
+            object-fit: contain;
+            margin-bottom: 4px;
+        }
+
+        .company-header-title {
+            font-size: 13pt;
+            font-weight: 800;
+            color: #000000;
+            margin-bottom: 2px;
+            letter-spacing: -0.2px;
+        }
+
+        .company-header-meta {
+            font-size: 8.5pt;
+            color: #000000;
+            line-height: 1.35;
+        }
+
+        /* Title: OUTSTANDING REPORT (Clean text, no black box) */
+        .report-title-section {
+            text-align: center;
+            margin: 10px 0 14px 0;
+            padding-bottom: 6px;
+            border-bottom: 1.5px solid #000000;
+        }
+
+        .report-main-title {
+            font-size: 13pt;
+            font-weight: 800;
+            color: #000000;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .report-period-sub {
+            font-size: 8.5pt;
+            color: #111111;
+            margin-top: 3px;
+        }
+
+        /* Table: Exactly 3 Columns with crisp black borders */
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+            margin-bottom: 16px;
+            border: 1px solid #000000;
+        }
+
+        .report-table th {
+            background-color: #f2f2f2;
+            color: #000000;
+            font-size: 8pt;
+            font-weight: 700;
+            letter-spacing: 0.1px;
+            padding: 6px 8px;
+            border: 1px solid #000000;
+            text-align: left;
+        }
+
+        .report-table th.center-col {
+            text-align: center;
+        }
+
+        .report-table th.num-col {
+            text-align: right;
+        }
+
+        .report-table td {
+            padding: 6px 8px;
+            font-size: 8pt;
+            border: 1px solid #000000;
+            color: #000000;
+            vertical-align: middle;
+        }
+
+        .report-table td.center-col {
+            text-align: center;
+        }
+
+        .report-table td.num-col {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .table-total-row td {
+            background-color: #f2f2f2 !important;
+            font-weight: 800;
+            font-size: 8.5pt;
+            border: 1px solid #000000;
+            color: #000000;
+        }
+
+        .table-total-row td.num-col {
+            text-align: right;
+        }
+
+        /* Footer & Signatures */
+        .footer-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 24px;
+        }
+
+        .footer-table td {
+            vertical-align: bottom;
+            width: 50%;
+        }
+
+        .signature-box {
+            text-align: right;
+            padding-right: 5px;
+        }
+
+        .signature-box .seal-img {
+            max-height: 48px;
+            margin-bottom: 4px;
+            display: inline-block;
+        }
+
+        .signature-line {
+            border-top: 1px solid #000000;
+            width: 170px;
+            margin-left: auto;
+            margin-top: 25px;
+            padding-top: 4px;
+            font-size: 8pt;
+            font-weight: 700;
+            color: #000000;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Header: Company Details only -->
+    <table class="header-table">
+        <tr>
+            <td style="width: 50%;"></td>
+            <td style="width: 50%;" class="company-header-box">
+                {% if company.logo_color %}
+                    <img src="{{ company.logo_color.url }}" alt="Company Logo" class="company-logo">
+                {% elif company.logo_bw %}
+                    <img src="{{ company.logo_bw.url }}" alt="Company Logo" class="company-logo">
+                {% endif %}
+                <div class="company-header-title">
+                    {% if company %}{{ company.company_name }}{% else %}Mobiz Car Wash{% endif %}
+                </div>
+                <div class="company-header-meta">
+                    {% if company.business_name and company.business_name != company.company_name %}
+                        <div><strong>Trading As:</strong> {{ company.business_name }}</div>
+                    {% endif %}
+                    {% if company.address %}
+                        <div>{{ company.address }}</div>
+                    {% endif %}
+                    <div>
+                        {% if company.phone %}<span>Phone: {{ company.phone }}</span>{% endif %}
+                        {% if company.email %}<span> | Email: {{ company.email }}</span>{% endif %}
+                    </div>
+                    {% if company.gst_number %}
+                        <div><strong>TRN:</strong> {{ company.gst_number }}</div>
+                    {% endif %}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Title: OUTSTANDING REPORT -->
+    <div class="report-title-section">
+        <div class="report-main-title">OUTSTANDING REPORT</div>
+        <div class="report-period-sub">
+            {% if from_date_display and to_date_display %}
+                Period: <strong>{{ from_date_display }}</strong> &mdash; <strong>{{ to_date_display }}</strong> &nbsp;|&nbsp;
+            {% endif %}
+            Date: <strong>{{ report_date }}</strong>
+        </div>
+    </div>
+
+    <!-- Table: Exactly 3 Columns (Sl No#, Customer Name, Total Outstanding) -->
+    <table class="report-table">
+        <thead>
+            <tr>
+                <th class="center-col" style="width: 45px;">Sl No#</th>
+                <th>Customer Name</th>
+                <th class="num-col" style="width: 140px;">Total Outstanding</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in customer_list %}
+            <tr>
+                <td class="center-col">{{ item.sl_no }}</td>
+                <td>
+                    <div style="font-weight: 700;">{{ item.customer_name }}</div>
+                    {% if item.customer_phone %}
+                        <div style="font-size: 7.5pt; color: #333333; margin-top: 1px;">Phone: {{ item.customer_phone }}</div>
+                    {% endif %}
+                </td>
+                <td class="num-col">{{ item.total_outstanding|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="3" style="text-align: center; padding: 18px; color: #666666;">
+                    No outstanding records found.
+                </td>
+            </tr>
+            {% endfor %}
+
+            <!-- Total Row -->
+            <tr class="table-total-row">
+                <td colspan="2" style="text-align: right; text-transform: uppercase;">
+                    Total Outstanding:
+                </td>
+                <td class="num-col">{{ total_balance_amount|floatformat:2 }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Footer Notes & Signatures -->
+    <table class="footer-table">
+        <tr>
+            <td style="width: 60%;"></td>
+            <td class="signature-box" style="width: 40%;">
+                {% if company.company_seal %}
+                    <img src="{{ company.company_seal.url }}" alt="Company Seal" class="seal-img">
+                {% endif %}
+                <div class="signature-line">
+                    Authorized Signatory
+                </div>
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>
