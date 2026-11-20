@@ -2905,14 +2905,9 @@ def generate_quotation_pdf_file(quotation, base_url):
     if getattr(quotation, 'additional_days_needed', 0):
         days_needed_text = f"{quotation.additional_days_needed} Days"
 
-    comp_name = company.company_name if company else 'Auto Care'
-    br_name = quotation.branch.name if quotation.branch else ''
-
     context = {
         'quotation': quotation,
         'company': company,
-        'company_name': comp_name,
-        'branch_name': br_name,
         'company_logo': company_logo,
         'currency': currency,
         'services': services,
