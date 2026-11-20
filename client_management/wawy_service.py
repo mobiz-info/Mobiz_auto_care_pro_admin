@@ -299,8 +299,8 @@ class WawyClient:
                 cells = re.findall(r'<t[dh][^>]*>(.*?)</t[dh]>', row_html, re.DOTALL | re.IGNORECASE)
                 tds = [html.unescape(re.sub(r'<[^>]+>', '', c)).strip() for c in cells]
                 if len(tds) >= 3:
-                    name_cell = tds[1]
-                    m = re.match(r'^([a-zA-Z0-9_\-]+)\s*\((.*?)\)\s*\[(.*?)\]', name_cell)
+                    name_cell = tds[1].strip()
+                    m = re.search(r'([a-zA-Z0-9_\-]+)\s*\((.*?)\)\s*\[(.*?)\]', name_cell)
                     if m:
                         t_name = m.group(1).lower()
                         t_cat = m.group(2)
@@ -372,13 +372,17 @@ class WawyClient:
             resp_text = r.text
             if "Already Exist" in resp_text:
                 return True, "Already exists in Wawy"
-            elif "alertsuccess" in resp_text or "successfully" in resp_text.lower():
+            elif "alertyes" in resp_text or "alertsuccess" in resp_text or "successfully" in resp_text.lower():
                 return True, "Submitted successfully to Meta for approval"
             elif "alertinfo" in resp_text:
                 alert_match = re.search(r'<div[^>]*class=["\']alertinfo["\'][^>]*>(.*?)</div>', resp_text, re.DOTALL | re.IGNORECASE)
                 msg = html.unescape(re.sub(r'<[^>]+>', '', alert_match.group(1))).strip() if alert_match else "Validation notice from Wawy"
                 if "Already Exist" in msg:
                     return True, "Already exists in Wawy"
+                return False, msg
+            elif "alertbad" in resp_text:
+                alert_match = re.search(r'<div[^>]*class=["\']alertbad["\'][^>]*>(.*?)</div>', resp_text, re.DOTALL | re.IGNORECASE)
+                msg = html.unescape(re.sub(r'<[^>]+>', '', alert_match.group(1))).strip() if alert_match else "Error from Wawy"
                 return False, msg
             else:
                 return True, "Request submitted to Wawy"

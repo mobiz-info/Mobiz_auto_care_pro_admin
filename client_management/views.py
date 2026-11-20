@@ -3288,16 +3288,12 @@ def superadmin_whatsapp_deploy_single(request):
                     'auto_id': get_auto_id(WhatsAppTemplate),
                     'template_name': tmpl['template_name'],
                     'content': tmpl['content'],
-                    'category': tmpl.get('category_name', ''),
-                    'msgtype': tmpl.get('msgtype', '1'),
-                    'status': wawy_status,
                     'creator': request.user,
                 }
             )
             if not created:
                 db_tmpl.template_name = tmpl['template_name']
                 db_tmpl.content = tmpl['content']
-                db_tmpl.status = wawy_status
                 db_tmpl.updater = request.user
                 db_tmpl.is_deleted = False
                 db_tmpl.save()
@@ -3389,16 +3385,13 @@ def company_whatsapp_deploy_single_template(request):
                 'auto_id': get_auto_id(WhatsAppTemplate),
                 'template_name': tmpl['template_name'],
                 'content': tmpl['content'],
-                'category': tmpl.get('category_name', ''),
-                'msgtype': tmpl.get('msgtype', '1'),
-                'status': wawy_status,
                 'creator': request.user,
             }
         )
         if not created:
-            db_tmpl.status = wawy_status
-            db_tmpl.is_deleted = False
+            db_tmpl.template_name = tmpl['template_name']
             db_tmpl.content = tmpl['content']
+            db_tmpl.is_deleted = False
             db_tmpl.updater = request.user
             db_tmpl.save()
         
