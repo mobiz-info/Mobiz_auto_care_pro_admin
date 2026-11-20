@@ -176,6 +176,7 @@ urlpatterns = [
     # Company Web Settings (WhatsApp & Template & Other Integrations)
     path('settings/whatsapp/', views.whatsapp_settings, name='whatsapp_settings'),
     path('settings/whatsapp/deploy-templates/', views.company_whatsapp_deploy, name='company_whatsapp_deploy'),
+    path('settings/whatsapp/deploy-single-template/', views.company_whatsapp_deploy_single_template, name='company_whatsapp_deploy_single_template'),
     path('settings/templates/', views.whatsapp_template_list, name='whatsapp_template_list'),
     path('settings/templates/create/', views.whatsapp_template_create, name='whatsapp_template_create'),
     path('settings/templates/edit/<uuid:id>/', views.whatsapp_template_edit, name='whatsapp_template_edit'),
