@@ -255,14 +255,21 @@ def clean_whatsapp_number(number):
     return digits
 
 
+def _log_wa_debug(msg):
+    try:
+        with open('/tmp/wa_debug.log', 'a') as f:
+            f.write(str(msg) + '\n')
+    except Exception:
+        pass
+
+
 def send_whatsapp_simple(to_number, message, setting=None, interactive_data=None, media_url=None, location_data=None):
     to_number = clean_whatsapp_number(to_number) or to_number
 
     # Each company must have its own WhatsAppSetting configured.
     # Never fall back to hardcoded credentials — that would mix one company's traffic into another's account.
     if not setting or not setting.username or not setting.password:
-        with open('/tmp/wa_debug.log', 'a') as f:
-            f.write(f"SEND_WA_SIMPLE ABORTED: no valid WhatsAppSetting provided\n")
+        _log_wa_debug("SEND_WA_SIMPLE ABORTED: no valid WhatsAppSetting provided")
         return "ABORTED: no WA setting"
 
     # Simple conversational text, interactive menus, location pins must ALWAYS use conv_wa.php
@@ -308,14 +315,12 @@ def send_whatsapp_simple(to_number, message, setting=None, interactive_data=None
             jsondata = json.dumps(payload).encode('utf-8')
             req.add_header('Content-Length', len(jsondata))
             
-            with open('/tmp/wa_debug.log', 'a') as f:
-                f.write(f"LOCATION PAYLOAD: {jsondata.decode()}\n")
+            _log_wa_debug(f"LOCATION PAYLOAD: {jsondata.decode()}")
             
             with urlopen(req, jsondata, timeout=15) as resp:
                 result = resp.read().decode('utf-8')
                 
-            with open('/tmp/wa_debug.log', 'a') as f:
-                f.write(f"LOCATION RESPONSE: {result}\n")
+            _log_wa_debug(f"LOCATION RESPONSE: {result}")
         except URLError as e:
             result = f"URLError: {str(e)}"
         except Exception as e:
@@ -403,14 +408,12 @@ def send_whatsapp_simple(to_number, message, setting=None, interactive_data=None
             
         try:
             url = f"{base_url}?{urlencode(params)}"
-            with open('/tmp/wa_debug.log', 'a') as f:
-                f.write(f"GET URL: {url}\n")
+            _log_wa_debug(f"GET URL: {url}")
             
             with urlopen(url, timeout=15) as resp:
                 result = resp.read().decode('utf-8')
                 
-            with open('/tmp/wa_debug.log', 'a') as f:
-                f.write(f"GET RESPONSE: {result}\n")
+            _log_wa_debug(f"GET RESPONSE: {result}")
         except URLError as e:
             result = f"URLError: {str(e)}"
         except Exception as e:
@@ -442,11 +445,7 @@ def send_whatsapp_template(to_number, template_name, values, doc_url=None, setti
     # Each company must have its own WhatsAppSetting configured.
     # Never fall back to hardcoded credentials — that would mix companies.
     if not setting or not setting.username or not setting.password:
-        try:
-            with open('/tmp/wa_debug.log', 'a') as f:
-                f.write(f"SEND_TEMPLATE ABORTED: no valid WhatsAppSetting provided\n")
-        except Exception:
-            pass
+        _log_wa_debug("SEND_TEMPLATE ABORTED: no valid WhatsAppSetting provided")
         return "ABORTED: no WA setting"
 
     username = setting.username
@@ -480,8 +479,7 @@ def send_whatsapp_template(to_number, template_name, values, doc_url=None, setti
 
     try:
         url = f"{base_url}?{urlencode(params)}"
-        with open('/tmp/wa_debug.log', 'a') as f:
-            f.write(f"SEND_TEMPLATE CALL: to={to_number}, template={template_name}, url={url}\n")
+        _log_wa_debug(f"SEND_TEMPLATE CALL: to={to_number}, template={template_name}, url={url}")
         
         with urlopen(url, timeout=15) as resp:
             result = resp.read().decode('utf-8')
@@ -505,16 +503,14 @@ def send_whatsapp_template(to_number, template_name, values, doc_url=None, setti
                 alt_params = dict(params)
                 alt_params["name"] = alt_name
                 alt_url = f"{base_url}?{urlencode(alt_params)}"
-                with open('/tmp/wa_debug.log', 'a') as f:
-                    f.write(f"SEND_TEMPLATE FALLBACK RETRY: template={alt_name}, url={alt_url}\n")
+                _log_wa_debug(f"SEND_TEMPLATE FALLBACK RETRY: template={alt_name}, url={alt_url}")
                 with urlopen(alt_url, timeout=15) as resp:
                     res_alt = resp.read().decode('utf-8')
                     if "Template or Sender Not Found" not in res_alt:
                         result = res_alt
                         break
             
-        with open('/tmp/wa_debug.log', 'a') as f:
-            f.write(f"SEND_TEMPLATE RESPONSE: {result}\n")
+        _log_wa_debug(f"SEND_TEMPLATE RESPONSE: {result}")
     except URLError as e:
         result = f"URLError: {str(e)}"
     except Exception as e:
@@ -2791,11 +2787,7 @@ def api_whatsapp_webhook(request):
                 }
 
             # 4. Send reply via wawy.org/Webgenie API
-            try:
-                with open('/tmp/wa_debug.log', 'a') as f:
-                    f.write(f"BEFORE SEND: state='{getattr(session, 'state', 'NONE')}' choice='{choice}' reply='{reply_text}' loc={bool(location_pin)} menu={bool(interactive_menu)}\n")
-            except Exception:
-                pass
+            _log_wa_debug(f"BEFORE SEND: state='{getattr(session, 'state', 'NONE')}' choice='{choice}' reply='{reply_text}' loc={bool(location_pin)} menu={bool(interactive_menu)}")
             response_text = send_whatsapp_simple(
                 from_phone, 
                 reply_text, 
