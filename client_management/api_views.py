@@ -8446,8 +8446,8 @@ def send_quotation_whatsapp_background(quotation_id, base_url):
             _log_quotation_wa(f"SEND QUOT WA RESULT: {res}")
             # If official template failed or not found, fall back to simple text + pdf message
             res_str = str(res or '').lower()
-            if not res or 'template or sender not found' in res_str or 'error' in res_str or 'fail' in res_str:
-                _log_quotation_wa("Official template failed, falling back to simple message")
+            if not res or ('trackid' not in res_str and 'alert_' not in res_str):
+                _log_quotation_wa("Official template did not return trackid, falling back to simple message")
                 res = send_whatsapp_simple(cleaned_num, message_text, setting=setting, media_url=pdf_url)
                 _log_quotation_wa(f"SEND QUOT WA SIMPLE FALLBACK RESULT: {res}")
         else:

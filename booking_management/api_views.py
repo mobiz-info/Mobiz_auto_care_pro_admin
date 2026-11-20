@@ -270,15 +270,20 @@ def send_whatsapp_simple(to_number, message, setting=None, interactive_data=None
     if setting and setting.url and 'conv_wa.php' in setting.url:
         base_url = setting.url
     username = setting.username
-    api_password = setting.password
-    sender = setting.sender_id or ""
+    wa_pass = setting.password
+    raw_sender = (setting.whatsapp_number or '').strip()
+    if not raw_sender and setting.sender_id and '-' not in str(setting.sender_id):
+        raw_sender = str(setting.sender_id).strip()
+    if not raw_sender and hasattr(setting, 'company') and setting.company and getattr(setting.company, 'phone', None):
+        raw_sender = str(setting.company.phone).strip()
+    sender = clean_whatsapp_number(raw_sender) or raw_sender
 
     # If it is a location map pin
     if location_data:
         import json
         payload = {
             "username": username,
-            "api_password": api_password,
+            "password": wa_pass,
             "sender": sender,
             "is_contact": "0",
             "data": [
@@ -347,7 +352,7 @@ def send_whatsapp_simple(to_number, message, setting=None, interactive_data=None
 
         payload = {
             "username": username,
-            "api_password": api_password,
+            "password": wa_pass,
             "sender": sender,
             "interactive_type": interactive_type,
             "data": [
@@ -384,7 +389,7 @@ def send_whatsapp_simple(to_number, message, setting=None, interactive_data=None
         
         params = {
             "username": username,
-            "api_password": api_password,
+            "password": wa_pass,
             "sender": sender,
             "to": to_number,
             "message": message,
@@ -442,15 +447,20 @@ def send_whatsapp_template(to_number, template_name, values, doc_url=None, setti
         return "ABORTED: no WA setting"
 
     username = setting.username
-    api_password = setting.password
-    sender = setting.sender_id or ""
+    wa_pass = setting.password
+    raw_sender = (setting.whatsapp_number or '').strip()
+    if not raw_sender and setting.sender_id and '-' not in str(setting.sender_id):
+        raw_sender = str(setting.sender_id).strip()
+    if not raw_sender and hasattr(setting, 'company') and setting.company and getattr(setting.company, 'phone', None):
+        raw_sender = str(setting.company.phone).strip()
+    sender = clean_whatsapp_number(raw_sender) or raw_sender
 
     # Base URL for templates
     base_url = "http://wawy.org/pushwhatsapp.php"
 
     params = {
         "username": username,
-        "api_password": api_password,
+        "password": wa_pass,
         "sender": sender,
         "priority": "21",
         "name": template_name,
@@ -7541,7 +7551,7 @@ def api_job_quotation_create(request):
             from client_management.models import WhatsAppSetting
             from client_management.api_views import send_quotation_whatsapp_background
             import threading
-            quot_company = (quotation.branch.company if quotation.branch else None) or (quotation.customer.company if quotation.customer else None)
+            quot_company = (quotation.branch.company if quotation.branch else None) or (quotation.customer.company if quotation.customer else None) or (getattr(user, 'profile', None) and getattr(user.profile, 'company', None))
             has_wa = WhatsAppSetting.objects.filter(company=quot_company, is_deleted=False).exclude(username='').exclude(password='').exists() if quot_company else False
             if has_wa:
                 base_url = request.build_absolute_uri('/')
@@ -7552,8 +7562,9 @@ def api_job_quotation_create(request):
                     args=(quotation.id, base_url),
                     daemon=True
                 ).start()
-        except Exception:
-            pass
+        except Exception as we:
+            import logging
+            logging.getLogger(__name__).exception("Failed to launch quotation WhatsApp thread: %s", we)
 
         return JsonResponse({'success': True, 'quotation_id': str(quotation.id), 'quotation_number': quotation.quotation_number})
     except (Customer.DoesNotExist, CustomerVehicle.DoesNotExist):
