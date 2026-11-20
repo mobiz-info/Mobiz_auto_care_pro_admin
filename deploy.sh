@@ -33,7 +33,8 @@ sshpass -p 'mobiz321@' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/de
 set -e
 echo "📥 Pulling latest code on server..."
 cd /home/mobiz/webapps/car_wash/live
-git pull origin main
+git fetch origin main
+git reset --hard origin/main
 
 
 
