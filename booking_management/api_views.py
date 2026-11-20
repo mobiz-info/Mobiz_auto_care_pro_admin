@@ -7711,10 +7711,18 @@ def api_job_quotation_pdf(request, quotation_id):
     if not user:
         return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
 
+    from .models import JobQuotation
+    from client_management.models import Quotation
+
     company, branch = _job_pipeline_scope(user)
     quotation = JobQuotation.objects.filter(id=quotation_id, customer__company=company, is_deleted=False).select_related(
         'customer', 'vehicle', 'branch', 'lead'
     ).first()
+    if not quotation:
+        quotation = Quotation.objects.filter(id=quotation_id, customer__company=company, is_deleted=False).select_related(
+            'customer', 'vehicle', 'branch'
+        ).first()
+
     if not quotation or (branch and quotation.branch_id != branch.id):
         return JsonResponse({'success': False, 'message': 'Quotation not found'}, status=404)
 
@@ -7742,13 +7750,15 @@ def api_job_quotation_upload_pdf(request, quotation_id):
     if not user:
         return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
 
+    from .models import JobQuotation
+    from client_management.models import Quotation
+
     company, branch = _job_pipeline_scope(user)
     quotation = JobQuotation.objects.filter(id=quotation_id, customer__company=company, is_deleted=False).select_related(
         'customer', 'vehicle', 'branch', 'lead'
     ).first()
     
     if not quotation:
-        from client_management.models import Quotation
         quotation = Quotation.objects.filter(id=quotation_id, customer__company=company, is_deleted=False).select_related(
             'customer', 'vehicle', 'branch'
         ).first()
