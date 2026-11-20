@@ -779,9 +779,23 @@ def receipt_create(request, invoice_id=None):
 
         return redirect('receipt_list')
 
+    user = request.user
+    company = getattr(user.profile, 'company', None) if hasattr(user, 'profile') else None
+    if not company and hasattr(user, 'staff_profile') and user.staff_profile and user.staff_profile.branch:
+        company = user.staff_profile.branch.company
+    country_obj = getattr(company, 'country', None) if company else None
+    is_uae = False
+    if country_obj:
+        iso = (country_obj.phone_iso_code or '').strip().upper()
+        curr = (country_obj.currency_code or '').strip().upper()
+        cname = (country_obj.name or '').strip().lower()
+        if iso == 'AE' or curr == 'AED' or 'emirates' in cname or 'uae' in cname:
+            is_uae = True
+
     context = {
         'invoices': invoices,
         'selected_invoice': selected_invoice,
+        'is_uae': is_uae,
         'title': 'Create Receipt',
     }
 
@@ -3343,12 +3357,27 @@ def invoice_create(request):
     if company and getattr(company, 'country', None) and getattr(company.country, 'currency_symbol', None):
         currency_symbol = company.country.currency_symbol
 
+    is_uae = False
+    country_obj = getattr(company, 'country', None) if company else None
+    if not country_obj and hasattr(user, 'profile') and getattr(user.profile, 'company', None):
+        country_obj = getattr(user.profile.company, 'country', None)
+    if not country_obj and hasattr(user, 'profile') and getattr(user.profile, 'branch', None) and getattr(user.profile.branch, 'company', None):
+        country_obj = getattr(user.profile.branch.company, 'country', None)
+
+    if country_obj:
+        iso = (country_obj.phone_iso_code or '').strip().upper()
+        curr = (country_obj.currency_code or '').strip().upper()
+        cname = (country_obj.name or '').strip().lower()
+        if iso == 'AE' or curr == 'AED' or 'emirates' in cname or 'uae' in cname:
+            is_uae = True
+
     context = {
         'branches': branches_qs,
         'selected_branch_id': selected_branch_id,
         'selected_customer_id': selected_customer_id,
         'selected_vehicle_id': selected_vehicle_id,
         'user_role': role,
+        'is_uae': is_uae,
         'auto_wa_enabled': auto_wa_enabled,
         'whatsapp_invoice_enabled': whatsapp_invoice_enabled,
         'currency_symbol': currency_symbol,
