@@ -92,5 +92,6 @@ urlpatterns = [
     path('api/job-cards/metadata/', api_views.api_job_card_metadata, name='api_job_card_metadata'),
     path('api/job-cards/inspection-checklist/', api_views.api_inspection_checklist, name='api_inspection_checklist'),
     path('api/job-cards/<uuid:job_card_id>/pdf/', api_views.api_job_card_pdf, name='api_job_card_pdf'),
+    path('api/job-cards/<uuid:job_card_id>/photos/', api_views.api_job_card_vehicle_photos, name='api_job_card_vehicle_photos'),
     path('api/job-cards/vehicle/add/', api_views.api_job_card_add_vehicle, name='api_job_card_add_vehicle'),
 ]

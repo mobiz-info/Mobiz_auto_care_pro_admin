@@ -640,3 +640,21 @@ class JobCardReportedIssuePhoto(BaseModel):
     reported_issue = models.ForeignKey(JobCardReportedIssue, on_delete=models.CASCADE, related_name='photos')
     image = models.ImageField(upload_to='job_card_issues/%Y/%m/')
     sort_order = models.PositiveSmallIntegerField(default=0)
+
+
+class JobCardVehiclePhoto(BaseModel):
+    PHOTO_TYPE_CHOICES = (
+        ('before', 'Before Service'),
+        ('after', 'After Service'),
+    )
+    job_card = models.ForeignKey(JobCard, on_delete=models.CASCADE, related_name='vehicle_photos')
+    photo_type = models.CharField(max_length=20, choices=PHOTO_TYPE_CHOICES, default='before')
+    image = models.ImageField(upload_to='job_card_vehicle_photos/%Y/%m/')
+    caption = models.CharField(max_length=255, blank=True, null=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['photo_type', 'sort_order', 'date_added']
+
+    def __str__(self):
+        return f"{self.job_card.job_number} - {self.photo_type} photo"

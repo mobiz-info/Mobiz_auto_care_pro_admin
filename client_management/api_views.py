@@ -8356,20 +8356,44 @@ def _log_quotation_wa(msg):
 
 def send_quotation_whatsapp_background(quotation_id, base_url):
     try:
-        from client_management.models import Quotation, WhatsAppSetting
+        from client_management.models import WhatsAppSetting
         from booking_management.api_views import send_whatsapp_simple, send_whatsapp_template, clean_whatsapp_number
         from finance_management.views import generate_quotation_pdf_file
         
         if not base_url or '127.0.0.1' in base_url or 'localhost' in base_url:
             base_url = 'http://68.183.94.11:78'
         
-        quotation = Quotation.objects.get(id=quotation_id)
+        quotation = None
+        # 1. Look for JobQuotation first (from mobile/job pipeline)
+        try:
+            from booking_management.models import JobQuotation
+            quotation = JobQuotation.objects.filter(id=quotation_id, is_deleted=False).select_related(
+                'customer', 'vehicle', 'branch'
+            ).first()
+        except Exception:
+            pass
+
+        # 2. Look for regular Quotation
+        if not quotation:
+            try:
+                from client_management.models import Quotation
+                quotation = Quotation.objects.filter(id=quotation_id, is_deleted=False).select_related(
+                    'customer', 'vehicle', 'branch'
+                ).first()
+            except Exception:
+                pass
+
+        if not quotation:
+            _log_quotation_wa(f"Quotation {quotation_id} not found in JobQuotation or Quotation")
+            return
+
         customer = quotation.customer
         if not customer:
             return
             
         phone_to_send = customer.whatsapp_number or customer.phone
         if not phone_to_send:
+            _log_quotation_wa(f"Quotation {quotation_id}: Customer {customer.name} has no phone")
             return
             
         cleaned_num = clean_whatsapp_number(phone_to_send)
@@ -8391,27 +8415,44 @@ def send_quotation_whatsapp_background(quotation_id, base_url):
             _log_quotation_wa(f"Quotation {quotation_id}: Missing/incomplete WhatsAppSetting for company {company}")
             return
 
+        currency = '₹'
+        if company and getattr(company, 'country', None) and getattr(company.country, 'currency_symbol', None):
+            currency = company.country.currency_symbol
+
+        total_val = float(getattr(quotation, 'grand_total', None) or getattr(quotation, 'total', 0) or 0)
+        veh_str = quotation.vehicle.vehicle_number if getattr(quotation, 'vehicle', None) else "N/A"
+        comp_name = company.company_name if company else "Auto Care"
+        branch_name = quotation.branch.name if quotation.branch else ""
+
         message_text = (
-            f"Dear {customer.name}\n"
-            f"Please find the quotation. Awaiting your order confirmation.\n\n"
-            f"Thanks and Regards"
+            f"📋 *QUOTATION ESTIMATE #{quotation.quotation_number}*\n\n"
+            f"Dear *{customer.name}*,\n"
+            f"Thank you for contacting *{comp_name}*{f' ({branch_name})' if branch_name else ''}!\n\n"
+            f"🚗 Vehicle: *{veh_str}*\n"
+            f"💰 Estimated Total: *{currency} {total_val:.2f}*\n\n"
+            f"Please find your vehicle service quotation estimate. Awaiting your order confirmation.\n"
         )
         if pdf_url:
-            message_text += f"\n\nQuotation PDF: {pdf_url}"
+            message_text += f"\n📥 *View / Download Quotation PDF:*\n{pdf_url}\n"
+        message_text += "\nHave a great day! ✨"
 
         _log_quotation_wa(f"SEND QUOT WA: id={quotation_id}, num={cleaned_num}, setting={setting}, pdf_url={pdf_url}")
 
-        if setting and setting.username and setting.password:
-            if setting.is_official_api:
-                tmpl_name = 'quotation'
-                params = [customer.name]
-                res = send_whatsapp_template(cleaned_num, tmpl_name, params, doc_url=pdf_url, setting=setting)
-                _log_quotation_wa(f"SEND QUOT WA RESULT: {res}")
-            else:
+        res = None
+        if setting.is_official_api:
+            tmpl_name = 'quotation'
+            params = [customer.name]
+            res = send_whatsapp_template(cleaned_num, tmpl_name, params, doc_url=pdf_url, setting=setting)
+            _log_quotation_wa(f"SEND QUOT WA RESULT: {res}")
+            # If official template failed or not found, fall back to simple text + pdf message
+            res_str = str(res or '').lower()
+            if not res or 'template or sender not found' in res_str or 'error' in res_str or 'fail' in res_str:
+                _log_quotation_wa("Official template failed, falling back to simple message")
                 res = send_whatsapp_simple(cleaned_num, message_text, setting=setting, media_url=pdf_url)
-                _log_quotation_wa(f"SEND QUOT WA SIMPLE RESULT: {res}")
+                _log_quotation_wa(f"SEND QUOT WA SIMPLE FALLBACK RESULT: {res}")
         else:
-            _log_quotation_wa(f"SEND QUOT WA ABORTED: setting={setting}")
+            res = send_whatsapp_simple(cleaned_num, message_text, setting=setting, media_url=pdf_url)
+            _log_quotation_wa(f"SEND QUOT WA SIMPLE RESULT: {res}")
     except Exception as e:
         import traceback
         _log_quotation_wa(f"Error sending quotation whatsapp: {e}\n{traceback.format_exc()}")

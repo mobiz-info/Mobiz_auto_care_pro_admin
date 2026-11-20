@@ -4458,6 +4458,22 @@ def api_job_card_list(request):
             'quotation_number': jc.quotation.quotation_number if jc.quotation_id else (jc.job_quotation.quotation_number if jc.job_quotation_id else ''),
             'job_quotation_id': str(jc.job_quotation_id or ''),
             'days_needed': jc.delivery_lead_time or '',
+            'before_photos': [
+                {
+                    'id': str(p.id),
+                    'url': request.build_absolute_uri(p.image.url) if p.image else '',
+                    'caption': p.caption or '',
+                }
+                for p in jc.vehicle_photos.filter(photo_type='before', is_deleted=False)
+            ],
+            'after_photos': [
+                {
+                    'id': str(p.id),
+                    'url': request.build_absolute_uri(p.image.url) if p.image else '',
+                    'caption': p.caption or '',
+                }
+                for p in jc.vehicle_photos.filter(photo_type='after', is_deleted=False)
+            ],
             'invoice': ({
                 'id': str(inv.id),
                 'invoice_number': inv.invoice_number,
@@ -4730,6 +4746,22 @@ def api_job_card_detail(request, job_card_id):
             'quotation_number': jc.quotation.quotation_number if jc.quotation_id else (jc.job_quotation.quotation_number if jc.job_quotation_id else ''),
             'job_quotation_id': str(jc.job_quotation_id or ''),
             'days_needed': jc.delivery_lead_time or '',
+            'before_photos': [
+                {
+                    'id': str(p.id),
+                    'url': request.build_absolute_uri(p.image.url) if p.image else '',
+                    'caption': p.caption or '',
+                }
+                for p in jc.vehicle_photos.filter(photo_type='before', is_deleted=False)
+            ],
+            'after_photos': [
+                {
+                    'id': str(p.id),
+                    'url': request.build_absolute_uri(p.image.url) if p.image else '',
+                    'caption': p.caption or '',
+                }
+                for p in jc.vehicle_photos.filter(photo_type='after', is_deleted=False)
+            ],
             'invoice': ({
                 'id': str(inv.id),
                 'invoice_number': inv.invoice_number,
@@ -5106,6 +5138,39 @@ def _save_job_card_reported_issues(job_card, rows, uploaded_files, user):
     ).exclude(id__in=retained_report_ids).update(is_deleted=True, updater=user)
 
 
+def _save_job_card_vehicle_photos(job_card, uploaded_files, user, delete_photo_ids=None):
+    from .models import JobCardVehiclePhoto
+    from core.functions import get_auto_id
+
+    if delete_photo_ids:
+        JobCardVehiclePhoto.objects.filter(job_card=job_card, id__in=delete_photo_ids).update(is_deleted=True, updater=user)
+
+    # 1. Before Service Photos
+    before_files = uploaded_files.getlist('before_photos')
+    for idx, f in enumerate(before_files):
+        p = JobCardVehiclePhoto(
+            job_card=job_card,
+            photo_type='before',
+            sort_order=idx,
+            creator=user,
+            auto_id=get_auto_id(JobCardVehiclePhoto),
+        )
+        p.image.save(f.name, f, save=True)
+
+    # 2. After Service Photos
+    after_files = uploaded_files.getlist('after_photos')
+    for idx, f in enumerate(after_files):
+        p = JobCardVehiclePhoto(
+            job_card=job_card,
+            photo_type='after',
+            sort_order=idx,
+            creator=user,
+            auto_id=get_auto_id(JobCardVehiclePhoto),
+        )
+        p.image.save(f.name, f, save=True)
+
+
+
 @csrf_exempt
 def api_job_card_create(request):
     """Creates a new job card with services, parts, labour, extras."""
@@ -5297,6 +5362,7 @@ def api_job_card_create(request):
                 )
 
             _save_job_card_reported_issues(jc, data.get('reported_issues', []), request.FILES, user)
+            _save_job_card_vehicle_photos(jc, request.FILES, user)
 
             jc.calculate_estimated_cost()
             jc.save()
@@ -5646,6 +5712,10 @@ def api_job_card_update(request, job_card_id):
             if 'reported_issues' in data:
                 _save_job_card_reported_issues(jc, data['reported_issues'], request.FILES, user)
 
+            delete_photo_ids = data.get('delete_photo_ids', [])
+            if request.FILES or delete_photo_ids:
+                _save_job_card_vehicle_photos(jc, request.FILES, user, delete_photo_ids=delete_photo_ids)
+
             jc.calculate_estimated_cost()
             jc.updater = user
             jc.save()
@@ -5662,6 +5732,111 @@ def api_job_card_update(request, job_card_id):
         return JsonResponse({'success': False, 'message': 'Job Card not found'}, status=404)
     except Exception as exc:
         return JsonResponse({'success': False, 'message': str(exc)}, status=500)
+
+
+@csrf_exempt
+def api_job_card_vehicle_photos(request, job_card_id):
+    """
+    GET: Returns {'before_photos': [...], 'after_photos': [...]}
+    POST: Uploads before_photos or after_photos (multipart form-data)
+    DELETE: Soft-deletes a photo by photo_id
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+
+    try:
+        jc = JobCard.objects.get(id=job_card_id, is_deleted=False)
+    except JobCard.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Job Card not found'}, status=404)
+
+    from .models import JobCardVehiclePhoto
+    from core.functions import get_auto_id
+
+    if request.method == 'GET':
+        before = [
+            {
+                'id': str(p.id),
+                'url': request.build_absolute_uri(p.image.url) if p.image else '',
+                'caption': p.caption or '',
+            }
+            for p in jc.vehicle_photos.filter(photo_type='before', is_deleted=False)
+        ]
+        after = [
+            {
+                'id': str(p.id),
+                'url': request.build_absolute_uri(p.image.url) if p.image else '',
+                'caption': p.caption or '',
+            }
+            for p in jc.vehicle_photos.filter(photo_type='after', is_deleted=False)
+        ]
+        return JsonResponse({'success': True, 'before_photos': before, 'after_photos': after})
+
+    elif request.method == 'POST':
+        photo_type = request.POST.get('photo_type', 'before')
+        caption = request.POST.get('caption', '').strip()
+
+        before_files = request.FILES.getlist('before_photos')
+        for idx, f in enumerate(before_files):
+            p = JobCardVehiclePhoto(
+                job_card=jc,
+                photo_type='before',
+                caption=caption,
+                sort_order=idx,
+                creator=user,
+                auto_id=get_auto_id(JobCardVehiclePhoto),
+            )
+            p.image.save(f.name, f, save=True)
+
+        after_files = request.FILES.getlist('after_photos')
+        for idx, f in enumerate(after_files):
+            p = JobCardVehiclePhoto(
+                job_card=jc,
+                photo_type='after',
+                caption=caption,
+                sort_order=idx,
+                creator=user,
+                auto_id=get_auto_id(JobCardVehiclePhoto),
+            )
+            p.image.save(f.name, f, save=True)
+
+        single_photo = request.FILES.get('photo') or request.FILES.get('image')
+        if single_photo:
+            p = JobCardVehiclePhoto(
+                job_card=jc,
+                photo_type=photo_type if photo_type in ('before', 'after') else 'before',
+                caption=caption,
+                sort_order=0,
+                creator=user,
+                auto_id=get_auto_id(JobCardVehiclePhoto),
+            )
+            p.image.save(single_photo.name, single_photo, save=True)
+
+        before = [
+            {'id': str(p.id), 'url': request.build_absolute_uri(p.image.url) if p.image else '', 'caption': p.caption or ''}
+            for p in jc.vehicle_photos.filter(photo_type='before', is_deleted=False)
+        ]
+        after = [
+            {'id': str(p.id), 'url': request.build_absolute_uri(p.image.url) if p.image else '', 'caption': p.caption or ''}
+            for p in jc.vehicle_photos.filter(photo_type='after', is_deleted=False)
+        ]
+        return JsonResponse({'success': True, 'message': 'Photo(s) uploaded successfully', 'before_photos': before, 'after_photos': after})
+
+    elif request.method == 'DELETE':
+        photo_id = request.GET.get('photo_id')
+        if not photo_id:
+            try:
+                body_data = json.loads(request.body)
+                photo_id = body_data.get('photo_id')
+            except Exception:
+                pass
+        if not photo_id:
+            return JsonResponse({'success': False, 'message': 'photo_id required'}, status=400)
+
+        JobCardVehiclePhoto.objects.filter(job_card=jc, id=photo_id).update(is_deleted=True, updater=user)
+        return JsonResponse({'success': True, 'message': 'Photo deleted successfully'})
+
+    return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=405)
 
 
 @csrf_exempt
@@ -7271,6 +7446,26 @@ def api_job_quotation_create(request):
                 lead.status = JobLead.STATUS_QUOTED
                 lead.save(update_fields=['status', 'date_updated'])
                 JobLeadFollowUp.objects.create(lead=lead, remarks=f'Quotation {quotation.quotation_number} created', status=JobLead.STATUS_QUOTED, auto_id=get_auto_id(JobLeadFollowUp), creator=user)
+
+        # Trigger WhatsApp sending for quotation in background thread if WhatsApp settings exist
+        try:
+            from client_management.models import WhatsAppSetting
+            from client_management.api_views import send_quotation_whatsapp_background
+            import threading
+            quot_company = (quotation.branch.company if quotation.branch else None) or (quotation.customer.company if quotation.customer else None)
+            has_wa = WhatsAppSetting.objects.filter(company=quot_company, is_deleted=False).exclude(username='').exclude(password='').exists() if quot_company else False
+            if has_wa:
+                base_url = request.build_absolute_uri('/')
+                if not base_url or '127.0.0.1' in base_url or 'localhost' in base_url:
+                    base_url = 'http://68.183.94.11:78'
+                threading.Thread(
+                    target=send_quotation_whatsapp_background,
+                    args=(quotation.id, base_url),
+                    daemon=True
+                ).start()
+        except Exception:
+            pass
+
         return JsonResponse({'success': True, 'quotation_id': str(quotation.id), 'quotation_number': quotation.quotation_number})
     except (Customer.DoesNotExist, CustomerVehicle.DoesNotExist):
         return JsonResponse({'success': False, 'message': 'Customer or vehicle not found'}, status=404)
