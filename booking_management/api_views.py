@@ -4474,6 +4474,24 @@ def api_job_card_list(request):
                 }
                 for p in jc.vehicle_photos.filter(photo_type='after', is_deleted=False)
             ],
+            'quality_checks': [
+                {
+                    'id': str(qc.id),
+                    'service_id': str(qc.service_id or ''),
+                    'service_name': qc.service_name,
+                    'status': qc.status,
+                    'remarks': qc.remarks or '',
+                    'photos': [
+                        {
+                            'id': str(p.id),
+                            'url': request.build_absolute_uri(p.image.url) if p.image else '',
+                            'caption': p.caption or '',
+                        }
+                        for p in qc.photos.filter(is_deleted=False)
+                    ],
+                }
+                for qc in jc.quality_checks.filter(is_deleted=False)
+            ],
             'invoice': ({
                 'id': str(inv.id),
                 'invoice_number': inv.invoice_number,
@@ -5138,6 +5156,75 @@ def _save_job_card_reported_issues(job_card, rows, uploaded_files, user):
     ).exclude(id__in=retained_report_ids).update(is_deleted=True, updater=user)
 
 
+def _save_job_card_quality_checks(job_card, data, uploaded_files, user):
+    from .models import JobCardQualityCheck, JobCardQualityCheckPhoto
+    from core.functions import get_auto_id
+
+    qc_list = data.get('quality_checks')
+    if qc_list is None:
+        return
+
+    # Delete photo IDs if requested
+    delete_qc_photo_ids = data.get('delete_qc_photo_ids') or []
+    if delete_qc_photo_ids:
+        JobCardQualityCheckPhoto.objects.filter(
+            quality_check__job_card=job_card,
+            id__in=delete_qc_photo_ids
+        ).update(is_deleted=True, updater=user)
+
+    for idx, qc_data in enumerate(qc_list):
+        if not isinstance(qc_data, dict):
+            continue
+        service_name = (qc_data.get('service_name') or '').strip()
+        if not service_name:
+            continue
+        service_id = qc_data.get('service_id')
+        status = qc_data.get('status', 'satisfied')
+        if status not in ('satisfied', 'not_satisfied'):
+            status = 'satisfied'
+        remarks = qc_data.get('remarks') or ''
+
+        qc = None
+        qc_id = qc_data.get('id')
+        if qc_id:
+            qc = JobCardQualityCheck.objects.filter(job_card=job_card, id=qc_id, is_deleted=False).first()
+        if not qc:
+            qc = JobCardQualityCheck.objects.filter(job_card=job_card, service_name__iexact=service_name, is_deleted=False).first()
+        if not qc:
+            qc = JobCardQualityCheck(
+                job_card=job_card,
+                service_id=service_id if service_id else None,
+                service_name=service_name,
+                status=status,
+                remarks=remarks,
+                sort_order=idx,
+                creator=user,
+                auto_id=get_auto_id(JobCardQualityCheck),
+            )
+            qc.save()
+        else:
+            qc.status = status
+            qc.remarks = remarks
+            qc.sort_order = idx
+            qc.updater = user
+            if service_id and not qc.service_id:
+                qc.service_id = service_id
+            qc.save()
+
+        # Check for files: qc_photos_<idx>, qc_photos_<service_name>, or qc_photos
+        file_keys = [f'qc_photos_{idx}', f'qc_photos_{service_name}', f'qc_photos_{qc.id}']
+        for fk in file_keys:
+            files_to_add = uploaded_files.getlist(fk)
+            for p_idx, f in enumerate(files_to_add):
+                p = JobCardQualityCheckPhoto(
+                    quality_check=qc,
+                    sort_order=p_idx,
+                    creator=user,
+                    auto_id=get_auto_id(JobCardQualityCheckPhoto),
+                )
+                p.image.save(f.name, f, save=True)
+
+
 def _save_job_card_vehicle_photos(job_card, uploaded_files, user, delete_photo_ids=None):
     from .models import JobCardVehiclePhoto
     from core.functions import get_auto_id
@@ -5363,6 +5450,7 @@ def api_job_card_create(request):
 
             _save_job_card_reported_issues(jc, data.get('reported_issues', []), request.FILES, user)
             _save_job_card_vehicle_photos(jc, request.FILES, user)
+            _save_job_card_quality_checks(jc, data, request.FILES, user)
 
             jc.calculate_estimated_cost()
             jc.save()
@@ -5715,6 +5803,7 @@ def api_job_card_update(request, job_card_id):
             delete_photo_ids = data.get('delete_photo_ids', [])
             if request.FILES or delete_photo_ids:
                 _save_job_card_vehicle_photos(jc, request.FILES, user, delete_photo_ids=delete_photo_ids)
+                _save_job_card_quality_checks(jc, data, request.FILES, user)
 
             jc.calculate_estimated_cost()
             jc.updater = user
@@ -8259,3 +8348,104 @@ def api_job_card_from_job_quotation(request, quotation_id):
         return JsonResponse({'success': False, 'message': str(exc)}, status=500)
 
 
+
+
+@csrf_exempt
+def api_job_card_quality_checks(request, job_card_id):
+    """
+    GET: Returns list of quality checks with photos
+    POST: Saves or updates quality checks with photos
+    """
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+
+    try:
+        jc = JobCard.objects.get(id=job_card_id, is_deleted=False)
+    except JobCard.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'Job Card not found'}, status=404)
+
+    from .models import JobCardQualityCheck, JobCardQualityCheckPhoto
+    from core.functions import get_auto_id
+
+    if request.method == 'GET':
+        qcs = []
+        for qc in jc.quality_checks.filter(is_deleted=False):
+            photos = [
+                {
+                    'id': str(p.id),
+                    'url': request.build_absolute_uri(p.image.url) if p.image else '',
+                    'caption': p.caption or '',
+                }
+                for p in qc.photos.filter(is_deleted=False)
+            ]
+            qcs.append({
+                'id': str(qc.id),
+                'service_id': str(qc.service_id or ''),
+                'service_name': qc.service_name,
+                'status': qc.status,
+                'remarks': qc.remarks or '',
+                'photos': photos,
+            })
+        return JsonResponse({'success': True, 'quality_checks': qcs})
+
+    elif request.method == 'POST':
+        if request.content_type and request.content_type.startswith('multipart/form-data'):
+            payload_str = request.POST.get('payload')
+            data = json.loads(payload_str) if payload_str else request.POST.dict()
+            uploaded_files = request.FILES
+        else:
+            data = json.loads(request.body)
+            uploaded_files = request.FILES
+
+        if 'service_name' in data and 'quality_checks' not in data:
+            data = {'quality_checks': [data]}
+
+        _save_job_card_quality_checks(jc, data, uploaded_files, user)
+
+        qcs = []
+        for qc in jc.quality_checks.filter(is_deleted=False):
+            photos = [
+                {
+                    'id': str(p.id),
+                    'url': request.build_absolute_uri(p.image.url) if p.image else '',
+                    'caption': p.caption or '',
+                }
+                for p in qc.photos.filter(is_deleted=False)
+            ]
+            qcs.append({
+                'id': str(qc.id),
+                'service_id': str(qc.service_id or ''),
+                'service_name': qc.service_name,
+                'status': qc.status,
+                'remarks': qc.remarks or '',
+                'photos': photos,
+            })
+        return JsonResponse({'success': True, 'message': 'Quality checks updated successfully', 'quality_checks': qcs})
+
+    return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=405)
+
+
+@csrf_exempt
+def api_job_card_qc_photo_delete(request, job_card_id, photo_id):
+    if request.method not in ('DELETE', 'POST'):
+        return JsonResponse({'success': False, 'message': 'DELETE or POST required'}, status=405)
+
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+
+    from .models import JobCardQualityCheckPhoto
+    photo = JobCardQualityCheckPhoto.objects.filter(
+        id=photo_id,
+        quality_check__job_card_id=job_card_id,
+        is_deleted=False
+    ).first()
+
+    if not photo:
+        return JsonResponse({'success': False, 'message': 'Photo not found'}, status=404)
+
+    photo.is_deleted = True
+    photo.updater = user
+    photo.save()
+    return JsonResponse({'success': True, 'message': 'Photo deleted successfully'})

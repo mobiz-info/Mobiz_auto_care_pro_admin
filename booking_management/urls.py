@@ -93,5 +93,7 @@ urlpatterns = [
     path('api/job-cards/inspection-checklist/', api_views.api_inspection_checklist, name='api_inspection_checklist'),
     path('api/job-cards/<uuid:job_card_id>/pdf/', api_views.api_job_card_pdf, name='api_job_card_pdf'),
     path('api/job-cards/<uuid:job_card_id>/photos/', api_views.api_job_card_vehicle_photos, name='api_job_card_vehicle_photos'),
+    path('api/job-cards/<uuid:job_card_id>/quality-checks/', api_views.api_job_card_quality_checks, name='api_job_card_quality_checks'),
+    path('api/job-cards/<uuid:job_card_id>/quality-checks/photos/<uuid:photo_id>/', api_views.api_job_card_qc_photo_delete, name='api_job_card_qc_photo_delete'),
     path('api/job-cards/vehicle/add/', api_views.api_job_card_add_vehicle, name='api_job_card_add_vehicle'),
 ]

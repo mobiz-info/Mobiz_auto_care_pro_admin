@@ -658,3 +658,35 @@ class JobCardVehiclePhoto(BaseModel):
 
     def __str__(self):
         return f"{self.job_card.job_number} - {self.photo_type} photo"
+
+
+class JobCardQualityCheck(BaseModel):
+    STATUS_CHOICES = (
+        ('satisfied', 'Satisfied'),
+        ('not_satisfied', 'Not Satisfied'),
+    )
+    job_card = models.ForeignKey(JobCard, on_delete=models.CASCADE, related_name='quality_checks')
+    service = models.ForeignKey('service_management.Service', on_delete=models.SET_NULL, null=True, blank=True)
+    service_name = models.CharField(max_length=200)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='satisfied')
+    remarks = models.TextField(blank=True, null=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['sort_order', 'date_added']
+
+    def __str__(self):
+        return f"{self.job_card.job_number} - {self.service_name} ({self.status})"
+
+
+class JobCardQualityCheckPhoto(BaseModel):
+    quality_check = models.ForeignKey(JobCardQualityCheck, on_delete=models.CASCADE, related_name='photos')
+    image = models.ImageField(upload_to='job_card_qc_photos/%Y/%m/')
+    caption = models.CharField(max_length=255, blank=True, null=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ['sort_order', 'date_added']
+
+    def __str__(self):
+        return f"QC Photo for {self.quality_check.service_name}"
