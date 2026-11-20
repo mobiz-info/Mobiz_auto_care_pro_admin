@@ -3083,6 +3083,19 @@ def superadmin_whatsapp_hub(request):
     paginator = Paginator(client_data, 15)
     page_obj = paginator.get_page(request.GET.get('page'))
 
+    # Build all_companies list for single-template deploy modal
+    all_companies = [
+        {
+            'id': str(item['client'].id),
+            'name': item['client'].company_name,
+            'phone': item['client'].phone or '',
+            'wa_username': item['setting'].username if item['setting'] else '',
+            'wa_password': item['setting'].password if item['setting'] else '',
+            'sender_id': item['sender_id'],
+        }
+        for item in client_data
+    ]
+
     return render(request, 'superadmin/whatsapp_hub.html', {
         'page_obj': page_obj,
         'search': search,
@@ -3091,6 +3104,7 @@ def superadmin_whatsapp_hub(request):
         'wawy_msg': wawy_msg,
         'senders_count': len(senders),
         'active_templates': ACTIVE_SYSTEM_TEMPLATES,
+        'all_companies': all_companies,
         'title': 'WhatsApp Automation Hub - Superadmin',
     })
 
@@ -3149,6 +3163,155 @@ def superadmin_whatsapp_deploy(request):
             'message': f"Successfully deployed for {company.company_name}! ({results['saved_to_db']} saved in Mobiz DB, {results['deployed_to_wawy']} pushed to Wawy, {results['already_in_wawy']} verified)",
             'results': results
         })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+def superadmin_whatsapp_deploy_single(request):
+    """Deploy a single system template to a specific company's Wawy account."""
+    is_superadmin = request.user.is_superuser or (
+        hasattr(request.user, 'profile') and
+        request.user.profile.role and
+        request.user.profile.role.name == 'SUPER_ADMIN'
+    )
+    if not is_superadmin:
+        return JsonResponse({'status': 'error', 'message': 'Permission denied. Super Admin only.'}, status=403)
+
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'message': 'POST method required.'}, status=405)
+
+    from .wawy_service import ACTIVE_SYSTEM_TEMPLATES, WawyClient, clean_phone_for_wawy
+    from .models import WhatsAppSetting, WhatsAppTemplate
+    from core.functions import get_auto_id
+
+    company_id = request.POST.get('company_id', '').strip()
+    template_key = request.POST.get('template_key', '').strip()
+    wawy_username = request.POST.get('wawy_username', '').strip()
+    wawy_password = request.POST.get('wawy_password', '').strip()
+    sender_id = request.POST.get('sender_id', '').strip() or None
+    save_setting = request.POST.get('save_setting') != 'false'
+
+    if not company_id:
+        return JsonResponse({'status': 'error', 'message': 'Company ID is required.'}, status=400)
+    if not template_key:
+        return JsonResponse({'status': 'error', 'message': 'Template key is required.'}, status=400)
+    if not wawy_username or not wawy_password:
+        return JsonResponse({'status': 'error', 'message': 'Wawy username and password are required.'}, status=400)
+
+    company = get_object_or_404(Client, id=company_id, is_deleted=False)
+
+    # Find the matching system template
+    tmpl = next((t for t in ACTIVE_SYSTEM_TEMPLATES if t['key'] == template_key), None)
+    if not tmpl:
+        return JsonResponse({'status': 'error', 'message': f'Template "{template_key}" not found in system templates.'}, status=404)
+
+    try:
+        # Login to Wawy
+        client = WawyClient(username=wawy_username, password=wawy_password)
+        ok, login_msg = client.login()
+        if not ok:
+            return JsonResponse({'status': 'error', 'message': f'Failed to login to Wawy: {login_msg}'}, status=400)
+
+        senders = client.get_senders()
+
+        # Determine sender_id
+        chosen_sender_id = None
+        if sender_id:
+            for s in senders:
+                if s['sender_id'] == sender_id or s['number'] == sender_id or s['number'].endswith(sender_id[-9:]):
+                    chosen_sender_id = s['sender_id']
+                    break
+
+        if not chosen_sender_id:
+            # Try matching by company phone
+            setting = WhatsAppSetting.objects.filter(company=company).first()
+            if setting and setting.sender_id:
+                chosen_sender_id = setting.sender_id
+            elif senders:
+                c_phone = clean_phone_for_wawy(company.phone) if company.phone else ''
+                for s in senders:
+                    if c_phone and (s['number'] == c_phone or s['number'].endswith(c_phone[-9:])):
+                        chosen_sender_id = s['sender_id']
+                        break
+                if not chosen_sender_id:
+                    chosen_sender_id = senders[0]['sender_id']
+
+        # Save settings if requested
+        if save_setting:
+            setting, _ = WhatsAppSetting.objects.get_or_create(
+                company=company,
+                defaults={'auto_id': get_auto_id(WhatsAppSetting)}
+            )
+            setting.username = wawy_username
+            setting.password = wawy_password
+            if chosen_sender_id:
+                setting.sender_id = chosen_sender_id
+            if not setting.whatsapp_number and company.phone:
+                setting.whatsapp_number = clean_phone_for_wawy(company.phone)
+            if not setting.url:
+                setting.url = 'http://wawy.org/pushwhatsapp.php'
+            setting.save()
+
+        # Submit template to Wawy
+        wawy_status = 'SKIPPED'
+        wawy_message = 'No sender ID available'
+        if chosen_sender_id:
+            existing_templates = client.get_existing_templates()
+            w_name = tmpl['wawy_template_name'].lower()
+            if w_name in existing_templates:
+                wawy_status = existing_templates[w_name].get('status', 'PENDING')
+                wawy_message = f'Already in Wawy ({wawy_status})'
+            else:
+                success, msg = client.submit_template(chosen_sender_id, tmpl)
+                if success:
+                    wawy_status = 'SUBMITTED'
+                    wawy_message = msg
+                else:
+                    wawy_status = 'FAILED'
+                    wawy_message = msg
+
+        # Save or update in Django DB
+        db_status = 'SAVED'
+        try:
+            db_tmpl, created = WhatsAppTemplate.objects.get_or_create(
+                company=company,
+                wawy_template_name=tmpl['wawy_template_name'].lower(),
+                defaults={
+                    'auto_id': get_auto_id(WhatsAppTemplate),
+                    'template_name': tmpl['template_name'],
+                    'content': tmpl['content'],
+                    'category': tmpl.get('category_name', ''),
+                    'msgtype': tmpl.get('msgtype', '1'),
+                    'status': wawy_status,
+                    'creator': request.user,
+                }
+            )
+            if not created:
+                db_tmpl.template_name = tmpl['template_name']
+                db_tmpl.content = tmpl['content']
+                db_tmpl.status = wawy_status
+                db_tmpl.updater = request.user
+                db_tmpl.is_deleted = False
+                db_tmpl.save()
+        except Exception as db_exc:
+            db_status = f'DB Error: {db_exc}'
+
+        return JsonResponse({
+            'status': 'success' if wawy_status not in ('FAILED',) else 'partial',
+            'message': f'Template "{tmpl["template_name"]}" processed for {company.company_name}.',
+            'detail': {
+                'template_name': tmpl['template_name'],
+                'wawy_name': tmpl['wawy_template_name'],
+                'wawy_status': wawy_status,
+                'wawy_message': wawy_message,
+                'db_status': db_status,
+                'company': company.company_name,
+                'sender_id': chosen_sender_id or 'None',
+                'wawy_user': wawy_username,
+            }
+        })
+
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 

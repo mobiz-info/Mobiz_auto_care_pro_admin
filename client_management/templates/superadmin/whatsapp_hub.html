@@ -554,6 +554,11 @@
     <!-- TAB 2: ACTIVE SYSTEM TEMPLATES CATALOG -->
     <div id="templatesTab" class="tab-content">
 
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+            <div style="font-size:0.95rem; font-weight:600; color:#1e293b;">
+                <i class="ph ph-layout" style="color:#000080;"></i> &nbsp;{{ active_templates|length }} System Templates — Click <strong>"Deploy to Company"</strong> to push any template to a specific company's Wawy account.
+            </div>
+        </div>
 
         <div class="template-card-grid">
             {% for tmpl in active_templates %}
@@ -577,6 +582,14 @@
                     <p style="font-size: 0.8rem; color: #64748b; margin: 8px 0;">{{ tmpl.description }}</p>
                     <div class="tmpl-content">{{ tmpl.content }}</div>
                 </div>
+                <!-- Deploy button -->
+                <div style="margin-top: 14px; border-top: 1px solid #f1f5f9; padding-top: 12px;">
+                    <button class="btn-deploy"
+                        style="width: 100%; background: #000080; padding: 9px 14px; font-size: 0.82rem; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 6px;"
+                        onclick="openSingleDeployModal('{{ tmpl.key }}', '{{ tmpl.template_name }}', '{{ tmpl.wawy_template_name }}')">
+                        <i class="ph-bold ph-lightning"></i> Deploy to Company
+                    </button>
+                </div>
             </div>
             {% endfor %}
         </div>
@@ -584,7 +597,164 @@
 
 </div>
 
-<!-- Deploy / Configure Modal -->
+<!-- ============================================================ -->
+<!--  Single Template Deploy Modal                                -->
+<!-- ============================================================ -->
+<div id="singleDeployModal" style="
+    position:fixed; top:0; left:0; right:0; bottom:0;
+    background:rgba(15,23,42,0.6); backdrop-filter:blur(4px);
+    display:none; align-items:center; justify-content:center; z-index:10000;">
+    <div style="
+        background:white; border-radius:16px; max-width:600px; width:90%;
+        max-height:85vh; overflow-y:auto; padding:0;
+        box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);">
+
+        <!-- Modal Header -->
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:20px 24px; border-bottom:1px solid #e2e8f0;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div style="width:36px; height:36px; border-radius:8px; background:#dbeafe; color:#2563eb; display:flex; align-items:center; justify-content:center; font-size:1.2rem;">
+                    <i class="ph-bold ph-lightning"></i>
+                </div>
+                <div>
+                    <div id="sdModalTitle" style="font-size:1.05rem; font-weight:700; color:#1e293b;">Deploy Template to Company</div>
+                    <div id="sdModalSubtitle" style="font-size:0.78rem; color:#64748b; margin-top:1px;"></div>
+                </div>
+            </div>
+            <button onclick="closeSingleDeployModal()" style="background:none; border:none; font-size:1.4rem; color:#94a3b8; cursor:pointer;">
+                <i class="ph ph-x"></i>
+            </button>
+        </div>
+
+        <!-- STAGE 1: Form -->
+        <div id="sdConfig" style="padding:20px 24px;">
+            <input type="hidden" id="sdTemplateKey" value="">
+
+            <!-- Template Info Banner -->
+            <div id="sdTemplateBanner" style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 16px; margin-bottom:18px;">
+                <div style="font-size:0.82rem; color:#1d4ed8; font-weight:600; margin-bottom:4px;">
+                    <i class="ph ph-file-text"></i> &nbsp;Selected Template
+                </div>
+                <div id="sdTemplateName" style="font-size:0.95rem; font-weight:700; color:#1e293b;"></div>
+                <div id="sdTemplateWawyName" style="font-size:0.75rem; font-family:monospace; color:#64748b; margin-top:2px;"></div>
+            </div>
+
+            <!-- Company Select -->
+            <div style="margin-bottom:14px;">
+                <label style="display:block; font-size:0.85rem; font-weight:600; color:#334155; margin-bottom:6px;">
+                    Select Company <span style="color:#ef4444;">*</span>
+                </label>
+                <select id="sdCompanySelect" class="search-input" style="width:100%; padding-left:14px; height:42px;"
+                    onchange="onSdCompanyChange(this)">
+                    <option value="">— Choose a company —</option>
+                    {% for company in all_companies %}
+                    <option value="{{ company.id }}"
+                        data-phone="{{ company.phone }}"
+                        data-username="{{ company.wa_username }}"
+                        data-password="{{ company.wa_password }}"
+                        data-senderid="{{ company.sender_id }}">
+                        {{ company.name }}{% if company.phone %} ({{ company.phone }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Company Info (auto-filled) -->
+            <div id="sdCompanyInfo" style="display:none; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; margin-bottom:14px; font-size:0.82rem; color:#475569;">
+                <i class="ph ph-buildings"></i> &nbsp;<strong id="sdCompanyInfoText"></strong>
+            </div>
+
+            <!-- Wawy Username -->
+            <div style="margin-bottom:14px;">
+                <label style="display:block; font-size:0.85rem; font-weight:600; color:#334155; margin-bottom:6px;">
+                    Wawy Portal Username <span style="color:#ef4444;">*</span>
+                </label>
+                <input type="text" id="sdWawyUser" placeholder="Enter Wawy username"
+                    class="search-input" style="width:100%; padding-left:14px;">
+            </div>
+
+            <!-- Wawy Password -->
+            <div style="margin-bottom:14px;">
+                <label style="display:block; font-size:0.85rem; font-weight:600; color:#334155; margin-bottom:6px;">
+                    Wawy Portal Password <span style="color:#ef4444;">*</span>
+                </label>
+                <div style="position:relative;">
+                    <input type="password" id="sdWawyPass" placeholder="Enter Wawy password"
+                        class="search-input" style="width:100%; padding-left:14px; padding-right:40px;">
+                    <button type="button" onclick="toggleSdPassVisibility()"
+                        style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; color:#64748b; cursor:pointer;">
+                        <i id="sdPassToggleIcon" class="ph ph-eye"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sender ID -->
+            <div style="margin-bottom:16px;">
+                <label style="display:block; font-size:0.85rem; font-weight:600; color:#334155; margin-bottom:6px;">
+                    Sender Number / ID
+                    <span style="font-size:0.75rem; color:#64748b; font-weight:normal;">(Optional — auto-detected if empty)</span>
+                </label>
+                <input type="text" id="sdSenderId" placeholder="e.g. 919496007007 or 1-139"
+                    class="search-input" style="width:100%; padding-left:14px;">
+            </div>
+
+            <!-- Save credentials -->
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:20px;">
+                <input type="checkbox" id="sdSaveSetting" checked style="width:16px; height:16px; cursor:pointer;">
+                <label for="sdSaveSetting" style="font-size:0.85rem; color:#334155; cursor:pointer; font-weight:500;">
+                    Save credentials to this company's WhatsApp Settings
+                </label>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button type="button" onclick="closeSingleDeployModal()" class="btn-deploy"
+                    style="background:#f1f5f9; color:#475569;">
+                    Cancel
+                </button>
+                <button type="button" onclick="executeSingleDeploy()" class="btn-deploy"
+                    style="background:#000080; padding:10px 20px;">
+                    <i class="ph-bold ph-lightning"></i> Deploy This Template
+                </button>
+            </div>
+        </div>
+
+        <!-- STAGE 2: Loading -->
+        <div id="sdLoading" style="display:none; text-align:center; padding:40px 24px;">
+            <div style="font-size:2.5rem; color:#000080; animation:spin 1s linear infinite; display:inline-block;">
+                <i class="ph ph-spinner-gap"></i>
+            </div>
+            <div style="margin-top:14px; font-weight:700; font-size:1rem; color:#1e293b;">Connecting to Wawy & Deploying...</div>
+            <div style="font-size:0.85rem; color:#64748b; margin-top:4px;" id="sdLoadingSubText">Submitting template to Meta WhatsApp Business API</div>
+        </div>
+
+        <!-- STAGE 3: Result -->
+        <div id="sdResult" style="display:none; padding:20px 24px;">
+            <div id="sdResultBanner" style="border-radius:10px; padding:14px 16px; margin-bottom:16px;"></div>
+
+            <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+                <thead>
+                    <tr style="background:#f1f5f9; color:#475569; text-align:left;">
+                        <th style="padding:8px 12px;">Template</th>
+                        <th style="padding:8px 12px;">Wawy Status</th>
+                        <th style="padding:8px 12px;">DB</th>
+                        <th style="padding:8px 12px;">Company</th>
+                    </tr>
+                </thead>
+                <tbody id="sdResultTableBody"></tbody>
+            </table>
+
+            <div style="margin-top:18px; display:flex; justify-content:flex-end; gap:10px;">
+                <button onclick="returnToSdConfig()" class="btn-deploy" style="background:#f1f5f9; color:#475569;">
+                    Deploy Another
+                </button>
+                <button onclick="closeSingleDeployModal()" class="btn-deploy" style="padding:10px 20px;">
+                    Done
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Deploy / Configure Modal (existing — for all-templates deploy) -->
 <div id="deployModal" class="deploy-modal-backdrop">
     <div class="deploy-modal">
         <div
@@ -721,6 +891,160 @@
         document.querySelectorAll('.hub-tab-btn').forEach(el => el.classList.remove('active'));
         document.getElementById(tabId).classList.add('active');
         btn.classList.add('active');
+    }
+
+    // ── Single Template Deploy Modal ─────────────────────────────────────────
+    function openSingleDeployModal(templateKey, templateName, wawyName) {
+        document.getElementById('sdTemplateKey').value = templateKey;
+        document.getElementById('sdTemplateName').innerText = templateName;
+        document.getElementById('sdTemplateWawyName').innerText = 'Wawy key: ' + wawyName;
+        document.getElementById('sdModalTitle').innerText = 'Deploy: ' + templateName;
+        document.getElementById('sdModalSubtitle').innerText = 'Select company & enter Wawy credentials';
+        document.getElementById('sdCompanySelect').value = '';
+        document.getElementById('sdCompanyInfo').style.display = 'none';
+        document.getElementById('sdWawyUser').value = '';
+        document.getElementById('sdWawyPass').value = '';
+        document.getElementById('sdSenderId').value = '';
+        document.getElementById('sdSaveSetting').checked = true;
+
+        document.getElementById('sdConfig').style.display = 'block';
+        document.getElementById('sdLoading').style.display = 'none';
+        document.getElementById('sdResult').style.display = 'none';
+        document.getElementById('singleDeployModal').style.display = 'flex';
+    }
+
+    function closeSingleDeployModal() {
+        document.getElementById('singleDeployModal').style.display = 'none';
+    }
+
+    function onSdCompanyChange(select) {
+        const opt = select.options[select.selectedIndex];
+        if (!opt.value) {
+            document.getElementById('sdCompanyInfo').style.display = 'none';
+            return;
+        }
+        const phone = opt.getAttribute('data-phone') || '';
+        const username = opt.getAttribute('data-username') || '';
+        const password = opt.getAttribute('data-password') || '';
+        const senderId = opt.getAttribute('data-senderid') || '';
+
+        document.getElementById('sdCompanyInfoText').innerText = opt.text;
+        document.getElementById('sdCompanyInfo').style.display = 'block';
+        if (username) document.getElementById('sdWawyUser').value = username;
+        if (password) document.getElementById('sdWawyPass').value = password;
+        if (senderId) document.getElementById('sdSenderId').value = senderId;
+    }
+
+    function toggleSdPassVisibility() {
+        const input = document.getElementById('sdWawyPass');
+        const icon = document.getElementById('sdPassToggleIcon');
+        if (input.type === 'password') {
+            input.type = 'text'; icon.className = 'ph ph-eye-slash';
+        } else {
+            input.type = 'password'; icon.className = 'ph ph-eye';
+        }
+    }
+
+    function returnToSdConfig() {
+        document.getElementById('sdConfig').style.display = 'block';
+        document.getElementById('sdLoading').style.display = 'none';
+        document.getElementById('sdResult').style.display = 'none';
+    }
+
+    function executeSingleDeploy() {
+        const templateKey = document.getElementById('sdTemplateKey').value;
+        const companyId = document.getElementById('sdCompanySelect').value;
+        const username = document.getElementById('sdWawyUser').value.trim();
+        const password = document.getElementById('sdWawyPass').value.trim();
+        const senderId = document.getElementById('sdSenderId').value.trim();
+        const saveSetting = document.getElementById('sdSaveSetting').checked;
+
+        if (!companyId) {
+            alert('Please select a company.');
+            document.getElementById('sdCompanySelect').focus();
+            return;
+        }
+        if (!username) {
+            alert('Please enter the Wawy username.');
+            document.getElementById('sdWawyUser').focus();
+            return;
+        }
+        if (!password) {
+            alert('Please enter the Wawy password.');
+            document.getElementById('sdWawyPass').focus();
+            return;
+        }
+
+        const companyName = document.getElementById('sdCompanySelect').options[document.getElementById('sdCompanySelect').selectedIndex].text;
+
+        document.getElementById('sdConfig').style.display = 'none';
+        document.getElementById('sdLoading').style.display = 'block';
+        document.getElementById('sdLoadingSubText').innerText = 'Logging into Wawy as "' + username + '" & deploying to ' + companyName + '...';
+
+        const formData = new FormData();
+        formData.append('template_key', templateKey);
+        formData.append('company_id', companyId);
+        formData.append('wawy_username', username);
+        formData.append('wawy_password', password);
+        formData.append('sender_id', senderId);
+        formData.append('save_setting', saveSetting ? 'true' : 'false');
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+        fetch("{% url 'superadmin_whatsapp_deploy_single' %}", {
+            method: 'POST',
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('sdLoading').style.display = 'none';
+            document.getElementById('sdResult').style.display = 'block';
+
+            const banner = document.getElementById('sdResultBanner');
+            const isSuccess = data.status === 'success' || data.status === 'partial';
+            banner.style.background = isSuccess ? '#f0fdf4' : '#fef2f2';
+            banner.style.border = `1px solid ${isSuccess ? '#bbf7d0' : '#fecaca'}`;
+            banner.innerHTML = `
+                <div style="font-weight:700; color:${isSuccess ? '#166534' : '#dc2626'}; font-size:0.95rem;">
+                    ${isSuccess ? '✓' : '✗'} ${data.message}
+                </div>
+                ${data.detail ? `<div style="font-size:0.8rem; color:#475569; margin-top:4px;">
+                    Wawy Account: <strong>${data.detail.wawy_user}</strong> |
+                    Sender: <strong>${data.detail.sender_id}</strong>
+                </div>` : ''}
+            `;
+
+            let tbody = '';
+            if (data.detail) {
+                const d = data.detail;
+                const wawyColor = d.wawy_status === 'SUBMITTED' ? '#2563eb' :
+                                  d.wawy_status === 'APPROVED' || d.wawy_status.includes('Wawy') ? '#16a34a' :
+                                  d.wawy_status === 'FAILED' ? '#dc2626' : '#d97706';
+                tbody = `
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:10px 12px; font-weight:600;">
+                            ${d.template_name}<br>
+                            <span style="font-size:0.72rem; font-family:monospace; color:#64748b;">${d.wawy_name}</span>
+                        </td>
+                        <td style="padding:10px 12px;">
+                            <span style="font-weight:700; color:${wawyColor}; font-size:0.78rem;">${d.wawy_status}</span>
+                            <div style="font-size:0.72rem; color:#64748b;">${d.wawy_message}</div>
+                        </td>
+                        <td style="padding:10px 12px; font-weight:600; color:#16a34a;">${d.db_status}</td>
+                        <td style="padding:10px 12px; font-size:0.8rem; color:#475569;">${d.company}</td>
+                    </tr>
+                `;
+            }
+            document.getElementById('sdResultTableBody').innerHTML = tbody || '<tr><td colspan="4" style="padding:16px; text-align:center; color:#94a3b8;">No details available</td></tr>';
+        })
+        .catch(err => {
+            document.getElementById('sdLoading').style.display = 'none';
+            document.getElementById('sdResult').style.display = 'block';
+            const banner = document.getElementById('sdResultBanner');
+            banner.style.background = '#fef2f2';
+            banner.style.border = '1px solid #fecaca';
+            banner.innerHTML = `<div style="font-weight:700; color:#dc2626;">✗ Server error: ${err}</div>`;
+            document.getElementById('sdResultTableBody').innerHTML = '';
+        });
     }
 
     function closeDeployModal() {
@@ -862,8 +1186,7 @@
             });
     }
 
-    function deployAllClients() {
-        if (!confirm('Are you sure you want to deploy templates to all clients that have Wawy credentials configured? Clients without Wawy credentials will be skipped.')) {
+    function deployAllClients() {        if (!confirm('Are you sure you want to deploy templates to all clients that have Wawy credentials configured? Clients without Wawy credentials will be skipped.')) {
             return;
         }
 

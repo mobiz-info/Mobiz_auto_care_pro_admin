@@ -184,6 +184,7 @@ urlpatterns = [
     # Superadmin WhatsApp Template Automation
     path('superadmin/whatsapp-automation/', views.superadmin_whatsapp_hub, name='superadmin_whatsapp_hub'),
     path('superadmin/whatsapp-automation/deploy/', views.superadmin_whatsapp_deploy, name='superadmin_whatsapp_deploy'),
+    path('superadmin/whatsapp-automation/deploy-single/', views.superadmin_whatsapp_deploy_single, name='superadmin_whatsapp_deploy_single'),
     path('settings/whatsapp/types/', views.whatsapp_type_list, name='whatsapp_type_list'),
     path('settings/whatsapp/types/create/', views.whatsapp_type_create, name='whatsapp_type_create'),
     path('settings/whatsapp/types/edit/<uuid:id>/', views.whatsapp_type_edit, name='whatsapp_type_edit'),
