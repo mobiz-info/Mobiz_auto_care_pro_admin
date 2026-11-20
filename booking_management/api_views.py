@@ -5968,7 +5968,7 @@ def api_job_card_invoice(request, job_card_id):
                 clean_no = invoice.invoice_number.replace('/', '_')
                 pdf_url = f'http://68.183.94.11:78/media/invoices/invoice-{clean_no}.pdf'
 
-        return {
+        return JsonResponse({
             'success': True,
             'invoice': {
                 'id': str(invoice.id), 'invoice_number': invoice.invoice_number,
@@ -5977,7 +5977,7 @@ def api_job_card_invoice(request, job_card_id):
                 'invoice_type': invoice.invoice_type,
                 'pdf_url': pdf_url,
             } if invoice else None,
-        }
+        })
 
     if request.method == 'GET':
         invoice = Invoice.objects.filter(job_card=job, is_deleted=False).first()
