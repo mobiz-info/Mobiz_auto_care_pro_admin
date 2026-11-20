@@ -2654,11 +2654,25 @@ def credit_note_whatsapp_share(request, pk):
     return redirect(whatsapp_url)
 
 
-def generate_quotation_pdf_file(quotation, base_url):
+def generate_quotation_pdf_file(quotation, base_url, overwrite=True):
     import sys
     import os
     from django.template.loader import render_to_string
     from django.conf import settings
+
+    media_dir = os.path.join(settings.BASE_DIR, 'media', 'quotations')
+    os.makedirs(media_dir, exist_ok=True)
+    
+    clean_no = str(quotation.quotation_number).replace('/', '_')
+    pdf_filename = f"quotation-{clean_no}.pdf"
+    pdf_path = os.path.join(media_dir, pdf_filename)
+
+    if not overwrite and os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 0:
+        if not base_url or '127.0.0.1' in base_url or 'localhost' in base_url:
+            base_url = 'http://68.183.94.11:78'
+        if not base_url.endswith('/'):
+            base_url += '/'
+        return f"{base_url}media/quotations/{pdf_filename}"
     
     if sys.platform == 'darwin':
         os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = '/opt/homebrew/lib:' + os.environ.get('DYLD_FALLBACK_LIBRARY_PATH', '')

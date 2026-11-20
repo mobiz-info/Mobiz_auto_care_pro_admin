@@ -7547,24 +7547,26 @@ def api_job_quotation_create(request):
                 JobLeadFollowUp.objects.create(lead=lead, remarks=f'Quotation {quotation.quotation_number} created', status=JobLead.STATUS_QUOTED, auto_id=get_auto_id(JobLeadFollowUp), creator=user)
 
         # Trigger WhatsApp sending for quotation in background thread if WhatsApp settings exist
-        try:
-            from client_management.models import WhatsAppSetting
-            from client_management.api_views import send_quotation_whatsapp_background
-            import threading
-            quot_company = (quotation.branch.company if quotation.branch else None) or (quotation.customer.company if quotation.customer else None) or (getattr(user, 'profile', None) and getattr(user.profile, 'company', None))
-            has_wa = WhatsAppSetting.objects.filter(company=quot_company, is_deleted=False).exclude(username='').exclude(password='').exists() if quot_company else False
-            if has_wa:
-                base_url = request.build_absolute_uri('/')
-                if not base_url or '127.0.0.1' in base_url or 'localhost' in base_url:
-                    base_url = 'http://68.183.94.11:78'
-                threading.Thread(
-                    target=send_quotation_whatsapp_background,
-                    args=(quotation.id, base_url),
-                    daemon=True
-                ).start()
-        except Exception as we:
-            import logging
-            logging.getLogger(__name__).exception("Failed to launch quotation WhatsApp thread: %s", we)
+        skip_wa = str(request.POST.get('skip_whatsapp', '')).lower() in ('true', '1') or (isinstance(data, dict) and str(data.get('skip_whatsapp', '')).lower() in ('true', '1'))
+        if not skip_wa:
+            try:
+                from client_management.models import WhatsAppSetting
+                from client_management.api_views import send_quotation_whatsapp_background
+                import threading
+                quot_company = (quotation.branch.company if quotation.branch else None) or (quotation.customer.company if quotation.customer else None) or (getattr(user, 'profile', None) and getattr(user.profile, 'company', None))
+                has_wa = WhatsAppSetting.objects.filter(company=quot_company, is_deleted=False).exclude(username='').exclude(password='').exists() if quot_company else False
+                if has_wa:
+                    base_url = request.build_absolute_uri('/')
+                    if not base_url or '127.0.0.1' in base_url or 'localhost' in base_url:
+                        base_url = 'http://68.183.94.11:78'
+                    threading.Thread(
+                        target=send_quotation_whatsapp_background,
+                        args=(quotation.id, base_url),
+                        daemon=True
+                    ).start()
+            except Exception as we:
+                import logging
+                logging.getLogger(__name__).exception("Failed to launch quotation WhatsApp thread: %s", we)
 
         return JsonResponse({'success': True, 'quotation_id': str(quotation.id), 'quotation_number': quotation.quotation_number})
     except (Customer.DoesNotExist, CustomerVehicle.DoesNotExist):
@@ -7719,12 +7721,96 @@ def api_job_quotation_pdf(request, quotation_id):
     base_url = request.build_absolute_uri('/')
     try:
         from finance_management.views import generate_quotation_pdf_file
-        pdf_url = generate_quotation_pdf_file(quotation, base_url)
+        pdf_url = generate_quotation_pdf_file(quotation, base_url, overwrite=False)
         return JsonResponse({'success': True, 'pdf_url': pdf_url, 'quotation_number': quotation.quotation_number})
     except Exception as e:
         import traceback
         traceback.print_exc()
         return JsonResponse({'success': False, 'message': f'Failed to generate PDF: {str(e)}'}, status=500)
+
+
+@csrf_exempt
+def api_job_quotation_upload_pdf(request, quotation_id):
+    """
+    Receives pre-rendered PDF from mobile app and saves it at media/quotations/quotation-<number>.pdf.
+    Optionally sends it via WhatsApp immediately to the customer if send_whatsapp is true.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Only POST allowed'}, status=405)
+
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+
+    company, branch = _job_pipeline_scope(user)
+    quotation = JobQuotation.objects.filter(id=quotation_id, customer__company=company, is_deleted=False).select_related(
+        'customer', 'vehicle', 'branch', 'lead'
+    ).first()
+    
+    if not quotation:
+        from client_management.models import Quotation
+        quotation = Quotation.objects.filter(id=quotation_id, customer__company=company, is_deleted=False).select_related(
+            'customer', 'vehicle', 'branch'
+        ).first()
+
+    if not quotation or (branch and quotation.branch_id != branch.id):
+        return JsonResponse({'success': False, 'message': 'Quotation not found'}, status=404)
+
+    pdf_file = request.FILES.get('pdf')
+    if not pdf_file:
+        return JsonResponse({'success': False, 'message': 'No PDF file uploaded'}, status=400)
+
+    try:
+        import os
+        from django.conf import settings
+        media_dir = os.path.join(settings.BASE_DIR, 'media', 'quotations')
+        os.makedirs(media_dir, exist_ok=True)
+
+        clean_no = str(quotation.quotation_number).replace('/', '_')
+        pdf_filename = f"quotation-{clean_no}.pdf"
+        pdf_path = os.path.join(media_dir, pdf_filename)
+
+        with open(pdf_path, 'wb+') as destination:
+            for chunk in pdf_file.chunks():
+                destination.write(chunk)
+
+        base_url = request.build_absolute_uri('/')
+        if not base_url or '127.0.0.1' in base_url or 'localhost' in base_url:
+            base_url = 'http://68.183.94.11:78'
+        if not base_url.endswith('/'):
+            base_url += '/'
+        pdf_url = f"{base_url}media/quotations/{pdf_filename}"
+
+        send_whatsapp = (
+            str(request.POST.get('send_whatsapp', '')).lower() in ('true', '1') or
+            str(request.GET.get('send_whatsapp', '')).lower() in ('true', '1')
+        )
+
+        whatsapp_queued = False
+        if send_whatsapp:
+            try:
+                from client_management.api_views import send_quotation_whatsapp_background
+                import threading
+                threading.Thread(
+                    target=send_quotation_whatsapp_background,
+                    args=(quotation.id, base_url),
+                    daemon=True
+                ).start()
+                whatsapp_queued = True
+            except Exception as we:
+                import logging
+                logging.getLogger(__name__).exception("Failed to launch WhatsApp thread on PDF upload: %s", we)
+
+        return JsonResponse({
+            'success': True,
+            'pdf_url': pdf_url,
+            'quotation_number': quotation.quotation_number,
+            'whatsapp_queued': whatsapp_queued
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'message': f'Failed to save PDF: {str(e)}'}, status=500)
 
 
 @csrf_exempt

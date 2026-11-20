@@ -8402,7 +8402,7 @@ def send_quotation_whatsapp_background(quotation_id, base_url):
             
         pdf_url = ""
         try:
-            pdf_url = generate_quotation_pdf_file(quotation, base_url)
+            pdf_url = generate_quotation_pdf_file(quotation, base_url, overwrite=False)
         except Exception as pe:
             _log_quotation_wa(f"PDF gen error: {pe}")
 
