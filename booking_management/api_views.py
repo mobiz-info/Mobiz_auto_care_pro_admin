@@ -283,6 +283,7 @@ def send_whatsapp_simple(to_number, message, setting=None, interactive_data=None
         import json
         payload = {
             "username": username,
+            "api_password": wa_pass,
             "password": wa_pass,
             "sender": sender,
             "is_contact": "0",
@@ -352,6 +353,7 @@ def send_whatsapp_simple(to_number, message, setting=None, interactive_data=None
 
         payload = {
             "username": username,
+            "api_password": wa_pass,
             "password": wa_pass,
             "sender": sender,
             "interactive_type": interactive_type,
@@ -389,6 +391,7 @@ def send_whatsapp_simple(to_number, message, setting=None, interactive_data=None
         
         params = {
             "username": username,
+            "api_password": wa_pass,
             "password": wa_pass,
             "sender": sender,
             "to": to_number,
@@ -460,6 +463,7 @@ def send_whatsapp_template(to_number, template_name, values, doc_url=None, setti
 
     params = {
         "username": username,
+        "api_password": wa_pass,
         "password": wa_pass,
         "sender": sender,
         "priority": "21",
