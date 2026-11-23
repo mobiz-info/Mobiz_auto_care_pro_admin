@@ -685,8 +685,12 @@ def invoice_receipt(request, pk):
 
 
 def invoice_thermal_receipt(request, pk):
+    from decimal import Decimal
+    import re
     invoice = get_object_or_404(
-        Invoice.objects.prefetch_related('items', 'credit_notes'),
+        Invoice.objects.select_related(
+            'customer', 'vehicle', 'vehicle__vehicle_type_model', 'branch', 'branch__company'
+        ).prefetch_related('items', 'credit_notes', 'receipts'),
         pk=pk,
         is_deleted=False
     )
@@ -697,8 +701,88 @@ def invoice_thermal_receipt(request, pk):
     credit_note_amount = invoice.credit_note_amount or Decimal('0.00')
     balance = max(Decimal('0.00'), invoice.total - invoice.amount_collected - credit_note_amount)
 
+    company_name = 'AL BAB AL ABYAD AUTO SERVICES L.L.C'
+    if invoice.branch and invoice.branch.company and invoice.branch.company.company_name:
+        company_name = invoice.branch.company.company_name
+
+    company_trn = ''
+    if invoice.branch:
+        if invoice.branch.gst_number:
+            company_trn = invoice.branch.gst_number
+        elif invoice.branch.company:
+            company_trn = invoice.branch.company.gst_number or invoice.branch.company.tin_pan_no or ''
+    elif invoice.customer and invoice.customer.company:
+        company_trn = invoice.customer.company.gst_number or invoice.customer.company.tin_pan_no or ''
+    if company_trn:
+        company_trn = re.sub(r'^(TRN\s*:\s*|TRN\s*|-|:\s*)', '', str(company_trn).strip(), flags=re.IGNORECASE).strip()
+
+    address_lines = []
+    if invoice.branch and invoice.branch.address:
+        for line in invoice.branch.address.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if re.search(r'\bTRN\b|\bGSTIN?\b', line, re.IGNORECASE):
+                continue
+            if re.search(r'^\+?[0-9\s\-]+$', line):
+                continue
+            if '@' in line or 'www.' in line:
+                continue
+            address_lines.append(line)
+    if not address_lines:
+        address_lines = ['Industrial Area 4', 'Sharjah', 'United Arab Emirates']
+
+    currency = 'AED'
+    if invoice.branch and invoice.branch.company and invoice.branch.company.country:
+        currency = getattr(invoice.branch.company.country, 'currency_symbol', 'AED') or 'AED'
+
+    logo_url = ''
+    if invoice.branch and invoice.branch.company:
+        if invoice.branch.company.logo_bw:
+            logo_url = invoice.branch.company.logo_bw.url
+        elif invoice.branch.company.logo_color:
+            logo_url = invoice.branch.company.logo_color.url
+
+    items_list = []
+    for item in invoice.items.all():
+        name = item.service_name or (item.service.name if item.service else (item.stock_item.item_name if item.stock_item else 'Service'))
+        qty = item.qty or 1
+        rate = item.rate or Decimal('0.00')
+        tot = item.net_taxable_amount or (qty * rate)
+        items_list.append({
+            'name': name,
+            'qty': int(qty) if qty == int(qty) else qty,
+            'rate': f"{rate:.2f}",
+            'total': f"{tot:.2f}",
+        })
+
+    to_parts = []
+    if invoice.vehicle:
+        v_num = invoice.vehicle.vehicle_number or ''
+        v_model = invoice.vehicle.vehicle_type_model.name if invoice.vehicle.vehicle_type_model else ''
+        to_parts.append(f"{v_num} {v_model}".strip())
+    if invoice.customer and invoice.customer.name:
+        c_name = invoice.customer.name.strip()
+        if not to_parts or c_name != to_parts[0]:
+            to_parts.append(f"({c_name})")
+    to_text = ' '.join(to_parts).strip()
+
+    phone_text = ''
+    if invoice.customer and invoice.customer.phone:
+        phone_text = invoice.customer.phone
+    elif invoice.customer and invoice.customer.whatsapp_number:
+        phone_text = invoice.customer.whatsapp_number
+
     context = {
         'invoice': invoice,
+        'company_name': company_name,
+        'company_trn': company_trn,
+        'address_lines': address_lines,
+        'currency': currency,
+        'logo_url': logo_url,
+        'items_list': items_list,
+        'to_text': to_text,
+        'phone_text': phone_text,
         'balance': balance,
         'paper_width': width,
         'is_2inch': (width == '58'),

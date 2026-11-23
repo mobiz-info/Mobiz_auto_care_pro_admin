@@ -144,6 +144,11 @@
                                 title="Share Invoice PDF to WhatsApp">
                                 <i class="ph-bold ph-whatsapp-logo"></i>
                             </button>
+                            <a href="{% url 'invoice_thermal_receipt' invoice.id %}?width=58" target="_blank"
+                                style="background:#fef3c7; color:#92400e; text-decoration:none; padding:7px 10px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; font-size:0.95rem;"
+                                title="Thermal Receipt (2-inch / 3-inch Print)">
+                                <i class="ph ph-printer"></i>
+                            </a>
                             <a href="{% url 'invoice_receipt' invoice.id %}"
                                 style="background:#eff6ff; color:#1d4ed8; text-decoration:none; padding:7px 10px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; font-size:0.95rem;"
                                 title="View Receipt">

@@ -18,7 +18,7 @@
 
         body {
             font-family: 'Courier New', Courier, monospace, -apple-system, BlinkMacSystemFont, sans-serif;
-            font-size: {% if is_2inch %}11px{% elif is_4inch %}13px{% else %}12px{% endif %};
+            font-size: {% if is_2inch %}11.5px{% elif is_4inch %}13.5px{% else %}12.5px{% endif %};
             line-height: 1.35;
             color: #000;
             background-color: #f1f5f9;
@@ -105,7 +105,7 @@
         }
 
         .trn-line {
-            font-size: {% if is_2inch %}10.5px{% else %}11.5px{% endif %};
+            font-size: {% if is_2inch %}11px{% else %}12px{% endif %};
             margin-bottom: 6px;
         }
 
@@ -138,13 +138,13 @@
 
         .meta-header-right {
             text-align: right;
-            font-size: {% if is_2inch %}10px{% else %}11px{% endif %};
+            font-size: {% if is_2inch %}10.5px{% else %}11.5px{% endif %};
             line-height: 1.25;
             color: #111;
         }
 
         .detail-line {
-            font-size: {% if is_2inch %}11px{% else %}12px{% endif %};
+            font-size: {% if is_2inch %}11.5px{% else %}12.5px{% endif %};
             margin-bottom: 2px;
         }
 
@@ -153,7 +153,7 @@
             width: 100%;
             border-collapse: collapse;
             margin: 3px 0;
-            font-size: {% if is_2inch %}10.5px{% else %}11.5px{% endif %};
+            font-size: {% if is_2inch %}11px{% else %}12px{% endif %};
         }
 
         .items-table th {
@@ -172,86 +172,84 @@
             text-transform: uppercase;
         }
 
+        /* Totals */
         .total-row {
             display: flex;
             justify-content: space-between;
-            font-size: {% if is_2inch %}11px{% else %}12px{% endif %};
-            margin-bottom: 2px;
+            font-size: {% if is_2inch %}11.5px{% else %}12.5px{% endif %};
+            padding: 2px 0;
         }
 
-        .grand-total {
+        .total-row.grand-total {
             font-size: {% if is_2inch %}14px{% elif is_4inch %}18px{% else %}16px{% endif %};
             font-weight: 900;
             padding: 4px 0;
         }
 
-        .paid-row {
+        .total-row.paid-row {
             font-size: {% if is_2inch %}12px{% else %}13px{% endif %};
-            margin-top: 2px;
-        }
-
-        .qr-section {
-            margin-top: 8px;
-            text-align: center;
+            font-weight: 600;
         }
 
         @media print {
             body {
-                background: none;
+                background: #fff;
                 padding: 0;
             }
+
             .no-print-bar {
                 display: none !important;
             }
+
             .receipt-container {
-                width: 100% !important;
-                border: none !important;
-                box-shadow: none !important;
-                padding: 2px !important;
+                border: none;
+                box-shadow: none;
+                padding: 0;
+                width: 100%;
             }
         }
     </style>
 </head>
 <body>
 
-    <!-- Controls Bar (Hidden during print) -->
+    <!-- Controls Bar (Screen only) -->
     <div class="no-print-bar">
-        <div style="display: flex; gap: 8px;">
-            <a href="?width=58" class="btn btn-outline {% if paper_width == '58' %}active{% endif %}">
-                2 Inch (58mm)
-            </a>
-            <a href="?width=80" class="btn btn-outline {% if paper_width == '80' %}active{% endif %}">
-                3 Inch (80mm)
-            </a>
-            <a href="?width=100" class="btn btn-outline {% if paper_width == '100' %}active{% endif %}">
-                4 Inch (100mm)
-            </a>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:12px; color:#64748b; font-weight:600;">Paper Width:</span>
+            <a href="?width=58" class="btn btn-outline {% if is_2inch %}active{% endif %}">2" (58mm)</a>
+            <a href="?width=80" class="btn btn-outline {% if not is_2inch and not is_4inch %}active{% endif %}">3" (80mm)</a>
+            <a href="?width=100" class="btn btn-outline {% if is_4inch %}active{% endif %}">4" (100mm)</a>
         </div>
-        <div style="display: flex; gap: 8px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+            <a href="{% url 'invoice_receipt' invoice.id %}" class="btn btn-outline">Back to A4 View</a>
             <button onclick="window.print()" class="btn btn-primary">
-                🖨️ Print
-            </button>
-            <button onclick="window.close()" class="btn btn-outline">
-                ✕ Close
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                    <rect x="6" y="14" width="12" height="8"></rect>
+                </svg>
+                Print Receipt
             </button>
         </div>
     </div>
 
+    <!-- Thermal Receipt Slip -->
     <div class="receipt-container">
-        <!-- 0. Logo Banner -->
-        {% if invoice.branch.company.logo %}
+
+        <!-- 0. Logo (Centered) -->
+        {% if logo_url %}
         <div class="logo-wrap">
-            <img src="{{ invoice.branch.company.logo.url }}" alt="Company Logo">
+            <img src="{{ logo_url }}" alt="Logo">
         </div>
         {% endif %}
 
         <!-- 1. Company Name & TRN (Centered) -->
         <div class="company-name text-center">
-            {{ invoice.branch.company.name|default:"AL BAB AL ABYAD AUTO SERVICES L.L.C" }}
+            {{ company_name }}
         </div>
-        {% if invoice.branch.tax_number %}
+        {% if company_trn %}
         <div class="trn-line text-center">
-            TRN: {{ invoice.branch.tax_number }}
+            TRN: {{ company_trn }}
         </div>
         {% endif %}
 
@@ -264,26 +262,19 @@
                 <div class="inv-no"># {{ invoice.invoice_number }}</div>
             </div>
             <div class="meta-header-right">
-                {% if invoice.branch.address %}
-                    {{ invoice.branch.address|linebreaksbr }}
-                {% else %}
-                    {{ invoice.branch.name }}
-                {% endif %}
+                {% for addr_line in address_lines %}
+                    <div>{{ addr_line }}</div>
+                {% endfor %}
             </div>
         </div>
 
         <!-- 3. Date, To, Phone -->
-        <div class="detail-line">Date : {{ invoice.date_added|date:"d/m/Y" }}</div>
-        {% if invoice.vehicle or invoice.customer %}
-        <div class="detail-line">
-            To : {% if invoice.vehicle %}{{ invoice.vehicle.vehicle_number }} {{ invoice.vehicle.vehicle_type_model.name|default:"" }}{% endif %}
-            {% if invoice.customer and invoice.customer.name != invoice.vehicle.vehicle_number %}
-                ({{ invoice.customer.name }})
-            {% endif %}
-        </div>
+        <div class="detail-line">Date : {{ invoice.date|date:"d/m/Y" }}</div>
+        {% if to_text %}
+        <div class="detail-line">To : {{ to_text }}</div>
         {% endif %}
-        {% if invoice.customer.phone %}
-        <div class="detail-line">Phone : {{ invoice.customer.phone }}</div>
+        {% if phone_text %}
+        <div class="detail-line" style="margin-top: 4px;">Phone : {{ phone_text }}</div>
         {% endif %}
 
         <div class="divider"></div>
@@ -293,19 +284,19 @@
             <thead>
                 <tr>
                     <th style="width: 50%;">Item</th>
-                    <th style="width: 15%; text-align: center;">Qty</th>
-                    <th style="width: 17%; text-align: right;">Price</th>
+                    <th style="width: 14%; text-align: center;">Qty</th>
+                    <th style="width: 18%; text-align: right;">Price</th>
                     <th style="width: 18%; text-align: right;">Total</th>
                 </tr>
             </thead>
             <tbody>
                 <tr><td colspan="4" style="padding: 0;"><div class="divider" style="margin: 2px 0;"></div></td></tr>
-                {% for item in invoice.items.all %}
+                {% for item in items_list %}
                 <tr>
-                    <td class="item-name">{{ item.description|default:item.service.name|default:item.trading_item.name|default:"Service" }}</td>
-                    <td style="text-align: center;">{{ item.qty|floatformat:"-2" }}</td>
-                    <td style="text-align: right;">{{ item.rate|floatformat:2 }}</td>
-                    <td style="text-align: right;">{{ item.net_taxable_amount|default:item.total|floatformat:2 }}</td>
+                    <td class="item-name">{{ item.name }}</td>
+                    <td style="text-align: center;">{{ item.qty }}</td>
+                    <td style="text-align: right;">{{ item.rate }}</td>
+                    <td style="text-align: right;">{{ item.total }}</td>
                 </tr>
                 {% empty %}
                 <tr>
@@ -342,7 +333,7 @@
         <!-- Grand Total -->
         <div class="total-row grand-total">
             <span>Total</span>
-            <span>{{ invoice.branch.currency|default:"AED" }} {{ invoice.total|floatformat:2 }}</span>
+            <span>{{ currency }} {{ invoice.total|floatformat:2 }}</span>
         </div>
 
         <div class="divider"></div>
@@ -350,13 +341,13 @@
         <!-- Total Paid -->
         <div class="total-row paid-row">
             <span>Total Paid</span>
-            <span>{{ invoice.branch.currency|default:"AED" }} {{ invoice.amount_collected|default:invoice.total|floatformat:2 }}</span>
+            <span>{{ currency }} {{ invoice.amount_collected|default:invoice.total|floatformat:2 }}</span>
         </div>
 
         {% if balance and balance > 0 %}
         <div class="total-row paid-row bold">
             <span>Balance Due</span>
-            <span>{{ invoice.branch.currency|default:"AED" }} {{ balance|floatformat:2 }}</span>
+            <span>{{ currency }} {{ balance|floatformat:2 }}</span>
         </div>
         <div class="divider"></div>
         {% endif %}
