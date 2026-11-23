@@ -16,6 +16,7 @@ urlpatterns = [
     path('invoice-receipt/<uuid:pk>/', views.invoice_receipt, name='invoice_receipt'),
     path('invoices/<uuid:pk>/whatsapp-share/', views.invoice_whatsapp_share, name='invoice_whatsapp_share'),
     path('invoices/<uuid:pk>/pdf/', views.invoice_pdf_view, name='invoice_pdf_view'),
+    path('invoices/<uuid:pk>/thermal/', views.invoice_thermal_receipt, name='invoice_thermal_receipt'),
     path('receipt-list/', views.receipt_list, name='receipt_list'),
     path('receipt-create/', views.receipt_create, name='receipt_create'),
 

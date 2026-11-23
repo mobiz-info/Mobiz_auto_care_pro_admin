@@ -684,6 +684,28 @@ def invoice_receipt(request, pk):
     return render(request, 'invoice/invoice_receipt.html', context)
 
 
+def invoice_thermal_receipt(request, pk):
+    invoice = get_object_or_404(
+        Invoice.objects.prefetch_related('items', 'credit_notes'),
+        pk=pk,
+        is_deleted=False
+    )
+    width = request.GET.get('width', '80')
+    if width not in ['80', '100']:
+        width = '80'
+
+    credit_note_amount = invoice.credit_note_amount or Decimal('0.00')
+    balance = max(Decimal('0.00'), invoice.total - invoice.amount_collected - credit_note_amount)
+
+    context = {
+        'invoice': invoice,
+        'balance': balance,
+        'paper_width': width,
+        'is_4inch': (width == '100'),
+    }
+    return render(request, 'invoice/thermal_receipt_print.html', context)
+
+
 @login_required
 def receipt_list(request):
 
