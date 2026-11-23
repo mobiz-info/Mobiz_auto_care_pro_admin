@@ -85,101 +85,114 @@
         .bold { font-weight: bold; }
         .uppercase { text-transform: uppercase; }
 
+        .logo-wrap {
+            text-align: center;
+            margin-bottom: 6px;
+        }
+
+        .logo-wrap img {
+            max-width: {% if is_2inch %}160px{% else %}220px{% endif %};
+            max-height: 70px;
+            object-fit: contain;
+            filter: grayscale(100%) contrast(150%);
+        }
+
         .company-name {
-            font-size: {% if is_4inch %}18px{% else %}16px{% endif %};
+            font-size: {% if is_2inch %}13px{% elif is_4inch %}16px{% else %}14px{% endif %};
             font-weight: 900;
+            letter-spacing: 0.3px;
             margin-bottom: 2px;
         }
 
-        .branch-info {
-            font-size: {% if is_4inch %}11.5px{% else %}10.5px{% endif %};
-            color: #222;
-            margin-bottom: 2px;
+        .trn-line {
+            font-size: {% if is_2inch %}10.5px{% else %}11.5px{% endif %};
+            margin-bottom: 6px;
         }
 
         .divider {
             border-top: 1px dashed #000;
-            margin: 6px 0;
+            margin: 5px 0;
         }
 
-        .double-divider {
-            border-top: 1.5px solid #000;
-            border-bottom: 1.5px solid #000;
-            height: 3px;
-            margin: 6px 0;
-        }
-
-        .title-badge {
-            font-size: 14px;
-            font-weight: bold;
-            margin: 4px 0;
-            letter-spacing: 0.5px;
-        }
-
-        .info-row {
+        /* Two column header */
+        .meta-header-row {
             display: flex;
             justify-content: space-between;
-            font-size: {% if is_4inch %}12px{% else %}11px{% endif %};
-            margin-bottom: 2px;
+            align-items: flex-start;
+            margin-bottom: 6px;
         }
 
-        .info-label {
-            color: #333;
+        .meta-header-left {
+            text-align: left;
         }
 
-        .info-val {
-            font-weight: bold;
+        .meta-header-left .title-badge {
+            font-size: {% if is_2inch %}13px{% else %}14px{% endif %};
+            font-weight: 900;
+        }
+
+        .meta-header-left .inv-no {
+            font-size: {% if is_2inch %}12px{% else %}13px{% endif %};
+            font-weight: 800;
+        }
+
+        .meta-header-right {
             text-align: right;
+            font-size: {% if is_2inch %}10px{% else %}11px{% endif %};
+            line-height: 1.25;
+            color: #111;
+        }
+
+        .detail-line {
+            font-size: {% if is_2inch %}11px{% else %}12px{% endif %};
+            margin-bottom: 2px;
         }
 
         /* Items Table */
         .items-table {
             width: 100%;
             border-collapse: collapse;
-            margin: 4px 0;
-            font-size: {% if is_4inch %}12px{% else %}11px{% endif %};
+            margin: 3px 0;
+            font-size: {% if is_2inch %}10.5px{% else %}11.5px{% endif %};
         }
 
         .items-table th {
             text-align: left;
-            padding: 4px 0;
-            border-bottom: 1px dashed #000;
+            padding: 3px 0;
+            font-weight: bold;
         }
 
         .items-table td {
-            padding: 4px 0;
+            padding: 3px 0;
             vertical-align: top;
+        }
+
+        .items-table .item-name {
+            font-weight: bold;
+            text-transform: uppercase;
         }
 
         .total-row {
             display: flex;
             justify-content: space-between;
-            font-size: {% if is_4inch %}12px{% else %}11px{% endif %};
+            font-size: {% if is_2inch %}11px{% else %}12px{% endif %};
             margin-bottom: 2px;
         }
 
         .grand-total {
-            font-size: {% if is_4inch %}16px{% else %}14px{% endif %};
+            font-size: {% if is_2inch %}14px{% elif is_4inch %}18px{% else %}16px{% endif %};
             font-weight: 900;
             padding: 4px 0;
         }
 
+        .paid-row {
+            font-size: {% if is_2inch %}12px{% else %}13px{% endif %};
+            margin-top: 2px;
+        }
+
         .qr-section {
-            margin-top: 10px;
-            text-align: center;
-        }
-
-        .qr-section img {
-            width: 110px;
-            height: 110px;
-            margin: 0 auto;
-        }
-
-        .footer-note {
-            font-size: 10px;
-            text-align: center;
             margin-top: 8px;
-            line-height: 1.3;
+            text-align: center;
         }
 
         @media print {
@@ -194,7 +207,7 @@
                 width: 100% !important;
                 border: none !important;
                 box-shadow: none !important;
-                padding: 4px !important;
+                padding: 2px !important;
             }
         }
     </style>
@@ -225,89 +238,78 @@
     </div>
 
     <div class="receipt-container">
-        <!-- 1. Header -->
-        <div class="text-center">
-            <div class="company-name">{{ invoice.branch.company.name|default:"Mobiz Autocare Pro" }}</div>
-            <div class="branch-info bold">{{ invoice.branch.name }}</div>
-            {% if invoice.branch.address %}
-                <div class="branch-info">{{ invoice.branch.address|linebreaksbr }}</div>
-            {% endif %}
-            {% if invoice.branch.phone %}
-                <div class="branch-info">Tel: {{ invoice.branch.phone }}</div>
-            {% endif %}
-            {% if invoice.branch.email %}
-                <div class="branch-info">Email: {{ invoice.branch.email }}</div>
-            {% endif %}
-            {% if invoice.branch.tax_number %}
-                <div class="branch-info bold">TRN / GSTIN: {{ invoice.branch.tax_number }}</div>
-            {% endif %}
+        <!-- 0. Logo Banner -->
+        {% if invoice.branch.company.logo %}
+        <div class="logo-wrap">
+            <img src="{{ invoice.branch.company.logo.url }}" alt="Company Logo">
         </div>
+        {% endif %}
 
-        <div class="double-divider"></div>
+        <!-- 1. Company Name & TRN (Centered) -->
+        <div class="company-name text-center">
+            {{ invoice.branch.company.name|default:"AL BAB AL ABYAD AUTO SERVICES L.L.C" }}
+        </div>
+        {% if invoice.branch.tax_number %}
+        <div class="trn-line text-center">
+            TRN: {{ invoice.branch.tax_number }}
+        </div>
+        {% endif %}
 
-        <!-- 2. Invoice Meta -->
-        <div class="text-center">
-            <div class="title-badge uppercase">
-                {% if invoice.tax_amount and invoice.tax_amount > 0 %}
-                    TAX INVOICE
+        <!-- 2. Meta Header (Left: TAX INVOICE | Right: Address) -->
+        <div class="meta-header-row" style="margin-top: 6px;">
+            <div class="meta-header-left">
+                <div class="title-badge uppercase">
+                    {% if invoice.tax_amount and invoice.tax_amount > 0 %}TAX INVOICE{% else %}CASH INVOICE{% endif %}
+                </div>
+                <div class="inv-no"># {{ invoice.invoice_number }}</div>
+            </div>
+            <div class="meta-header-right">
+                {% if invoice.branch.address %}
+                    {{ invoice.branch.address|linebreaksbr }}
                 {% else %}
-                    CASH INVOICE
+                    {{ invoice.branch.name }}
                 {% endif %}
             </div>
         </div>
 
-        <div class="info-row">
-            <span class="info-label">Invoice No:</span>
-            <span class="info-val">{{ invoice.invoice_number }}</span>
+        <!-- 3. Date, To, Phone -->
+        <div class="detail-line">Date : {{ invoice.date_added|date:"d/m/Y" }}</div>
+        {% if invoice.vehicle or invoice.customer %}
+        <div class="detail-line">
+            To : {% if invoice.vehicle %}{{ invoice.vehicle.vehicle_number }} {{ invoice.vehicle.vehicle_type_model.name|default:"" }}{% endif %}
+            {% if invoice.customer and invoice.customer.name != invoice.vehicle.vehicle_number %}
+                ({{ invoice.customer.name }})
+            {% endif %}
         </div>
-        <div class="info-row">
-            <span class="info-label">Date & Time:</span>
-            <span class="info-val">{{ invoice.date_added|date:"d-m-Y h:i A" }}</span>
-        </div>
-        {% if invoice.customer %}
-            <div class="info-row">
-                <span class="info-label">Customer:</span>
-                <span class="info-val">{{ invoice.customer.name }}{% if invoice.customer.phone %} ({{ invoice.customer.phone }}){% endif %}</span>
-            </div>
         {% endif %}
-        {% if invoice.vehicle %}
-            <div class="info-row">
-                <span class="info-label">Vehicle No:</span>
-                <span class="info-val bold">{{ invoice.vehicle.vehicle_number }}{% if invoice.vehicle.vehicle_type_model %} - {{ invoice.vehicle.vehicle_type_model.name }}{% endif %}</span>
-            </div>
+        {% if invoice.customer.phone %}
+        <div class="detail-line">Phone : {{ invoice.customer.phone }}</div>
         {% endif %}
-        <div class="info-row">
-            <span class="info-label">Payment Mode:</span>
-            <span class="info-val uppercase">{{ invoice.payment_mode|default:invoice.invoice_type }}</span>
-        </div>
 
         <div class="divider"></div>
 
-        <!-- 3. Items Table -->
+        <!-- 4. Items Table (Item | Qty | Price | Total) -->
         <table class="items-table">
             <thead>
                 <tr>
-                    <th style="width: {% if is_4inch %}45%{% else %}50%{% endif %};">Particulars</th>
+                    <th style="width: 50%;">Item</th>
                     <th style="width: 15%; text-align: center;">Qty</th>
-                    {% if is_4inch %}
-                        <th style="width: 20%; text-align: right;">Rate</th>
-                    {% endif %}
-                    <th style="width: {% if is_4inch %}20%{% else %}35%{% endif %}; text-align: right;">Total</th>
+                    <th style="width: 17%; text-align: right;">Price</th>
+                    <th style="width: 18%; text-align: right;">Total</th>
                 </tr>
             </thead>
             <tbody>
+                <tr><td colspan="4" style="padding: 0;"><div class="divider" style="margin: 2px 0;"></div></td></tr>
                 {% for item in invoice.items.all %}
                 <tr>
-                    <td>{{ item.description|default:item.service.name|default:item.trading_item.name|default:"Service" }}</td>
+                    <td class="item-name">{{ item.description|default:item.service.name|default:item.trading_item.name|default:"Service" }}</td>
                     <td style="text-align: center;">{{ item.qty|floatformat:"-2" }}</td>
-                    {% if is_4inch %}
-                        <td style="text-align: right;">{{ item.rate|floatformat:2 }}</td>
-                    {% endif %}
+                    <td style="text-align: right;">{{ item.rate|floatformat:2 }}</td>
                     <td style="text-align: right;">{{ item.net_taxable_amount|default:item.total|floatformat:2 }}</td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="{% if is_4inch %}4{% else %}3{% endif %}" class="text-center">No items</td>
+                    <td colspan="4" class="text-center">No items</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -315,25 +317,23 @@
 
         <div class="divider"></div>
 
-        <!-- 4. Totals -->
-        {% if invoice.subtotal %}
+        <!-- 5. Totals (Sub Total, VAT, Grand Total) -->
         <div class="total-row">
-            <span class="info-label">Subtotal:</span>
-            <span class="info-val">{{ invoice.subtotal|floatformat:2 }}</span>
+            <span>(Tax Included) Sub Total</span>
+            <span>{{ invoice.subtotal|default:invoice.total|floatformat:2 }}</span>
         </div>
-        {% endif %}
 
         {% if invoice.discount and invoice.discount > 0 %}
         <div class="total-row">
-            <span class="info-label">Discount:</span>
-            <span class="info-val">-{{ invoice.discount|floatformat:2 }}</span>
+            <span>Discount</span>
+            <span>-{{ invoice.discount|floatformat:2 }}</span>
         </div>
         {% endif %}
 
         {% if invoice.tax_amount and invoice.tax_amount > 0 %}
         <div class="total-row">
-            <span class="info-label">VAT / Tax:</span>
-            <span class="info-val">{{ invoice.tax_amount|floatformat:2 }}</span>
+            <span>VAT@5%</span>
+            <span>{{ invoice.tax_amount|floatformat:2 }}</span>
         </div>
         {% endif %}
 
@@ -341,34 +341,26 @@
 
         <!-- Grand Total -->
         <div class="total-row grand-total">
-            <span>TOTAL AMOUNT:</span>
+            <span>Total</span>
             <span>{{ invoice.branch.currency|default:"AED" }} {{ invoice.total|floatformat:2 }}</span>
         </div>
 
-        <div class="double-divider"></div>
+        <div class="divider"></div>
 
-        {% if invoice.amount_collected %}
-        <div class="total-row">
-            <span class="info-label">Paid Amount:</span>
-            <span class="info-val">{{ invoice.amount_collected|floatformat:2 }}</span>
+        <!-- Total Paid -->
+        <div class="total-row paid-row">
+            <span>Total Paid</span>
+            <span>{{ invoice.branch.currency|default:"AED" }} {{ invoice.amount_collected|default:invoice.total|floatformat:2 }}</span>
         </div>
-        {% endif %}
 
         {% if balance and balance > 0 %}
-        <div class="total-row bold">
-            <span class="info-label">Balance Due:</span>
-            <span class="info-val">{{ balance|floatformat:2 }}</span>
+        <div class="total-row paid-row bold">
+            <span>Balance Due</span>
+            <span>{{ invoice.branch.currency|default:"AED" }} {{ balance|floatformat:2 }}</span>
         </div>
         <div class="divider"></div>
         {% endif %}
-
-        <!-- 5. Footer & Note -->
-        <div class="footer-note">
-            <p class="bold">Thank you for your visit!</p>
-            <p>Drive Safe & Have a Great Day</p>
-        </div>
     </div>
 
 </body>
 </html>
-
