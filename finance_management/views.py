@@ -4276,9 +4276,11 @@ def _build_daily_summary_data(request):
         rcpt_qs = rcpt_qs.filter(invoice__branch=managed_branch)
         purch_qs = purch_qs.filter(branch=managed_branch)
 
-    # 1. Sales Table (slno, service, totalno, amount, recived, balance)
-    inv_list = inv_qs.prefetch_related('items').order_by('-date', '-auto_id')
+    # 1. Sales Table (Services) & Stock Items Table
+    inv_list = inv_qs.prefetch_related('items', 'items__stock_item').order_by('-date', '-auto_id')
     services_map = {}
+    stock_items_map = {}
+
     for inv in inv_list:
         ratio = (inv.amount_collected / inv.total) if (inv.total and inv.total > 0) else Decimal('0.00')
         if ratio > Decimal('1.00'):
@@ -4296,7 +4298,6 @@ def _build_daily_summary_data(request):
             raw_amts = [it.net_taxable_amount if (it.net_taxable_amount is not None and it.net_taxable_amount > 0) else (it.rate * it.qty - it.discount) for it in items]
             sum_raw = sum(raw_amts)
             for it, r_amt in zip(items, raw_amts):
-                s_name = (it.service_name or 'General Service').strip()
                 if sum_raw > 0:
                     it_amt = (r_amt / sum_raw) * inv.total
                 else:
@@ -4304,12 +4305,23 @@ def _build_daily_summary_data(request):
                 it_rec = it_amt * ratio
                 it_bal = it_amt - it_rec
 
-                if s_name not in services_map:
-                    services_map[s_name] = {'service': s_name, 'totalno': Decimal('0'), 'amount': Decimal('0'), 'received': Decimal('0'), 'balance': Decimal('0')}
-                services_map[s_name]['totalno'] += (it.qty or Decimal('1'))
-                services_map[s_name]['amount'] += it_amt
-                services_map[s_name]['received'] += it_rec
-                services_map[s_name]['balance'] += it_bal
+                is_stock = bool(it.stock_item_id or it.stock_item)
+                if is_stock:
+                    item_name = (it.service_name or (it.stock_item.item_name if it.stock_item else 'Stock Item')).strip()
+                    if item_name not in stock_items_map:
+                        stock_items_map[item_name] = {'item': item_name, 'totalno': Decimal('0'), 'amount': Decimal('0'), 'received': Decimal('0'), 'balance': Decimal('0')}
+                    stock_items_map[item_name]['totalno'] += (it.qty or Decimal('1'))
+                    stock_items_map[item_name]['amount'] += it_amt
+                    stock_items_map[item_name]['received'] += it_rec
+                    stock_items_map[item_name]['balance'] += it_bal
+                else:
+                    s_name = (it.service_name or 'General Service').strip()
+                    if s_name not in services_map:
+                        services_map[s_name] = {'service': s_name, 'totalno': Decimal('0'), 'amount': Decimal('0'), 'received': Decimal('0'), 'balance': Decimal('0')}
+                    services_map[s_name]['totalno'] += (it.qty or Decimal('1'))
+                    services_map[s_name]['amount'] += it_amt
+                    services_map[s_name]['received'] += it_rec
+                    services_map[s_name]['balance'] += it_bal
 
     sales_rows = sorted(services_map.values(), key=lambda x: x['amount'], reverse=True)
     for idx, row in enumerate(sales_rows, start=1):
@@ -4321,6 +4333,20 @@ def _build_daily_summary_data(request):
         'received': sum((r['received'] for r in sales_rows), Decimal('0')),
         'balance': sum((r['balance'] for r in sales_rows), Decimal('0')),
     }
+
+    stock_rows = sorted(stock_items_map.values(), key=lambda x: x['amount'], reverse=True)
+    for idx, row in enumerate(stock_rows, start=1):
+        row['slno'] = idx
+
+    stock_totals = {
+        'totalno': sum((r['totalno'] for r in stock_rows), Decimal('0')),
+        'amount': sum((r['amount'] for r in stock_rows), Decimal('0')),
+        'received': sum((r['received'] for r in stock_rows), Decimal('0')),
+        'balance': sum((r['balance'] for r in stock_rows), Decimal('0')),
+    }
+
+    total_sales_received = sales_totals['received'] + stock_totals['received']
+    total_sales_amount = sales_totals['amount'] + stock_totals['amount']
 
     # 2. Expense Table (slno, expensehead, amount, paid, balance)
     exp_filtered = exp_qs.exclude(expense__expense_head__name__iexact='Purchase')
@@ -4440,6 +4466,11 @@ def _build_daily_summary_data(request):
 
         'sales_rows': sales_rows,
         'sales_totals': sales_totals,
+
+        'stock_rows': stock_rows,
+        'stock_totals': stock_totals,
+        'total_sales_received': total_sales_received,
+        'total_sales_amount': total_sales_amount,
 
         'expense_rows': expense_rows,
         'expense_totals': expense_totals,

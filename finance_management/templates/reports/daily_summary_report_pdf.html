@@ -315,7 +315,7 @@
             </tr>
             {% endfor %}
             <tr class="table-total-row">
-                <td colspan="2" style="text-align: right; text-transform: uppercase;">Total Sales:</td>
+                <td colspan="2" style="text-align: right; text-transform: uppercase;">Total Services:</td>
                 <td class="center-col">{{ sales_totals.totalno|floatformat:0 }}</td>
                 <td class="num-col">{{ sales_totals.amount|floatformat:2 }}</td>
                 <td class="num-col">{{ sales_totals.received|floatformat:2 }}</td>
@@ -324,8 +324,47 @@
         </tbody>
     </table>
 
-    <!-- 2. EXPENSE TABLE -->
-    <div class="section-heading">2. Expense</div>
+    <!-- 2. STOCK ITEMS TABLE -->
+    <div class="section-heading">2. Stock Items</div>
+    <table class="report-table">
+        <thead>
+            <tr>
+                <th class="center-col" style="width: 35px;">Sl No</th>
+                <th>Stock Item</th>
+                <th class="center-col" style="width: 55px;">Total Qty</th>
+                <th class="num-col" style="width: 85px;">Amount</th>
+                <th class="num-col" style="width: 85px;">Received</th>
+                <th class="num-col" style="width: 85px;">Balance</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in stock_rows %}
+            <tr>
+                <td class="center-col">{{ row.slno }}</td>
+                <td style="font-weight: 700;">{{ row.item }}</td>
+                <td class="center-col">{{ row.totalno|floatformat:0 }}</td>
+                <td class="num-col">{{ row.amount|floatformat:2 }}</td>
+                <td class="num-col">{{ row.received|floatformat:2 }}</td>
+                <td class="num-col">{{ row.balance|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 8px; color: #666666;">No stock items sold for this
+                    period.</td>
+            </tr>
+            {% endfor %}
+            <tr class="table-total-row">
+                <td colspan="2" style="text-align: right; text-transform: uppercase;">Total Stock Items:</td>
+                <td class="center-col">{{ stock_totals.totalno|floatformat:0 }}</td>
+                <td class="num-col">{{ stock_totals.amount|floatformat:2 }}</td>
+                <td class="num-col">{{ stock_totals.received|floatformat:2 }}</td>
+                <td class="num-col">{{ stock_totals.balance|floatformat:2 }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- 3. EXPENSE TABLE -->
+    <div class="section-heading">3. Expense</div>
     <table class="report-table">
         <thead>
             <tr>
@@ -360,8 +399,8 @@
         </tbody>
     </table>
 
-    <!-- 3. COLLECTION (PREVIOUS OUTSTANDING COLLECTION) -->
-    <div class="section-heading">3. Collection (Previous Outstanding Collection)</div>
+    <!-- 4. COLLECTION (PREVIOUS OUTSTANDING COLLECTION) -->
+    <div class="section-heading">4. Collection (Previous Outstanding Collection)</div>
     <table class="report-table">
         <thead>
             <tr>
@@ -394,8 +433,8 @@
         </tbody>
     </table>
 
-    <!-- 4. PURCHASE TABLE -->
-    <div class="section-heading">4. Purchase</div>
+    <!-- 5. PURCHASE TABLE -->
+    <div class="section-heading">5. Purchase</div>
     <table class="report-table">
         <thead>
             <tr>
@@ -438,7 +477,7 @@
         <tr class="table-total-row" style="background-color: #f8fafc !important;">
             <td style="width: 33.3%;">
                 <span>Today's Sales Received:</span>
-                <strong>{{ currency_symbol }} {{ sales_totals.received|floatformat:2 }}</strong>
+                <strong>{{ currency_symbol }} {{ total_sales_received|floatformat:2 }}</strong>
             </td>
             <td style="width: 33.3%;">
                 <span>Previous Collection:</span>

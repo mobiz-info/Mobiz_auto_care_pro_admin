@@ -474,14 +474,14 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="empty-cell">No sales recorded for the selected period.</td>
+                        <td colspan="6" class="empty-cell">No services recorded for the selected period.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
                 {% if sales_rows %}
                 <tfoot>
                     <tr>
-                        <td colspan="2" class="text-right">TOTAL SALES:</td>
+                        <td colspan="2" class="text-right">TOTAL SERVICES:</td>
                         <td class="text-center">{{ sales_totals.totalno|floatformat:0 }}</td>
                         <td class="text-right">{{ currency_symbol }} {{ sales_totals.amount|floatformat:2 }}</td>
                         <td class="text-right" style="color: #059669;">{{ currency_symbol }} {{ sales_totals.received|floatformat:2 }}</td>
@@ -493,12 +493,64 @@
         </div>
     </div>
 
-    <!-- 2. EXPENSE TABLE -->
+    <!-- 2. STOCK ITEMS TABLE -->
+    <div class="report-section-card">
+        <div class="section-header">
+            <h3>
+                <i class="ph-bold ph-package" style="color: #0284c7;"></i>
+                2. Stock Items Summary
+            </h3>
+            <span class="section-badge" style="background: #e0f2fe; color: #0369a1;">{{ stock_rows|length }} Item{{ stock_rows|length|pluralize }}</span>
+        </div>
+        <div class="table-responsive">
+            <table class="daily-table" id="stockTable">
+                <thead>
+                    <tr>
+                        <th class="text-center" style="width: 70px;">Sl No</th>
+                        <th>Stock Item</th>
+                        <th class="text-center" style="width: 120px;">Total Qty</th>
+                        <th class="text-right" style="width: 160px;">Amount</th>
+                        <th class="text-right" style="width: 160px;">Received</th>
+                        <th class="text-right" style="width: 160px;">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in stock_rows %}
+                    <tr>
+                        <td class="text-center text-bold" style="color: #64748b;">{{ row.slno }}</td>
+                        <td class="text-bold" style="color: #0f172a;">{{ row.item }}</td>
+                        <td class="text-center">{{ row.totalno|floatformat:0 }}</td>
+                        <td class="text-right text-bold">{{ currency_symbol }} {{ row.amount|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #059669; font-weight: 700;">{{ currency_symbol }} {{ row.received|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #dc2626; font-weight: 700;">{{ currency_symbol }} {{ row.balance|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="empty-cell">No stock items sold for the selected period.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if stock_rows %}
+                <tfoot>
+                    <tr>
+                        <td colspan="2" class="text-right">TOTAL STOCK ITEMS:</td>
+                        <td class="text-center">{{ stock_totals.totalno|floatformat:0 }}</td>
+                        <td class="text-right">{{ currency_symbol }} {{ stock_totals.amount|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #059669;">{{ currency_symbol }} {{ stock_totals.received|floatformat:2 }}</td>
+                        <td class="text-right" style="color: #dc2626;">{{ currency_symbol }} {{ stock_totals.balance|floatformat:2 }}</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+    <!-- 3. EXPENSE TABLE -->
     <div class="report-section-card">
         <div class="section-header">
             <h3>
                 <i class="ph-bold ph-trend-down" style="color: #dc2626;"></i>
-                2. Expense Summary
+                3. Expense Summary
             </h3>
             <span class="section-badge" style="background: #fee2e2; color: #dc2626;">{{ expense_rows|length }} Head{{ expense_rows|length|pluralize }}</span>
         </div>
@@ -542,12 +594,12 @@
         </div>
     </div>
 
-    <!-- 3. COLLECTION (PREVIOUS OUTSTANDING COLLECTION) -->
+    <!-- 4. COLLECTION (PREVIOUS OUTSTANDING COLLECTION) -->
     <div class="report-section-card">
         <div class="section-header">
             <h3>
                 <i class="ph-bold ph-hand-coins" style="color: #059669;"></i>
-                3. Collection (Previous Outstanding Collection)
+                4. Collection (Previous Outstanding Collection)
             </h3>
             <span class="section-badge" style="background: #d1fae5; color: #059669;">{{ collection_rows|length }} Customer{{ collection_rows|length|pluralize }}</span>
         </div>
@@ -594,12 +646,12 @@
         </div>
     </div>
 
-    <!-- 4. PURCHASE TABLE -->
+    <!-- 5. PURCHASE TABLE -->
     <div class="report-section-card">
         <div class="section-header">
             <h3>
                 <i class="ph-bold ph-shopping-cart" style="color: #d97706;"></i>
-                4. Purchase Summary
+                5. Purchase Summary
             </h3>
             <span class="section-badge" style="background: #fef3c7; color: #b45309;">{{ purchase_rows|length }} Invoice{{ purchase_rows|length|pluralize }}</span>
         </div>
@@ -653,7 +705,7 @@
                 <div>
                     <h4 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">Cash & Settlement Reconciliation</h4>
                     <span style="font-size: 0.83rem; color: #64748b;">
-                        Sales Received (<strong>{{ currency_symbol }}{{ sales_totals.received|floatformat:2 }}</strong>) + Previous Collection (<strong>{{ currency_symbol }}{{ collection_totals.amount|floatformat:2 }}</strong>)
+                        Services Received (<strong>{{ currency_symbol }}{{ sales_totals.received|floatformat:2 }}</strong>) + Stock Items (<strong>{{ currency_symbol }}{{ stock_totals.received|floatformat:2 }}</strong>) + Previous Collection (<strong>{{ currency_symbol }}{{ collection_totals.amount|floatformat:2 }}</strong>)
                     </span>
                 </div>
             </div>
@@ -740,9 +792,10 @@ function exportSummaryToCSV() {
     }
 
     addTable('1. SALES SUMMARY', 'salesTable');
-    addTable('2. EXPENSE SUMMARY', 'expenseTable');
-    addTable('3. PREVIOUS OUTSTANDING COLLECTION', 'collectionTable');
-    addTable('4. PURCHASE SUMMARY', 'purchaseTable');
+    addTable('2. STOCK ITEMS SUMMARY', 'stockTable');
+    addTable('3. EXPENSE SUMMARY', 'expenseTable');
+    addTable('4. PREVIOUS OUTSTANDING COLLECTION', 'collectionTable');
+    addTable('5. PURCHASE SUMMARY', 'purchaseTable');
 
     csv.push('"CASH POSITION"');
     csv.push('"Net Cash In Hand","{{ net_cash_in_hand|floatformat:2 }}"');
