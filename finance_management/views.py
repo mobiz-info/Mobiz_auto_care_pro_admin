@@ -271,6 +271,7 @@ def collect_payment(request, invoice_id):
         amount_str = request.POST.get('amount', '0').strip()
         payment_mode = request.POST.get('payment_mode', 'cash')
         remarks = request.POST.get('remarks', 'Outstanding collection')
+        collection_date_str = request.POST.get('collection_date') or request.POST.get('date')
         try:
             amount = Decimal(amount_str)
             outstanding = invoice.total - invoice.amount_collected
@@ -302,6 +303,17 @@ def collect_payment(request, invoice_id):
                     payment_mode=payment_mode,
                     remarks=remarks,
                 )
+
+                if collection_date_str:
+                    try:
+                        from datetime import datetime
+                        from django.utils import timezone
+                        parsed_date = datetime.strptime(str(collection_date_str).strip()[:10], '%Y-%m-%d').date()
+                        dt = timezone.datetime.combine(parsed_date, timezone.localtime().time())
+                        dt = timezone.make_aware(dt) if timezone.is_naive(dt) else dt
+                        Receipt.objects.filter(id=receipt.id).update(created_at=dt, date_added=dt)
+                    except Exception:
+                        pass
 
                 remaining = invoice.total - invoice.amount_collected
                 currency = invoice.branch.company.country.currency_symbol if invoice.branch.company.country else '₹'
@@ -364,6 +376,17 @@ def api_list_invoices(request):
     payment_mode = request.GET.get('payment_mode')
     if payment_mode:
         invoices = invoices.filter(receipts__payment_mode=payment_mode).distinct()
+
+    search = request.GET.get('search')
+    if search:
+        search = search.strip()
+        invoices = invoices.filter(
+            Q(invoice_number__icontains=search) |
+            Q(customer__name__icontains=search) |
+            Q(customer__phone__icontains=search) |
+            Q(vehicle__vehicle_number__icontains=search) |
+            Q(vehicle__vehicle_type_model__name__icontains=search)
+        )
 
     results = []
     for inv in invoices:
@@ -768,6 +791,18 @@ def receipt_create(request, invoice_id=None):
             bank_name=bank_name,
         )
 
+        collection_date_str = request.POST.get('collection_date') or request.POST.get('date')
+        if collection_date_str:
+            try:
+                from datetime import datetime
+                from django.utils import timezone
+                parsed_date = datetime.strptime(str(collection_date_str).strip()[:10], '%Y-%m-%d').date()
+                dt = timezone.datetime.combine(parsed_date, timezone.localtime().time())
+                dt = timezone.make_aware(dt) if timezone.is_naive(dt) else dt
+                Receipt.objects.filter(id=receipt.id).update(created_at=dt, date_added=dt)
+            except Exception:
+                pass
+
         # Update Invoice Collection
         invoice.amount_collected += amount
         invoice.save()
@@ -913,6 +948,18 @@ def api_collect_payment(request):
             payment_mode=data.get('payment_mode') or 'cash',
             remarks=data.get('remarks') or 'Outstanding collection',
         )
+
+        collection_date_str = data.get('collection_date') or data.get('date')
+        if collection_date_str:
+            try:
+                from datetime import datetime
+                from django.utils import timezone
+                parsed_date = datetime.strptime(str(collection_date_str).strip()[:10], '%Y-%m-%d').date()
+                dt = timezone.datetime.combine(parsed_date, timezone.localtime().time())
+                dt = timezone.make_aware(dt) if timezone.is_naive(dt) else dt
+                Receipt.objects.filter(id=receipt.id).update(created_at=dt, date_added=dt)
+            except Exception:
+                pass
 
         remaining = invoice.total - invoice.amount_collected
         return JsonResponse({
@@ -1211,6 +1258,7 @@ def api_collect_customer_outstanding(request):
         amount = Decimal(str(data.get('amount', 0)))
         payment_mode = data.get('payment_mode') or 'cash'
         remarks = data.get('remarks') or 'Bulk outstanding collection'
+        collection_date_str = data.get('collection_date') or data.get('date')
 
         if not customer_id:
             return JsonResponse({'success': False, 'message': 'customer_id is required'}, status=400)
@@ -1260,6 +1308,17 @@ def api_collect_customer_outstanding(request):
                     payment_mode=payment_mode,
                     remarks=remarks,
                 )
+
+                if collection_date_str:
+                    try:
+                        from datetime import datetime
+                        from django.utils import timezone
+                        parsed_date = datetime.strptime(str(collection_date_str).strip()[:10], '%Y-%m-%d').date()
+                        dt = timezone.datetime.combine(parsed_date, timezone.localtime().time())
+                        dt = timezone.make_aware(dt) if timezone.is_naive(dt) else dt
+                        Receipt.objects.filter(id=rcpt.id).update(created_at=dt, date_added=dt)
+                    except Exception:
+                        pass
 
                 receipts_created.append({
                     'id': str(rcpt.id),

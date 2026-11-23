@@ -107,6 +107,16 @@ input[type="date"].form-control{
             </select>
 
         </div>
+        <!-- Collection Date -->
+        <div class="form-group">
+            <label>Collection Date</label>
+            <input type="date"
+                   name="collection_date"
+                   class="form-control"
+                   value="{% now 'Y-m-d' %}"
+                   required>
+        </div>
+
         <!-- Amount -->
 
         <div class="form-group">

@@ -661,6 +661,15 @@
                 </div>
             </div>
 
+            <!-- Collection Date -->
+            <div class="form-group" style="margin-bottom:16px;">
+                <label style="font-size:0.85rem; font-weight:700; color:#374151; margin-bottom:6px; display:block;">
+                    Collection Date <span style="color:red;">*</span>
+                </label>
+                <input type="date" name="collection_date" id="collectDateInput" required
+                       class="filter-control" style="font-weight:600; padding:10px 14px;">
+            </div>
+
             <!-- Payment Mode -->
             <div class="form-group" style="margin-bottom:16px;">
                 <label style="font-size:0.85rem; font-weight:700; color:#374151; margin-bottom:6px; display:block;">
@@ -759,6 +768,12 @@
 
         amountInput.value = outVal.toFixed(2);
         amountInput.max = outVal.toFixed(2);
+
+        const dateInput = document.getElementById('collectDateInput');
+        if (dateInput) {
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.value = today;
+        }
 
         form.action = `/outstanding/collect/${invoiceId}/`;
 
