@@ -18,7 +18,7 @@
 
         body {
             font-family: 'Courier New', Courier, monospace, -apple-system, BlinkMacSystemFont, sans-serif;
-            font-size: {% if is_4inch %}13px{% else %}12px{% endif %};
+            font-size: {% if is_2inch %}11px{% elif is_4inch %}13px{% else %}12px{% endif %};
             line-height: 1.35;
             color: #000;
             background-color: #f1f5f9;
@@ -74,7 +74,7 @@
             width: {{ paper_width }}mm;
             margin: 0 auto;
             background: #fff;
-            padding: {% if is_4inch %}12px 14px{% else %}8px 10px{% endif %};
+            padding: {% if is_2inch %}6px 8px{% elif is_4inch %}12px 14px{% else %}8px 10px{% endif %};
             border: 1px solid #e2e8f0;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
@@ -204,6 +204,9 @@
     <!-- Controls Bar (Hidden during print) -->
     <div class="no-print-bar">
         <div style="display: flex; gap: 8px;">
+            <a href="?width=58" class="btn btn-outline {% if paper_width == '58' %}active{% endif %}">
+                2 Inch (58mm)
+            </a>
             <a href="?width=80" class="btn btn-outline {% if paper_width == '80' %}active{% endif %}">
                 3 Inch (80mm)
             </a>
@@ -368,3 +371,4 @@
 
 </body>
 </html>
+

@@ -691,7 +691,7 @@ def invoice_thermal_receipt(request, pk):
         is_deleted=False
     )
     width = request.GET.get('width', '80')
-    if width not in ['80', '100']:
+    if width not in ['58', '80', '100']:
         width = '80'
 
     credit_note_amount = invoice.credit_note_amount or Decimal('0.00')
@@ -701,6 +701,7 @@ def invoice_thermal_receipt(request, pk):
         'invoice': invoice,
         'balance': balance,
         'paper_width': width,
+        'is_2inch': (width == '58'),
         'is_4inch': (width == '100'),
     }
     return render(request, 'invoice/thermal_receipt_print.html', context)
