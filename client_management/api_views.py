@@ -5009,6 +5009,9 @@ def api_get_expense_heads(request):
         from master.models import ExpenseHead
         from django.db.models import Q
         company = getattr(getattr(user, 'profile', None), 'company', None)
+        if not company and getattr(user, 'managed_branch', None):
+            company = user.managed_branch.company
+
         if not company:
             heads = ExpenseHead.objects.filter(is_deleted=False).exclude(name__iexact='Purchase').order_by('name')
         else:
@@ -5021,6 +5024,28 @@ def api_get_expense_heads(request):
             if norm_name and norm_name not in seen_names and norm_name != 'purchase':
                 seen_names.add(norm_name)
                 unique_heads.append(h)
+
+        # Ensure 'Salary & Wages' and 'Salary Advance' are always present
+        required_heads = ['Salary & Wages', 'Salary Advance']
+        for req in required_heads:
+            norm_req = req.strip().lower()
+            if norm_req not in seen_names:
+                req_head = ExpenseHead.objects.filter(
+                    Q(company=company) | Q(company__isnull=True),
+                    name__iexact=req,
+                    is_deleted=False
+                ).first()
+                if not req_head and company:
+                    from core.functions import get_auto_id
+                    req_head = ExpenseHead.objects.create(
+                        name=req,
+                        company=company,
+                        auto_id=get_auto_id(ExpenseHead),
+                        creator=user
+                    )
+                if req_head:
+                    seen_names.add(norm_req)
+                    unique_heads.append(req_head)
 
         head_list = [{'id': str(h.id), 'name': h.name, 'is_deletable': h.is_deletable} for h in unique_heads]
         return JsonResponse({'success': True, 'expense_heads': head_list})
@@ -5352,23 +5377,61 @@ def api_create_expense_entry(request):
         normalized_head_name = ' '.join(
             expense_head.name.strip().lower().replace('&', 'and').split()
         )
-        if normalized_head_name in {'salary', 'salary advance'}:
-            return JsonResponse({
-                'success': False,
-                'message': 'Select Salary & Wages for staff expenses.',
-            }, status=400)
-        if normalized_head_name == 'salary and wages':
+        is_salary_head = normalized_head_name in {'salary and wages', 'salary', 'salary advance'}
+        
+        staff_obj = None
+        salary_type = None
+        salary_month_date = None
+
+        if is_salary_head:
             from client_management.models import Staff
-            if not Staff.objects.filter(
-                company=company,
-                branch=branch,
-                is_deleted=False,
-                name__iexact=str(expense_name).strip(),
-            ).exists():
+            from datetime import date as d_date
+            
+            staff_id = data.get('staff_id')
+            if staff_id:
+                staff_obj = Staff.objects.filter(id=staff_id, company=company, is_deleted=False).first()
+            if not staff_obj and expense_name:
+                staff_obj = Staff.objects.filter(
+                    company=company,
+                    is_deleted=False,
+                    name__iexact=str(expense_name).strip()
+                ).first()
+
+            if not staff_obj:
                 return JsonResponse({
                     'success': False,
-                    'message': 'Select a staff member for Salary & Wages expenses.',
+                    'message': 'Select a valid staff member for salary expenses.',
                 }, status=400)
+
+            # Determine payment type: 'SALARY' or 'ADVANCE'
+            req_pay_type = (data.get('salary_payment_type') or '').upper()
+            if req_pay_type in ['SALARY', 'ADVANCE']:
+                salary_type = req_pay_type
+            elif normalized_head_name == 'salary advance' or 'advance' in str(expense_name).lower():
+                salary_type = 'ADVANCE'
+            else:
+                salary_type = 'SALARY'
+
+            # Determine salary month
+            raw_month = data.get('salary_month')
+            if raw_month:
+                try:
+                    parts = str(raw_month).split('-')
+                    y = int(parts[0])
+                    m = int(parts[1])
+                    salary_month_date = d_date(y, m, 1)
+                except Exception:
+                    salary_month_date = None
+            if not salary_month_date:
+                try:
+                    exp_dt = datetime.strptime(str(expense_date), '%Y-%m-%d').date()
+                    salary_month_date = d_date(exp_dt.year, exp_dt.month, 1)
+                except Exception:
+                    now_d = timezone.now().date()
+                    salary_month_date = d_date(now_d.year, now_d.month, 1)
+
+            if not expense_name or expense_name == staff_obj.name:
+                expense_name = staff_obj.name
 
         expense = Expense.objects.filter(
             expense_head=expense_head,
@@ -5398,6 +5461,16 @@ def api_create_expense_entry(request):
                 paid_amount = float(amount)
         else:
             paid_amount = float(amount)
+
+        bank_account = None
+        bank_account_id = data.get('bank_account_id')
+        payment_mode = (data.get('payment_mode') or 'CASH').upper()
+        if bank_account_id and payment_mode == 'BANK':
+            from master.models import BankAccount
+            bank_account = BankAccount.objects.filter(id=bank_account_id, company=company, is_deleted=False).first()
+            if bank_account:
+                bank_account.current_balance = Decimal(str(bank_account.current_balance)) - Decimal(str(paid_amount))
+                bank_account.save()
             
         # Create ExpenseEntry
         entry = ExpenseEntry.objects.create(
@@ -5410,8 +5483,21 @@ def api_create_expense_entry(request):
             expense_date=expense_date,
             remarks=remarks,
             supplier=supplier,
-            paid_amount=paid_amount
+            paid_amount=paid_amount,
+            payment_mode=payment_mode,
+            bank_account=bank_account,
+            staff=staff_obj,
+            salary_payment_type=salary_type,
+            salary_month=salary_month_date
         )
+
+        # Auto-update payslip record if staff expense
+        if staff_obj and salary_month_date:
+            try:
+                from .views import _get_staff_payslip_data
+                _get_staff_payslip_data(company, staff_obj, salary_month_date.year, salary_month_date.month)
+            except Exception:
+                pass
         
         return JsonResponse({
             'success': True,
@@ -5487,8 +5573,13 @@ def api_get_staff_list(request):
         staff_list = [{
             'id': str(s.id),
             'name': s.name,
-            'employee_id': s.employee_id,
-            'branch_name': s.branch.name if s.branch else ''
+            'employee_id': s.employee_id or '',
+            'branch_id': str(s.branch_id) if s.branch_id else '',
+            'branch_name': s.branch.name if s.branch else '',
+            'salary_mode': s.salary_mode,
+            'monthly_salary': float(s.monthly_salary or 0),
+            'daily_wage': float(s.daily_wage or 0),
+            'designation': getattr(s, 'designation', '') or (s.role.name if getattr(s, 'role', None) else ''),
         } for s in staffs.order_by('name')]
         
         return JsonResponse({'success': True, 'staffs': staff_list})
@@ -5606,6 +5697,397 @@ def api_create_staff_leave(request):
         })
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+@csrf_exempt
+def api_get_bank_accounts(request):
+    """
+    Returns active bank accounts for the user's company.
+    """
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'message': 'Only GET allowed'}, status=405)
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+
+    company = getattr(getattr(user, 'profile', None), 'company', None)
+    if not company and getattr(user, 'managed_branch', None):
+        company = user.managed_branch.company
+    if not company:
+        return JsonResponse({'success': False, 'message': 'No company found'}, status=400)
+
+    from master.models import BankAccount
+    accounts = BankAccount.objects.filter(company=company, is_active=True, is_deleted=False).order_by('bank_name')
+    return JsonResponse({
+        'success': True,
+        'bank_accounts': [
+            {
+                'id': str(b.id),
+                'bank_name': b.bank_name,
+                'account_number': b.account_number,
+                'branch_name': b.branch_name or '',
+                'current_balance': float(b.current_balance or 0),
+            } for b in accounts
+        ]
+    })
+
+
+@csrf_exempt
+def api_staff_payslip_list(request):
+    """
+    Returns monthly payslips and payroll summary for mobile app.
+    Query params:
+      - year: int (default current)
+      - month: int (1-12, default current)
+      - branch_id: uuid (optional)
+      - search: string (optional)
+    """
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'message': 'Only GET allowed'}, status=405)
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+
+    company = getattr(getattr(user, 'profile', None), 'company', None)
+    if not company and getattr(user, 'managed_branch', None):
+        company = user.managed_branch.company
+    if not company:
+        return JsonResponse({'success': False, 'message': 'No company found for user'}, status=400)
+
+    from datetime import date as d_date
+    from django.utils import timezone
+    now_dt = timezone.now().date()
+
+    try:
+        year = int(request.GET.get('year', now_dt.year))
+        month = int(request.GET.get('month', now_dt.month))
+    except (ValueError, TypeError):
+        year, month = now_dt.year, now_dt.month
+
+    if month < 1: month = 1
+    if month > 12: month = 12
+
+    from .models import Staff, Branch
+    from .views import _get_staff_payslip_data
+    from django.db.models import Q
+
+    role = getattr(getattr(user, 'profile', None), 'role', None)
+    role_name = role.name if role else None
+
+    branch_id = request.GET.get('branch_id', '').strip()
+    staff_qs = Staff.objects.filter(company=company, is_deleted=False).select_related('branch')
+
+    if role_name != 'COMPANY_ADMIN':
+        managed_branch = getattr(user, 'managed_branch', None)
+        if not managed_branch and hasattr(user, 'staff_profile') and user.staff_profile and user.staff_profile.branch:
+            managed_branch = user.staff_profile.branch
+        if managed_branch:
+            staff_qs = staff_qs.filter(branch=managed_branch)
+    elif branch_id and branch_id.lower() != 'all':
+        staff_qs = staff_qs.filter(branch_id=branch_id)
+
+    search = request.GET.get('search', '').strip()
+    if search:
+        staff_qs = staff_qs.filter(Q(name__icontains=search) | Q(employee_id__icontains=search))
+
+    staff_qs = staff_qs.order_by('name')
+
+    currency_symbol = '₹'
+    if company and getattr(company, 'country', None) and company.country.currency_symbol:
+        currency_symbol = company.country.currency_symbol
+
+    tot_gross = Decimal('0.00')
+    tot_advance = Decimal('0.00')
+    tot_net = Decimal('0.00')
+    tot_paid = Decimal('0.00')
+    tot_balance = Decimal('0.00')
+
+    payslip_rows = []
+    for st in staff_qs:
+        data = _get_staff_payslip_data(company, st, year, month)
+        tot_gross += data['gross_salary']
+        tot_advance += data['advance_deduction']
+        tot_net += data['net_salary']
+        tot_paid += data['paid_amount']
+        tot_balance += data['balance_amount']
+
+        p_obj = data.get('payslip')
+        payslip_rows.append({
+            'staff_id': str(st.id),
+            'name': st.name,
+            'employee_id': st.employee_id or '',
+            'branch_name': st.branch.name if st.branch else '',
+            'salary_mode': st.salary_mode,
+            'salary_mode_display': st.get_salary_mode_display(),
+            'basic_salary': float(data['basic_salary']),
+            'daily_wage_rate': float(data['daily_wage_rate']),
+            'working_days': float(data['working_days']),
+            'leave_days': float(data['leave_days']),
+            'allowances': float(data['allowances']),
+            'commissions': float(data['commissions']),
+            'gross_salary': float(data['gross_salary']),
+            'advance_deduction': float(data['advance_deduction']),
+            'other_deductions': float(data['other_deductions']),
+            'total_deductions': float(data['total_deductions']),
+            'net_salary': float(data['net_salary']),
+            'paid_amount': float(data['paid_amount']),
+            'balance_amount': float(data['balance_amount']),
+            'payment_status': data['payment_status'],
+            'payslip_number': p_obj.payslip_number if p_obj else f"PAY-{year}{month:02d}-{st.employee_id or st.id.hex[:6].upper()}",
+            'remarks': data.get('remarks') or '',
+            'advances': [
+                {
+                    'id': a['id'],
+                    'date': a['date'].strftime('%Y-%m-%d') if hasattr(a['date'], 'strftime') else str(a['date']),
+                    'amount': float(a['amount']),
+                    'mode': a.get('mode', 'CASH'),
+                    'remarks': a.get('remarks', '')
+                } for a in data.get('advances_list', [])
+            ],
+            'payments': [
+                {
+                    'id': p['id'],
+                    'date': p['date'].strftime('%Y-%m-%d') if hasattr(p['date'], 'strftime') else str(p['date']),
+                    'amount': float(p['amount']),
+                    'mode': p.get('mode', 'CASH'),
+                    'remarks': p.get('remarks', '')
+                } for p in data.get('payments_list', [])
+            ]
+        })
+
+    month_date = d_date(year, month, 1)
+
+    return JsonResponse({
+        'success': True,
+        'year': year,
+        'month': month,
+        'month_name': month_date.strftime('%B %Y'),
+        'currency_symbol': currency_symbol,
+        'summary': {
+            'total_gross': float(tot_gross),
+            'total_advance': float(tot_advance),
+            'total_net': float(tot_net),
+            'total_paid': float(tot_paid),
+            'total_balance': float(tot_balance),
+            'total_staff': len(payslip_rows),
+        },
+        'payslips': payslip_rows
+    })
+
+
+@csrf_exempt
+def api_staff_payslip_pdf(request):
+    """
+    Returns the binary PDF of a staff payslip.
+    Query params:
+      - staff_id: uuid
+      - year: int
+      - month: int
+    """
+    if request.method != 'GET':
+        return JsonResponse({'success': False, 'message': 'Only GET allowed'}, status=405)
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+
+    company = getattr(getattr(user, 'profile', None), 'company', None)
+    if not company and getattr(user, 'managed_branch', None):
+        company = user.managed_branch.company
+    if not company:
+        return JsonResponse({'success': False, 'message': 'No company found'}, status=400)
+
+    staff_id = request.GET.get('staff_id')
+    if not staff_id:
+        return JsonResponse({'success': False, 'message': 'staff_id is required'}, status=400)
+
+    from django.shortcuts import get_object_or_404
+    from .models import Staff, StaffPayslip
+    staff = get_object_or_404(Staff, id=staff_id, company=company, is_deleted=False)
+
+    from django.utils import timezone
+    now_dt = timezone.now().date()
+    try:
+        year = int(request.GET.get('year', now_dt.year))
+        month = int(request.GET.get('month', now_dt.month))
+    except (ValueError, TypeError):
+        year, month = now_dt.year, now_dt.month
+
+    from .views import _get_staff_payslip_data
+    from datetime import date as d_date
+    import os, sys
+    if sys.platform == 'darwin':
+        os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = '/opt/homebrew/lib:' + os.environ.get('DYLD_FALLBACK_LIBRARY_PATH', '')
+    from weasyprint import HTML
+    from django.template.loader import render_to_string
+    from django.http import HttpResponse
+
+    data = _get_staff_payslip_data(company, staff, year, month)
+
+    month_start = d_date(year, month, 1)
+    payslip = data.get('payslip')
+    if not payslip:
+        from core.functions import get_auto_id
+        payslip = StaffPayslip.objects.create(
+            auto_id=get_auto_id(StaffPayslip),
+            creator=user,
+            company=company,
+            branch=staff.branch,
+            staff=staff,
+            payslip_number=f"PAY-{year}{month:02d}-{staff.employee_id or staff.id.hex[:6].upper()}",
+            salary_month=month_start,
+            salary_mode=staff.salary_mode,
+            basic_salary=data['basic_salary'],
+            daily_wage_rate=data['daily_wage_rate'],
+            total_days=int(data['total_days']),
+            working_days=data['working_days'],
+            leave_days=data['leave_days'],
+            allowances=data['allowances'],
+            commissions=data['commissions'],
+            gross_salary=data['gross_salary'],
+            advance_deduction=data['advance_deduction'],
+            other_deductions=data['other_deductions'],
+            total_deductions=data['total_deductions'],
+            net_salary=data['net_salary'],
+            paid_amount=data['paid_amount'],
+            balance_amount=data['balance_amount'],
+            payment_status=data['payment_status'],
+            remarks=data.get('remarks') or '',
+        )
+        data['payslip'] = payslip
+
+    currency_symbol = '₹'
+    if company and getattr(company, 'country', None) and company.country.currency_symbol:
+        currency_symbol = company.country.currency_symbol
+
+    context = {
+        **data,
+        'company': company,
+        'currency_symbol': currency_symbol,
+        'generated_date': timezone.now().date(),
+    }
+
+    html_content = render_to_string('staff/payslip_pdf.html', context)
+    pdf_bytes = HTML(string=html_content).write_pdf()
+
+    filename = f"Payslip_{staff.name.replace(' ', '_')}_{year}_{month:02d}.pdf"
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
+
+
+@csrf_exempt
+def api_record_payslip_payment(request):
+    """
+    Quick pay salary or advance for a staff member.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'message': 'Only POST allowed'}, status=405)
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+
+    company = getattr(getattr(user, 'profile', None), 'company', None)
+    if not company and getattr(user, 'managed_branch', None):
+        company = user.managed_branch.company
+    if not company:
+        return JsonResponse({'success': False, 'message': 'No company found'}, status=400)
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        return JsonResponse({'success': False, 'message': 'Invalid JSON body'}, status=400)
+
+    staff_id = data.get('staff_id')
+    pay_type = (data.get('pay_type') or 'SALARY').upper() # 'SALARY' or 'ADVANCE'
+    amount_raw = data.get('amount')
+    payment_mode = (data.get('payment_mode') or 'CASH').upper()
+    bank_account_id = data.get('bank_account_id')
+    expense_date = data.get('expense_date') or timezone.now().date().strftime('%Y-%m-%d')
+    remarks = data.get('remarks', '').strip()
+
+    from datetime import date as d_date
+    now_dt = timezone.now().date()
+    try:
+        year = int(data.get('year', now_dt.year))
+        month = int(data.get('month', now_dt.month))
+    except (ValueError, TypeError):
+        year, month = now_dt.year, now_dt.month
+
+    from django.shortcuts import get_object_or_404
+    from .models import Staff
+    staff = get_object_or_404(Staff, id=staff_id, company=company, is_deleted=False)
+
+    try:
+        amount = Decimal(str(amount_raw))
+        if amount <= 0:
+            return JsonResponse({'success': False, 'message': 'Amount must be greater than zero'}, status=400)
+    except Exception:
+        return JsonResponse({'success': False, 'message': 'Invalid amount'}, status=400)
+
+    from master.models import ExpenseHead, Expense, ExpenseEntry, BankAccount
+    from core.functions import get_auto_id
+
+    head_name = 'Salary Advance' if pay_type == 'ADVANCE' else 'Salary & Wages'
+
+    head = ExpenseHead.objects.filter(
+        Q(company=company) | Q(company__isnull=True),
+        name__iexact=head_name,
+        is_deleted=False
+    ).first()
+    if not head:
+        head = ExpenseHead.objects.create(
+            name=head_name,
+            company=company,
+            auto_id=get_auto_id(ExpenseHead),
+            creator=user
+        )
+
+    expense, _ = Expense.objects.get_or_create(
+        expense_head=head,
+        name=staff.name,
+        defaults={'auto_id': get_auto_id(Expense), 'creator': user}
+    )
+
+    bank_account = None
+    if payment_mode == 'BANK':
+        if not bank_account_id:
+            return JsonResponse({'success': False, 'message': 'Please select a bank account'}, status=400)
+        bank_account = get_object_or_404(BankAccount, id=bank_account_id, company=company, is_deleted=False)
+        bank_account.current_balance = Decimal(str(bank_account.current_balance)) - amount
+        bank_account.save()
+    else:
+        payment_mode = 'CASH'
+
+    salary_month_date = d_date(year, month, 1)
+
+    entry = ExpenseEntry.objects.create(
+        auto_id=get_auto_id(ExpenseEntry),
+        creator=user,
+        company=company,
+        branch=staff.branch,
+        expense=expense,
+        amount=amount,
+        paid_amount=amount,
+        payment_mode=payment_mode,
+        bank_account=bank_account,
+        expense_date=expense_date,
+        remarks=remarks or f"{head_name} for {salary_month_date.strftime('%B %Y')}",
+        staff=staff,
+        salary_payment_type=pay_type,
+        salary_month=salary_month_date
+    )
+
+    from .views import _get_staff_payslip_data
+    updated_data = _get_staff_payslip_data(company, staff, year, month)
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Successfully recorded {head_name} of {amount} for {staff.name}',
+        'expense_entry_id': str(entry.id),
+        'paid_amount': float(updated_data['paid_amount']),
+        'balance_amount': float(updated_data['balance_amount']),
+        'payment_status': updated_data['payment_status'],
+    })
 
 
 @csrf_exempt

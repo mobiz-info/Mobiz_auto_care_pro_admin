@@ -330,6 +330,16 @@ urlpatterns = [
     path('api/oil-grades/create/', api_views.api_oil_grades_create, name='api_oil_grades_create'),
     path('api/master/oil-grades/', api_views.api_oil_grades, name='api_master_oil_grades'),
     path('api/master/oil-grades/create/', api_views.api_oil_grades_create, name='api_master_oil_grades_create'),
+
+    # Bank Accounts & Staff Payslip APIs
+    path('api/bank-accounts/', api_views.api_get_bank_accounts, name='api_get_bank_accounts'),
+    path('api/api/bank-accounts/', api_views.api_get_bank_accounts, name='api_api_get_bank_accounts'),
+    path('api/staff/payslips/', api_views.api_staff_payslip_list, name='api_staff_payslip_list'),
+    path('api/api/staff/payslips/', api_views.api_staff_payslip_list, name='api_api_staff_payslip_list'),
+    path('api/staff/payslip/pdf/', api_views.api_staff_payslip_pdf, name='api_staff_payslip_pdf'),
+    path('api/api/staff/payslip/pdf/', api_views.api_staff_payslip_pdf, name='api_api_staff_payslip_pdf'),
+    path('api/staff/payslip/pay/', api_views.api_record_payslip_payment, name='api_record_payslip_payment'),
+    path('api/api/staff/payslip/pay/', api_views.api_record_payslip_payment, name='api_api_record_payslip_payment'),
 ]
 
 
