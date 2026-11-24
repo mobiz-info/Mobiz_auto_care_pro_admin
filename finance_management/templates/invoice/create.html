@@ -2159,8 +2159,10 @@
                 <div class="form-group">
                     <label>Renewal Validity *</label>
                     <select class="form-control smoke-validity-select" onchange="updateSmokeTestPreview('${rowId}')">
+                        <option value="3" ${defaultMonths === 3 ? 'selected' : ''}>3 Months</option>
                         <option value="6" ${defaultMonths === 6 ? 'selected' : ''}>6 Months (BS-1/2/3)</option>
                         <option value="12" ${defaultMonths === 12 ? 'selected' : ''}>1 Year (BS-4/6)</option>
+                        <option value="36" ${defaultMonths === 36 ? 'selected' : ''}>3 Years</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -2178,7 +2180,11 @@
         if (!row) return;
         const sel = row.querySelector('.smoke-validity-select');
         const months = parseInt(sel?.value) || 12;
-        const days = months === 6 ? 180 : 365;
+        let days = 365;
+        if (months === 3) days = 90;
+        else if (months === 6) days = 180;
+        else if (months === 36) days = 1095;
+        else days = 365;
         const d = new Date();
         d.setDate(d.getDate() + days);
         const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });

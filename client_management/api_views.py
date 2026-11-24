@@ -1429,7 +1429,14 @@ def _save_invoice_service_detail(item, detail_data, invoice, vehicle, user):
                         validity_months = 6
 
         detail.smoke_test_period_months = validity_months
-        days = 180 if validity_months == 6 else 365
+        if validity_months == 3:
+            days = 90
+        elif validity_months == 6:
+            days = 180
+        elif validity_months == 36:
+            days = 1095
+        else:
+            days = 365
         next_date = invoice.date + timedelta(days=days)
         detail.next_smoke_test_date = next_date
 
