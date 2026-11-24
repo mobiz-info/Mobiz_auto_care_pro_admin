@@ -280,6 +280,38 @@ textarea.form-control:focus {
                 <!-- Real Form Input Submitted to POST -->
                 <input type="hidden" name="expense_name" id="final_expense_name"
                        value="{% if expense_entry %}{{ expense_entry.expense.name }}{% endif %}" required>
+                <input type="hidden" name="staff_id" id="selected_staff_id"
+                       value="{% if expense_entry and expense_entry.staff_id %}{{ expense_entry.staff_id }}{% endif %}">
+            </div>
+
+            <!-- Salary Month Container (Appears when Salary & Wages or Salary Advance selected) -->
+            <div class="form-group" id="salary_month_wrapper" style="display: none;">
+                <label class="form-label">
+                    <span>Target Salary Month <span class="required">*</span></span>
+                    <span style="font-size: 0.78rem; color: #64748b;">Month this applies to</span>
+                </label>
+                <input type="month" name="salary_month" id="salary_month_input" class="form-control"
+                       value="{% if expense_entry and expense_entry.salary_month %}{{ expense_entry.salary_month|date:'Y-m' }}{% endif %}">
+            </div>
+
+            <!-- Staff Live Salary Info Card -->
+            <div class="form-col-span-2" id="staff_salary_info_card" style="display: none; background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 12px; padding: 14px 18px; margin-top: -6px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 38px; height: 38px; border-radius: 10px; background: #dbeafe; color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+                            <i class="ph-bold ph-identification-card"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 700; color: #1e3a8a; font-size: 0.95rem;" id="staff_info_name">-</div>
+                            <div style="font-size: 0.8rem; color: #3b82f6;" id="staff_info_mode">-</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 12px; font-size: 0.85rem; flex-wrap: wrap;">
+                        <div style="background: white; padding: 6px 14px; border-radius: 8px; border: 1px solid #dbeafe;">
+                            <span style="color: #64748b;">Salary Rate:</span> <strong id="staff_info_base" style="color: #0f172a;">-</strong>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Has Supplier / Credit Supplier Checkbox -->
@@ -547,16 +579,31 @@ textarea.form-control:focus {
         const nameSelect = document.getElementById('expense_name_select');
         const finalInput = document.getElementById('final_expense_name');
         const customNameButton = document.getElementById('toggle_custom_name_btn');
+        const salaryMonthWrapper = document.getElementById('salary_month_wrapper');
+        const salaryMonthInput = document.getElementById('salary_month_input');
+        const staffInfoCard = document.getElementById('staff_salary_info_card');
         const selectedHeadName = (headSelect.selectedOptions[0]?.dataset.headName || '')
             .trim().toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ');
-        const isSalaryWages = selectedHeadName === 'salary and wages';
-        customNameButton.style.display = isSalaryWages ? 'none' : '';
+        const isSalaryHead = selectedHeadName === 'salary and wages' || selectedHeadName === 'salary' || selectedHeadName === 'salary advance';
+        customNameButton.style.display = isSalaryHead ? 'none' : '';
 
-        if (isSalaryWages) {
+        if (isSalaryHead) {
             isCustomMode = false;
             document.getElementById('expense_text_container').style.display = 'none';
             document.getElementById('expense_select_container').style.display = 'block';
             finalInput.value = '';
+            if (salaryMonthWrapper) {
+                salaryMonthWrapper.style.display = 'flex';
+                if (!salaryMonthInput.value) {
+                    const today = new Date();
+                    const yyyy = today.getFullYear();
+                    const mm = String(today.getMonth() + 1).padStart(2, '0');
+                    salaryMonthInput.value = `${yyyy}-${mm}`;
+                }
+            }
+        } else {
+            if (salaryMonthWrapper) salaryMonthWrapper.style.display = 'none';
+            if (staffInfoCard) staffInfoCard.style.display = 'none';
         }
 
         if (!headId) {
@@ -575,14 +622,29 @@ textarea.form-control:focus {
             nameSelect.innerHTML = '';
             const defaultOpt = document.createElement('option');
             defaultOpt.value = '';
-            defaultOpt.textContent = isSalaryWages
-                ? '-- Select Staff --'
+            defaultOpt.textContent = isSalaryHead
+                ? (selectedHeadName === 'salary advance' ? '-- Select Staff for Advance --' : '-- Select Staff for Salary --')
                 : '-- Select Item or Type Custom --';
             nameSelect.appendChild(defaultOpt);
 
             let matched = false;
 
-            if (data.success && data.items && data.items.length > 0) {
+            if (data.success && data.staffs && data.staffs.length > 0) {
+                data.staffs.forEach(st => {
+                    const opt = document.createElement('option');
+                    opt.value = st.name;
+                    opt.textContent = `${st.name} (${st.employee_id || 'Staff'})`;
+                    opt.dataset.staffId = st.id;
+                    opt.dataset.salaryMode = st.salary_mode;
+                    opt.dataset.monthlySalary = st.monthly_salary;
+                    opt.dataset.dailyWage = st.daily_wage;
+                    if (st.name === initialExpenseName || st.name === finalInput.value || st.id === document.getElementById('selected_staff_id')?.value) {
+                        opt.selected = true;
+                        matched = true;
+                    }
+                    nameSelect.appendChild(opt);
+                });
+            } else if (data.success && data.items && data.items.length > 0) {
                 data.items.forEach(item => {
                     const opt = document.createElement('option');
                     opt.value = item;
@@ -595,23 +657,26 @@ textarea.form-control:focus {
                 });
             }
 
-            if (!isSalaryWages) {
+            if (!isSalaryHead) {
                 const customOpt = document.createElement('option');
                 customOpt.value = '__CUSTOM__';
                 customOpt.textContent = '+ Enter Custom Item Name...';
                 nameSelect.appendChild(customOpt);
-            } else if (!data.items || data.items.length === 0) {
+            } else if ((!data.staffs || data.staffs.length === 0) && (!data.items || data.items.length === 0)) {
                 defaultOpt.textContent = 'No staff available for this branch';
             }
 
-            if (!isSalaryWages && isEditMode && initialExpenseName && !matched) {
-                // If the existing name wasn't in list, activate custom mode
+            if (!isSalaryHead && isEditMode && initialExpenseName && !matched) {
                 switchToCustomMode(initialExpenseName);
+            }
+
+            if (isSalaryHead && matched) {
+                updateStaffInfoCard(nameSelect);
             }
 
         } catch (err) {
             console.error("Failed to load items:", err);
-            if (isSalaryWages) {
+            if (isSalaryHead) {
                 nameSelect.innerHTML = '<option value="">Staff list could not be loaded</option>';
             } else {
                 nameSelect.innerHTML = '<option value="__CUSTOM__">+ Enter Custom Item Name</option>';
@@ -620,12 +685,45 @@ textarea.form-control:focus {
         }
     }
 
+    function updateStaffInfoCard(select) {
+        const selectedOpt = select.selectedOptions[0];
+        const staffInfoCard = document.getElementById('staff_salary_info_card');
+        const staffIdInput = document.getElementById('selected_staff_id');
+        if (!selectedOpt || !selectedOpt.value || !selectedOpt.dataset.staffId) {
+            if (staffInfoCard) staffInfoCard.style.display = 'none';
+            if (staffIdInput) staffIdInput.value = '';
+            return;
+        }
+
+        if (staffIdInput) staffIdInput.value = selectedOpt.dataset.staffId;
+        const staffName = selectedOpt.value;
+        const mode = selectedOpt.dataset.salaryMode || 'SALARIED';
+        const monthly = parseFloat(selectedOpt.dataset.monthlySalary) || 0;
+        const daily = parseFloat(selectedOpt.dataset.dailyWage) || 0;
+
+        document.getElementById('staff_info_name').textContent = staffName;
+        document.getElementById('staff_info_mode').textContent = `Mode: ${mode}`;
+        
+        let rateStr = '-';
+        if (mode === 'SALARIED') {
+            rateStr = `{{ currency_symbol }}${monthly.toFixed(2)} / month`;
+        } else if (mode === 'WAGE') {
+            rateStr = `{{ currency_symbol }}${daily.toFixed(2)} / day`;
+        } else if (mode === 'COMMISSION') {
+            rateStr = `Commission Based`;
+        }
+        document.getElementById('staff_info_base').textContent = rateStr;
+
+        if (staffInfoCard) staffInfoCard.style.display = 'block';
+    }
+
     function handleSelectChange(select) {
         const finalInput = document.getElementById('final_expense_name');
         if (select.value === '__CUSTOM__') {
             switchToCustomMode('');
         } else {
             finalInput.value = select.value;
+            updateStaffInfoCard(select);
         }
     }
 

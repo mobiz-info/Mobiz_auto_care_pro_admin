@@ -1,0 +1,589 @@
+{% extends 'base.html' %}
+
+{% block title %}Payslips & Payroll - Mobiz Autocare Pro{% endblock %}
+{% block page_title %}Staff Payslips{% endblock %}
+{% block breadcrumb_active %}Payslips{% endblock %}
+
+{% block content %}
+<style>
+.payroll-container {
+    padding: 0 4px;
+}
+
+/* Header & Month Selector */
+.payroll-header-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 22px 26px;
+    margin-bottom: 22px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03);
+}
+
+.payroll-title-area h2 {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.payroll-title-area p {
+    margin: 4px 0 0 0;
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.month-navigator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    padding: 5px 8px;
+    border-radius: 12px;
+}
+
+.month-nav-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: none;
+    background: #ffffff;
+    color: #334155;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    text-decoration: none;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    transition: 0.15s ease;
+}
+
+.month-nav-btn:hover {
+    background: #3b82f6;
+    color: white;
+}
+
+.current-month-badge {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1e293b;
+    padding: 0 12px;
+    min-width: 130px;
+    text-align: center;
+}
+
+/* KPI Cards */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 1024px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+}
+
+.kpi-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 18px 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.kpi-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #64748b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.kpi-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+.kpi-val {
+    margin-top: 10px;
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.filter-bar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+    align-items: center;
+}
+
+.search-box {
+    position: relative;
+    flex: 1;
+    min-width: 240px;
+}
+
+.search-box input {
+    width: 100%;
+    padding: 10px 14px 10px 38px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    outline: none;
+    background: #ffffff;
+    box-sizing: border-box;
+}
+
+.search-box i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 1.1rem;
+}
+
+/* Action Modals */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    padding: 16px;
+}
+
+.modal-box {
+    background: #ffffff;
+    border-radius: 18px;
+    max-width: 500px;
+    width: 100%;
+    padding: 26px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+}
+</style>
+
+<div class="payroll-container">
+
+    <!-- Top Header & Month Picker -->
+    <div class="payroll-header-card">
+        <div class="payroll-title-area">
+            <h2>
+                <i class="ph-bold ph-receipt" style="color: #4f46e5;"></i>
+                Monthly Staff Payslips
+            </h2>
+            <p>Track earnings, salary advances paid via expense, net payable, and download payslips.</p>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+            <!-- Month Navigator -->
+            <div class="month-navigator">
+                <a href="?year={{ prev_year }}&month={{ prev_month }}{% if branch_id %}&branch_id={{ branch_id }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
+                   class="month-nav-btn" title="Previous Month">
+                    <i class="ph-bold ph-caret-left"></i>
+                </a>
+
+                <div class="current-month-badge">
+                    {{ month_name }}
+                </div>
+
+                <a href="?year={{ next_year }}&month={{ next_month }}{% if branch_id %}&branch_id={{ branch_id }}{% endif %}{% if search %}&search={{ search }}{% endif %}"
+                   class="month-nav-btn" title="Next Month">
+                    <i class="ph-bold ph-caret-right"></i>
+                </a>
+            </div>
+
+            <!-- Month Quick Dropdown Form -->
+            <form method="GET" style="display: flex; gap: 6px; align-items: center;">
+                <select name="month" class="form-control" style="padding: 7px 10px; font-size: 0.85rem; border-radius: 8px;" onchange="this.form.submit()">
+                    {% for m_num, m_name in months_list %}
+                    <option value="{{ m_num }}" {% if month == m_num %}selected{% endif %}>{{ m_name }}</option>
+                    {% endfor %}
+                </select>
+
+                <select name="year" class="form-control" style="padding: 7px 10px; font-size: 0.85rem; border-radius: 8px;" onchange="this.form.submit()">
+                    {% for y in years_list %}
+                    <option value="{{ y }}" {% if year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+
+                {% if branches %}
+                <select name="branch_id" class="form-control" style="padding: 7px 10px; font-size: 0.85rem; border-radius: 8px;" onchange="this.form.submit()">
+                    <option value="">All Branches</option>
+                    {% for b in branches %}
+                    <option value="{{ b.id }}" {% if branch_id == b.id|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <!-- KPI Summary Row -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-label">
+                <span>Total Gross Payroll</span>
+                <div class="kpi-icon" style="background:#eff6ff; color:#2563eb;">
+                    <i class="ph-bold ph-coins"></i>
+                </div>
+            </div>
+            <div class="kpi-val">{{ currency_symbol }} {{ tot_gross|floatformat:2 }}</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">
+                <span>Advance Deductions</span>
+                <div class="kpi-icon" style="background:#fef3c7; color:#d97706;">
+                    <i class="ph-bold ph-hand-coins"></i>
+                </div>
+            </div>
+            <div class="kpi-val" style="color: #d97706;">{{ currency_symbol }} {{ tot_advance|floatformat:2 }}</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">
+                <span>Net Salary Payable</span>
+                <div class="kpi-icon" style="background:#f0fdf4; color:#16a34a;">
+                    <i class="ph-bold ph-wallet"></i>
+                </div>
+            </div>
+            <div class="kpi-val" style="color: #16a34a;">{{ currency_symbol }} {{ tot_net|floatformat:2 }}</div>
+        </div>
+
+        <div class="kpi-card">
+            <div class="kpi-label">
+                <span>Salary Paid / Pending</span>
+                <div class="kpi-icon" style="background:#ede9fe; color:#7c3aed;">
+                    <i class="ph-bold ph-hourglass-medium"></i>
+                </div>
+            </div>
+            <div class="kpi-val" style="font-size: 1.15rem;">
+                <span style="color:#16a34a;">{{ currency_symbol }}{{ tot_paid|floatformat:2 }}</span>
+                <span style="color:#64748b; font-size: 0.9rem;"> / </span>
+                <span style="color:#dc2626;">{{ currency_symbol }}{{ tot_balance|floatformat:2 }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search & Filter Bar -->
+    <div class="filter-bar">
+        <form method="GET" class="search-box">
+            <input type="hidden" name="year" value="{{ year }}">
+            <input type="hidden" name="month" value="{{ month }}">
+            {% if branch_id %}<input type="hidden" name="branch_id" value="{{ branch_id }}">{% endif %}
+            <i class="ph ph-magnifying-glass"></i>
+            <input type="text" name="search" value="{{ search }}" placeholder="Search staff by name or employee ID...">
+        </form>
+
+        <a href="{% url 'expense_create' %}" class="btn-primary" style="padding: 10px 18px; border-radius: 10px; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-size: 0.88rem; font-weight: 600;">
+            <i class="ph-bold ph-plus"></i> New Expense Payment
+        </a>
+    </div>
+
+    <!-- Staff Payslip Table -->
+    <div style="background: white; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);">
+        <div style="overflow-x: auto;">
+            <table class="premium-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px; text-align: center;">#</th>
+                        <th>Staff Member</th>
+                        <th>Designation</th>
+                        <th>Salary Mode</th>
+                        <th style="text-align: right;">Base Pay</th>
+                        <th style="text-align: right;">Advance Paid</th>
+                        <th style="text-align: right;">Net Salary</th>
+                        <th style="text-align: right;">Salary Paid</th>
+                        <th style="text-align: right;">Balance</th>
+                        <th style="text-align: center;">Status</th>
+                        <th style="text-align: right; width: 250px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in staff_payslips %}
+                    <tr>
+                        <td style="color:#94a3b8; text-align: center;">{{ forloop.counter }}</td>
+
+                        <td>
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <div style="width:36px;height:36px;border-radius:50%;background:#eff6ff;display:flex;align-items:center;justify-content:center;color:#2563eb;font-weight:700;">
+                                    {{ row.staff.name|slice:":1"|upper }}
+                                </div>
+                                <div>
+                                    <div style="font-weight:700; color:#0f172a;">{{ row.staff.name }}</div>
+                                    <div style="font-size:0.78rem; color:#64748b;">ID: {{ row.staff.employee_id|default:"-" }} &bull; {{ row.staff.branch.name }}</div>
+                                </div>
+                            </div>
+                        </td>
+
+                        <td>
+                            <span style="font-size: 0.82rem; color: #475569;">
+                                {{ row.staff.get_designation_display }}
+                            </span>
+                        </td>
+
+                        <td>
+                            {% if row.staff.salary_mode == 'SALARIED' %}
+                                <span class="badge" style="background:#eff6ff;color:#1d4ed8;padding:4px 8px;border-radius:6px;font-size:0.78rem;font-weight:600;">
+                                    Salaried
+                                </span>
+                            {% elif row.staff.salary_mode == 'WAGE' %}
+                                <span class="badge" style="background:#fef3c7;color:#d97706;padding:4px 8px;border-radius:6px;font-size:0.78rem;font-weight:600;">
+                                    Daily Wage
+                                </span>
+                            {% else %}
+                                <span class="badge" style="background:#f0fdf4;color:#166534;padding:4px 8px;border-radius:6px;font-size:0.78rem;font-weight:600;">
+                                    Commission
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td style="text-align: right; font-weight: 600;">
+                            {{ currency_symbol }} {{ row.basic_salary|floatformat:2 }}
+                        </td>
+
+                        <td style="text-align: right; color: #d97706; font-weight: 700;">
+                            {% if row.advance_deduction > 0 %}
+                                -{{ currency_symbol }} {{ row.advance_deduction|floatformat:2 }}
+                            {% else %}
+                                <span style="color:#94a3b8;">0.00</span>
+                            {% endif %}
+                        </td>
+
+                        <td style="text-align: right; font-weight: 800; color: #0f172a;">
+                            {{ currency_symbol }} {{ row.net_salary|floatformat:2 }}
+                        </td>
+
+                        <td style="text-align: right; font-weight: 700; color: #16a34a;">
+                            {{ currency_symbol }} {{ row.paid_amount|floatformat:2 }}
+                        </td>
+
+                        <td style="text-align: right; font-weight: 800; color: {% if row.balance_amount > 0 %}#dc2626{% else %}#16a34a{% endif %};">
+                            {{ currency_symbol }} {{ row.balance_amount|floatformat:2 }}
+                        </td>
+
+                        <td style="text-align: center;">
+                            {% if row.payment_status == 'PAID' %}
+                                <span class="badge" style="background: #d1fae5; color: #065f46; font-weight: 700; padding: 4px 10px; border-radius: 8px; font-size: 0.78rem;">
+                                    <i class="ph-bold ph-check"></i> Paid
+                                </span>
+                            {% elif row.payment_status == 'PARTIAL' %}
+                                <span class="badge" style="background: #fef3c7; color: #92400e; font-weight: 700; padding: 4px 10px; border-radius: 8px; font-size: 0.78rem;">
+                                    Partial
+                                </span>
+                            {% else %}
+                                <span class="badge" style="background: #fee2e2; color: #991b1b; font-weight: 700; padding: 4px 10px; border-radius: 8px; font-size: 0.78rem;">
+                                    Unpaid
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td style="text-align: right;">
+                            <div style="display: inline-flex; gap: 6px; align-items: center; justify-content: flex-end;">
+
+                                <!-- Pay Advance Button -->
+                                <button type="button" class="btn-secondary"
+                                        style="padding: 6px 10px; font-size: 0.8rem; border-radius: 8px; color: #d97706; background: #fef3c7; border: 1px solid #fde68a;"
+                                        onclick="openPayModal('{{ row.staff.id }}', '{{ row.staff.name|escapejs }}', 'ADVANCE', '0.00')"
+                                        title="Pay Advance">
+                                    <i class="ph-bold ph-hand-coins"></i> Advance
+                                </button>
+
+                                <!-- Pay Salary Button -->
+                                <button type="button" class="btn-primary"
+                                        style="padding: 6px 12px; font-size: 0.8rem; border-radius: 8px; background: #2563eb;"
+                                        onclick="openPayModal('{{ row.staff.id }}', '{{ row.staff.name|escapejs }}', 'SALARY', '{{ row.balance_amount }}')"
+                                        title="Pay Salary">
+                                    <i class="ph-bold ph-credit-card"></i> Pay
+                                </button>
+
+                                <!-- Details View -->
+                                <a href="{% url 'staff_payslip_detail' row.staff.id year month %}"
+                                   class="btn-secondary"
+                                   style="padding: 6px 9px; font-size: 0.8rem; border-radius: 8px;"
+                                   title="View & Edit Breakdown">
+                                    <i class="ph-bold ph-eye"></i>
+                                </a>
+
+                                <!-- Download PDF Button -->
+                                <a href="{% url 'staff_payslip_pdf' row.staff.id year month %}"
+                                   target="_blank"
+                                   class="btn-secondary"
+                                   style="padding: 6px 9px; font-size: 0.8rem; border-radius: 8px; color: #dc2626;"
+                                   title="Download Payslip PDF">
+                                    <i class="ph-bold ph-file-pdf"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="11" style="text-align: center; padding: 40px; color: #94a3b8;">
+                            No staff found for this period or branch.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Quick Pay Salary / Advance Modal -->
+<div class="modal-overlay" id="quickPayModal">
+    <div class="modal-box">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; border-bottom: 1px solid #f1f5f9; padding-bottom: 14px;">
+            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px;" id="payModalTitle">
+                <i class="ph-bold ph-wallet" style="color: #2563eb;"></i>
+                Pay Salary
+            </h3>
+            <button type="button" onclick="closePayModal()" style="background: none; border: none; font-size: 1.3rem; color: #94a3b8; cursor: pointer;">
+                &times;
+            </button>
+        </div>
+
+        <form method="POST" action="{% url 'staff_payslip_quick_pay' %}" id="quickPayForm">
+            {% csrf_token %}
+            <input type="hidden" name="staff_id" id="modalStaffId">
+            <input type="hidden" name="pay_type" id="modalPayType" value="SALARY">
+            <input type="hidden" name="year" value="{{ year }}">
+            <input type="hidden" name="month" value="{{ month }}">
+
+            <div style="margin-bottom: 14px;">
+                <label style="font-size: 0.82rem; font-weight: 600; color: #64748b; margin-bottom: 4px; display: block;">Staff Member</label>
+                <div style="padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; font-weight: 700; color: #0f172a;" id="modalStaffName">
+                    -
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+                <div>
+                    <label style="font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 4px; display: block;">
+                        Amount <span style="color: #ef4444;">*</span>
+                    </label>
+                    <div style="position: relative; display: flex; align-items: center;">
+                        <span style="position: absolute; left: 12px; font-weight: 700; color: #64748b;">{{ currency_symbol }}</span>
+                        <input type="number" step="0.01" name="amount" id="modalAmount" class="form-control" style="padding-left: 32px;" required>
+                    </div>
+                </div>
+
+                <div>
+                    <label style="font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 4px; display: block;">
+                        Payment Date <span style="color: #ef4444;">*</span>
+                    </label>
+                    <input type="date" name="expense_date" id="modalExpenseDate" class="form-control" required>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+                <div>
+                    <label style="font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 4px; display: block;">
+                        Payment Mode <span style="color: #ef4444;">*</span>
+                    </label>
+                    <select name="payment_mode" id="modalPaymentMode" class="form-control" onchange="toggleModalBank(this.value)">
+                        <option value="CASH">Cash</option>
+                        <option value="BANK">Bank Account</option>
+                    </select>
+                </div>
+
+                <div id="modalBankWrapper" style="display: none;">
+                    <label style="font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 4px; display: block;">
+                        Bank Account <span style="color: #ef4444;">*</span>
+                    </label>
+                    <select name="bank_account" id="modalBankAccount" class="form-control">
+                        <option value="">-- Select Bank --</option>
+                        {% for b in bank_accounts %}
+                        <option value="{{ b.id }}">{{ b.bank_name }} - {{ b.account_number }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 4px; display: block;">Remarks / Note</label>
+                <input type="text" name="remarks" id="modalRemarks" class="form-control" placeholder="Optional notes...">
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" class="btn-secondary" onclick="closePayModal()" style="padding: 10px 18px; border-radius: 10px;">
+                    Cancel
+                </button>
+                <button type="submit" class="btn-primary" style="padding: 10px 22px; border-radius: 10px; font-weight: 700;" id="btnSubmitModal">
+                    Confirm & Record Payment
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openPayModal(staffId, staffName, payType, suggestedAmount) {
+    document.getElementById('modalStaffId').value = staffId;
+    document.getElementById('modalStaffName').textContent = staffName;
+    document.getElementById('modalPayType').value = payType;
+    
+    const titleEl = document.getElementById('payModalTitle');
+    const submitBtn = document.getElementById('btnSubmitModal');
+    const amtInput = document.getElementById('modalAmount');
+    const dateInput = document.getElementById('modalExpenseDate');
+    const remarksInput = document.getElementById('modalRemarks');
+
+    if (!dateInput.value) {
+        dateInput.value = new Date().toISOString().split('T')[0];
+    }
+
+    if (payType === 'ADVANCE') {
+        titleEl.innerHTML = '<i class="ph-bold ph-hand-coins" style="color: #d97706;"></i> Record Salary Advance';
+        submitBtn.style.background = '#d97706';
+        submitBtn.textContent = 'Record Advance';
+        amtInput.value = '';
+        remarksInput.value = `Salary advance for ${staffName} ({{ month_name }})`;
+    } else {
+        titleEl.innerHTML = '<i class="ph-bold ph-credit-card" style="color: #2563eb;"></i> Pay Monthly Salary';
+        submitBtn.style.background = '#2563eb';
+        submitBtn.textContent = 'Record Salary Payment';
+        const numAmt = parseFloat(suggestedAmount) || 0;
+        amtInput.value = numAmt > 0 ? numAmt.toFixed(2) : '';
+        remarksInput.value = `Salary payment for ${staffName} ({{ month_name }})`;
+    }
+
+    document.getElementById('quickPayModal').style.display = 'flex';
+}
+
+function closePayModal() {
+    document.getElementById('quickPayModal').style.display = 'none';
+}
+
+function toggleModalBank(mode) {
+    const bankWrap = document.getElementById('modalBankWrapper');
+    bankWrap.style.display = (mode === 'BANK') ? 'block' : 'none';
+}
+</script>
+
+{% endblock %}

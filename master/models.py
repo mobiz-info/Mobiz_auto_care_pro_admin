@@ -113,17 +113,18 @@ class ExpenseHead(BaseModel):
     @property
     def is_deletable(self):
         if self.name:
-            return self.name.strip().lower() not in ['salary', 'purchase']
+            normalized = self.name.strip().lower().replace('&', 'and')
+            return normalized not in ['salary', 'salary and wages', 'salary advance', 'purchase']
         return True
 
     def delete(self, *args, **kwargs):
         if not self.is_deletable:
-            raise PermissionError("Salary and Purchase expense heads cannot be deleted.")
+            raise PermissionError("Salary, Salary Advance, and Purchase expense heads cannot be deleted.")
         super().delete(*args, **kwargs)
 
     def save(self, *args, **kwargs):
         if self.is_deleted and not self.is_deletable:
-            raise PermissionError("Salary and Purchase expense heads cannot be deleted.")
+            raise PermissionError("Salary, Salary Advance, and Purchase expense heads cannot be deleted.")
         super().save(*args, **kwargs)
     
 class Expense(BaseModel):
@@ -300,6 +301,32 @@ class ExpenseEntry(BaseModel):
         max_digits=10,
         decimal_places=2,
         default=1.00
+    )
+
+    # Staff Salary & Advance linkage
+    staff = models.ForeignKey(
+        'client_management.Staff',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='expense_entries'
+    )
+    SALARY_TYPE_SALARY = 'SALARY'
+    SALARY_TYPE_ADVANCE = 'ADVANCE'
+    SALARY_TYPE_CHOICES = (
+        (SALARY_TYPE_SALARY, 'Salary'),
+        (SALARY_TYPE_ADVANCE, 'Salary Advance'),
+    )
+    salary_payment_type = models.CharField(
+        max_length=20,
+        choices=SALARY_TYPE_CHOICES,
+        blank=True,
+        null=True
+    )
+    salary_month = models.DateField(
+        blank=True,
+        null=True,
+        help_text="Target month for salary e.g. 2026-11-01"
     )
 
 

@@ -930,6 +930,556 @@ def staff_delete(request, id):
     return redirect('staff_list')
 
 
+# -------------------------------------------------------------------------
+# Staff Payslips & Salary Management
+# -------------------------------------------------------------------------
+import calendar
+from datetime import date as d_date, datetime as d_datetime
+from decimal import Decimal
+
+def _get_staff_payslip_data(company, staff, year, month):
+    """Calculates/updates monthly payslip data for a staff member."""
+    from master.models import ExpenseEntry, ExpenseHead, Expense
+    month_start = d_date(year, month, 1)
+    days_in_month = calendar.monthrange(year, month)[1]
+    month_end = d_date(year, month, days_in_month)
+
+    # 1. Check existing payslip record
+    payslip = StaffPayslip.objects.filter(
+        staff=staff,
+        salary_month=month_start,
+        is_deleted=False
+    ).first()
+
+    # 2. Leave days from StaffLeave
+    leaves_qs = StaffLeave.objects.filter(
+        staff=staff,
+        status='APPROVED',
+        is_deleted=False,
+        start_date__lte=month_end,
+        end_date__gte=month_start
+    )
+    total_leave_days = Decimal('0.0')
+    for l in leaves_qs:
+        s = max(l.start_date, month_start)
+        e = min(l.end_date, month_end)
+        days = (e - s).days + 1
+        total_leave_days += Decimal(str(days))
+
+    total_days = Decimal(str(days_in_month))
+    if payslip:
+        working_days = payslip.working_days
+        leave_days = payslip.leave_days
+        basic_salary = payslip.basic_salary
+        daily_wage_rate = payslip.daily_wage_rate
+        allowances = payslip.allowances
+        commissions = payslip.commissions
+        other_deductions = payslip.other_deductions
+        remarks = payslip.remarks or ''
+    else:
+        leave_days = total_leave_days
+        working_days = max(Decimal('0.0'), total_days - leave_days)
+        if staff.salary_mode == Staff.SALARY_MODE_WAGE:
+            daily_wage_rate = staff.daily_wage or Decimal('0.00')
+            basic_salary = daily_wage_rate * working_days
+        else:
+            basic_salary = staff.monthly_salary or Decimal('0.00')
+            daily_wage_rate = (basic_salary / total_days) if total_days > 0 else Decimal('0.00')
+        allowances = Decimal('0.00')
+        commissions = Decimal('0.00')
+        other_deductions = Decimal('0.00')
+        remarks = ''
+
+    # 3. Advance entries
+    adv_qs = ExpenseEntry.objects.filter(
+        company=company,
+        staff=staff,
+        is_deleted=False
+    ).filter(
+        Q(salary_payment_type='ADVANCE', salary_month=month_start) |
+        Q(salary_payment_type='ADVANCE', expense_date__range=(month_start, month_end)) |
+        Q(expense__expense_head__name__iexact='Salary Advance', expense_date__range=(month_start, month_end))
+    ).distinct().order_by('expense_date')
+
+    advances_list = []
+    total_advance = Decimal('0.00')
+    for adv in adv_qs:
+        amt = adv.paid_amount if (adv.paid_amount is not None and adv.paid_amount > 0) else adv.amount
+        amt = amt or Decimal('0.00')
+        total_advance += amt
+        advances_list.append({
+            'id': str(adv.id),
+            'auto_id': adv.auto_id,
+            'date': adv.expense_date,
+            'amount': amt,
+            'mode': adv.payment_mode,
+            'bank': adv.bank_account.bank_name if adv.bank_account else '',
+            'remarks': adv.remarks or '',
+        })
+
+    # 4. Salary payments made
+    sal_qs = ExpenseEntry.objects.filter(
+        company=company,
+        staff=staff,
+        is_deleted=False
+    ).filter(
+        Q(salary_payment_type='SALARY', salary_month=month_start) |
+        (
+            Q(expense__expense_head__name__iexact='Salary & Wages') &
+            Q(expense_date__range=(month_start, month_end)) &
+            ~Q(id__in=[a['id'] for a in advances_list]) &
+            (Q(salary_month=month_start) | Q(salary_month__isnull=True))
+        )
+    ).distinct().order_by('expense_date')
+
+    payments_list = []
+    total_paid = Decimal('0.00')
+    for sal in sal_qs:
+        amt = sal.paid_amount if (sal.paid_amount is not None and sal.paid_amount > 0) else sal.amount
+        amt = amt or Decimal('0.00')
+        total_paid += amt
+        payments_list.append({
+            'id': str(sal.id),
+            'auto_id': sal.auto_id,
+            'date': sal.expense_date,
+            'amount': amt,
+            'mode': sal.payment_mode,
+            'bank': sal.bank_account.bank_name if sal.bank_account else '',
+            'remarks': sal.remarks or '',
+        })
+
+    # 5. Calculations
+    gross_salary = basic_salary + allowances + commissions
+    total_deductions = total_advance + other_deductions
+    net_salary = max(Decimal('0.00'), gross_salary - total_deductions)
+    balance_amount = max(Decimal('0.00'), net_salary - total_paid)
+
+    if net_salary > 0 and total_paid >= net_salary:
+        payment_status = 'PAID'
+    elif total_paid > 0:
+        payment_status = 'PARTIAL'
+    else:
+        payment_status = 'UNPAID'
+
+    # Auto-update payslip record if exists
+    if payslip:
+        payslip.gross_salary = gross_salary
+        payslip.advance_deduction = total_advance
+        payslip.total_deductions = total_deductions
+        payslip.net_salary = net_salary
+        payslip.paid_amount = total_paid
+        payslip.balance_amount = balance_amount
+        payslip.payment_status = payment_status
+        payslip.save()
+
+    return {
+        'payslip': payslip,
+        'staff': staff,
+        'salary_month': month_start,
+        'year': year,
+        'month': month,
+        'month_name': month_start.strftime('%B %Y'),
+        'total_days': total_days,
+        'working_days': working_days,
+        'leave_days': leave_days,
+        'daily_wage_rate': daily_wage_rate,
+        'basic_salary': basic_salary,
+        'allowances': allowances,
+        'commissions': commissions,
+        'gross_salary': gross_salary,
+        'advance_deduction': total_advance,
+        'other_deductions': other_deductions,
+        'total_deductions': total_deductions,
+        'net_salary': net_salary,
+        'paid_amount': total_paid,
+        'balance_amount': balance_amount,
+        'payment_status': payment_status,
+        'advances': advances_list,
+        'payments': payments_list,
+        'remarks': remarks,
+    }
+
+
+@login_required
+def staff_payslip_list(request):
+    try:
+        company = request.user.profile.company
+    except AttributeError:
+        messages.error(request, "You are not associated with any company.")
+        return redirect('dashboard')
+
+    today = now().date()
+    try:
+        year = int(request.GET.get('year', today.year))
+    except (ValueError, TypeError):
+        year = today.year
+    try:
+        month = int(request.GET.get('month', today.month))
+    except (ValueError, TypeError):
+        month = today.month
+
+    if month < 1:
+        month = 1
+    elif month > 12:
+        month = 12
+
+    # Branch filtering
+    role = getattr(getattr(request.user, 'profile', None), 'role', None)
+    role_name = role.name if role else None
+    branches = None
+    managed_branch = None
+
+    if role_name == 'COMPANY_ADMIN':
+        branches = Branch.objects.filter(company=company, is_deleted=False).order_by('name')
+        branch_id = request.GET.get('branch_id', '').strip()
+    else:
+        managed_branch = getattr(request.user, 'managed_branch', None)
+        if not managed_branch and hasattr(request.user, 'profile') and request.user.profile.company:
+            managed_branch = Branch.objects.filter(company=company, is_deleted=False).first()
+        branch_id = str(managed_branch.id) if managed_branch else ''
+
+    staff_qs = Staff.objects.filter(company=company, is_deleted=False).select_related('branch')
+    if branch_id and branch_id.lower() != 'all':
+        staff_qs = staff_qs.filter(branch_id=branch_id)
+
+    search = request.GET.get('search', '').strip()
+    if search:
+        staff_qs = staff_qs.filter(Q(name__icontains=search) | Q(employee_id__icontains=search))
+
+    staff_qs = staff_qs.order_by('name')
+
+    currency_symbol = '₹'
+    if company and getattr(company, 'country', None) and company.country.currency_symbol:
+        currency_symbol = company.country.currency_symbol
+
+    # Calculate payslip data for each staff member
+    staff_payslips = []
+    tot_gross = Decimal('0.00')
+    tot_advance = Decimal('0.00')
+    tot_net = Decimal('0.00')
+    tot_paid = Decimal('0.00')
+    tot_balance = Decimal('0.00')
+
+    for st in staff_qs:
+        data = _get_staff_payslip_data(company, st, year, month)
+        staff_payslips.append(data)
+        tot_gross += data['gross_salary']
+        tot_advance += data['advance_deduction']
+        tot_net += data['net_salary']
+        tot_paid += data['paid_amount']
+        tot_balance += data['balance_amount']
+
+    # Month navigation helpers
+    prev_month = month - 1 if month > 1 else 12
+    prev_year = year if month > 1 else year - 1
+    next_month = month + 1 if month < 12 else 1
+    next_year = year if month < 12 else year + 1
+
+    from master.models import BankAccount
+    bank_accounts = BankAccount.objects.filter(company=company, is_active=True, is_deleted=False).order_by('bank_name')
+
+    current_month_date = d_date(year, month, 1)
+
+    return render(request, 'staff/payslip_list.html', {
+        'title': 'Staff Payslips & Payroll',
+        'staff_payslips': staff_payslips,
+        'year': year,
+        'month': month,
+        'current_month_date': current_month_date,
+        'month_name': current_month_date.strftime('%B %Y'),
+        'prev_month': prev_month,
+        'prev_year': prev_year,
+        'next_month': next_month,
+        'next_year': next_year,
+        'branches': branches,
+        'branch_id': branch_id,
+        'search': search,
+        'currency_symbol': currency_symbol,
+        'bank_accounts': bank_accounts,
+        'tot_gross': tot_gross,
+        'tot_advance': tot_advance,
+        'tot_net': tot_net,
+        'tot_paid': tot_paid,
+        'tot_balance': tot_balance,
+        'years_list': list(range(today.year - 2, today.year + 3)),
+        'months_list': [(m, d_date(2000, m, 1).strftime('%B')) for m in range(1, 13)],
+    })
+
+
+@login_required
+def staff_payslip_quick_pay(request):
+    """Processes quick salary or advance payment via ExpenseEntry."""
+    if request.method != 'POST':
+        return redirect('staff_payslip_list')
+
+    try:
+        company = request.user.profile.company
+    except AttributeError:
+        messages.error(request, "You are not associated with any company.")
+        return redirect('dashboard')
+
+    staff_id = request.POST.get('staff_id')
+    pay_type = request.POST.get('pay_type', 'SALARY').upper() # 'SALARY' or 'ADVANCE'
+    amount_raw = request.POST.get('amount')
+    payment_mode = request.POST.get('payment_mode', 'CASH').upper()
+    bank_account_id = request.POST.get('bank_account') or None
+    expense_date = request.POST.get('expense_date') or now().date().strftime('%Y-%m-%d')
+    remarks = request.POST.get('remarks', '').strip()
+
+    try:
+        year = int(request.POST.get('year', now().year))
+        month = int(request.POST.get('month', now().month))
+    except (ValueError, TypeError):
+        year, month = now().year, now().month
+
+    staff = get_object_or_404(Staff, id=staff_id, company=company, is_deleted=False)
+
+    try:
+        amount = Decimal(str(amount_raw))
+        if amount <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        messages.error(request, "Please enter a valid positive amount.")
+        return redirect(f"{reverse('staff_payslip_list')}?year={year}&month={month}")
+
+    from master.models import ExpenseHead, Expense, ExpenseEntry, BankAccount
+
+    # Determine expense head
+    if pay_type == 'ADVANCE':
+        head_name = 'Salary Advance'
+        exp_item_name = f"{staff.name} - Advance"
+    else:
+        head_name = 'Salary & Wages'
+        exp_item_name = f"{staff.name} - Salary"
+
+    head = ExpenseHead.objects.filter(
+        Q(company=company) | Q(company__isnull=True),
+        name__iexact=head_name,
+        is_deleted=False
+    ).first()
+    if not head:
+        head = ExpenseHead.objects.create(
+            name=head_name,
+            company=company,
+            auto_id=get_auto_id(ExpenseHead),
+            creator=request.user
+        )
+
+    expense, _ = Expense.objects.get_or_create(
+        expense_head=head,
+        name=staff.name,
+        defaults={
+            'auto_id': get_auto_id(Expense),
+            'creator': request.user
+        }
+    )
+
+    bank_account = None
+    if payment_mode == 'BANK':
+        if not bank_account_id:
+            messages.error(request, "Please select a bank account when paying via Bank.")
+            return redirect(f"{reverse('staff_payslip_list')}?year={year}&month={month}")
+        bank_account = get_object_or_404(BankAccount, id=bank_account_id, company=company, is_deleted=False)
+        bank_account.current_balance = Decimal(str(bank_account.current_balance)) - amount
+        bank_account.save()
+    else:
+        payment_mode = 'CASH'
+
+    salary_month_date = d_date(year, month, 1)
+
+    ExpenseEntry.objects.create(
+        auto_id=get_auto_id(ExpenseEntry),
+        creator=request.user,
+        company=company,
+        branch=staff.branch,
+        expense=expense,
+        amount=amount,
+        paid_amount=amount,
+        payment_mode=payment_mode,
+        bank_account=bank_account,
+        expense_date=expense_date,
+        remarks=remarks or f"{head_name} for {salary_month_date.strftime('%B %Y')}",
+        staff=staff,
+        salary_payment_type=pay_type,
+        salary_month=salary_month_date
+    )
+
+    # Sync payslip
+    _get_staff_payslip_data(company, staff, year, month)
+
+    messages.success(request, f"Successfully recorded {head_name} of {amount} for {staff.name}.")
+    return redirect(f"{reverse('staff_payslip_list')}?year={year}&month={month}")
+
+
+@login_required
+def staff_payslip_detail(request, staff_id, year, month):
+    try:
+        company = request.user.profile.company
+    except AttributeError:
+        messages.error(request, "You are not associated with any company.")
+        return redirect('dashboard')
+
+    staff = get_object_or_404(Staff, id=staff_id, company=company, is_deleted=False)
+    data = _get_staff_payslip_data(company, staff, year, month)
+
+    if request.method == 'POST':
+        allowances_raw = request.POST.get('allowances', '0.00')
+        other_deductions_raw = request.POST.get('other_deductions', '0.00')
+        working_days_raw = request.POST.get('working_days', str(data['working_days']))
+        leave_days_raw = request.POST.get('leave_days', str(data['leave_days']))
+        remarks = request.POST.get('remarks', '').strip()
+
+        try:
+            allowances = Decimal(str(allowances_raw))
+        except Exception:
+            allowances = Decimal('0.00')
+        try:
+            other_deductions = Decimal(str(other_deductions_raw))
+        except Exception:
+            other_deductions = Decimal('0.00')
+        try:
+            working_days = Decimal(str(working_days_raw))
+        except Exception:
+            working_days = data['working_days']
+        try:
+            leave_days = Decimal(str(leave_days_raw))
+        except Exception:
+            leave_days = data['leave_days']
+
+        month_start = d_date(year, month, 1)
+        payslip, created = StaffPayslip.objects.get_or_create(
+            staff=staff,
+            salary_month=month_start,
+            defaults={
+                'auto_id': get_auto_id(StaffPayslip),
+                'creator': request.user,
+                'company': company,
+                'branch': staff.branch,
+                'payslip_number': f"PAY-{year}{month:02d}-{staff.employee_id or staff.id.hex[:6].upper()}",
+                'salary_mode': staff.salary_mode,
+                'basic_salary': data['basic_salary'],
+                'daily_wage_rate': data['daily_wage_rate'],
+                'total_days': calendar.monthrange(year, month)[1],
+            }
+        )
+
+        payslip.working_days = working_days
+        payslip.leave_days = leave_days
+        payslip.allowances = allowances
+        payslip.other_deductions = other_deductions
+        payslip.remarks = remarks
+        payslip.updater = request.user
+
+        # Re-calc basic if wage mode
+        if staff.salary_mode == Staff.SALARY_MODE_WAGE:
+            payslip.basic_salary = payslip.daily_wage_rate * working_days
+
+        payslip.gross_salary = payslip.basic_salary + allowances + data['commissions']
+        payslip.advance_deduction = data['advance_deduction']
+        payslip.total_deductions = data['advance_deduction'] + other_deductions
+        payslip.net_salary = max(Decimal('0.00'), payslip.gross_salary - payslip.total_deductions)
+        payslip.paid_amount = data['paid_amount']
+        payslip.balance_amount = max(Decimal('0.00'), payslip.net_salary - data['paid_amount'])
+
+        if payslip.net_salary > 0 and payslip.paid_amount >= payslip.net_salary:
+            payslip.payment_status = 'PAID'
+        elif payslip.paid_amount > 0:
+            payslip.payment_status = 'PARTIAL'
+        else:
+            payslip.payment_status = 'UNPAID'
+
+        payslip.save()
+        messages.success(request, f"Payslip updated successfully for {staff.name}.")
+        return redirect('staff_payslip_detail', staff_id=staff.id, year=year, month=month)
+
+    currency_symbol = '₹'
+    if company and getattr(company, 'country', None) and company.country.currency_symbol:
+        currency_symbol = company.country.currency_symbol
+
+    from master.models import BankAccount
+    bank_accounts = BankAccount.objects.filter(company=company, is_active=True, is_deleted=False).order_by('bank_name')
+
+    context = {
+        **data,
+        'title': f"Payslip - {staff.name} ({data['month_name']})",
+        'currency_symbol': currency_symbol,
+        'bank_accounts': bank_accounts,
+    }
+    return render(request, 'staff/payslip_detail.html', context)
+
+
+@login_required
+def staff_payslip_pdf(request, staff_id, year, month):
+    import os, sys
+    if sys.platform == 'darwin':
+        os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = '/opt/homebrew/lib:' + os.environ.get('DYLD_FALLBACK_LIBRARY_PATH', '')
+    from weasyprint import HTML
+    from django.template.loader import render_to_string
+
+    try:
+        company = request.user.profile.company
+    except AttributeError:
+        messages.error(request, "You are not associated with any company.")
+        return redirect('dashboard')
+
+    staff = get_object_or_404(Staff, id=staff_id, company=company, is_deleted=False)
+    data = _get_staff_payslip_data(company, staff, year, month)
+
+    # Ensure a saved payslip record exists
+    month_start = d_date(year, month, 1)
+    payslip = data['payslip']
+    if not payslip:
+        payslip = StaffPayslip.objects.create(
+            auto_id=get_auto_id(StaffPayslip),
+            creator=request.user,
+            company=company,
+            branch=staff.branch,
+            staff=staff,
+            payslip_number=f"PAY-{year}{month:02d}-{staff.employee_id or staff.id.hex[:6].upper()}",
+            salary_month=month_start,
+            salary_mode=staff.salary_mode,
+            basic_salary=data['basic_salary'],
+            daily_wage_rate=data['daily_wage_rate'],
+            total_days=int(data['total_days']),
+            working_days=data['working_days'],
+            leave_days=data['leave_days'],
+            allowances=data['allowances'],
+            commissions=data['commissions'],
+            gross_salary=data['gross_salary'],
+            advance_deduction=data['advance_deduction'],
+            other_deductions=data['other_deductions'],
+            total_deductions=data['total_deductions'],
+            net_salary=data['net_salary'],
+            paid_amount=data['paid_amount'],
+            balance_amount=data['balance_amount'],
+            payment_status=data['payment_status'],
+            remarks=data['remarks'],
+        )
+        data['payslip'] = payslip
+
+    currency_symbol = '₹'
+    if company and getattr(company, 'country', None) and company.country.currency_symbol:
+        currency_symbol = company.country.currency_symbol
+
+    context = {
+        **data,
+        'company': company,
+        'branch': staff.branch,
+        'currency_symbol': currency_symbol,
+        'generated_date': now().date().strftime('%d %b %Y'),
+    }
+
+    html_content = render_to_string('staff/payslip_pdf.html', context)
+    pdf = HTML(string=html_content).write_pdf()
+
+    clean_name = ''.join(c for c in staff.name if c.isalnum() or c in ' _-').strip().replace(' ', '_')
+    filename = f"Payslip_{clean_name}_{year}_{month:02d}.pdf"
+
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
+
+
 @login_required
 def customer_type_list(request):
     data = CustomerType.objects.filter(is_deleted=False)

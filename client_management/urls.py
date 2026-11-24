@@ -40,6 +40,12 @@ urlpatterns = [
     path('staff/salary/', views.staff_salary_list, name='staff_salary_list'),
     path('staff/salary/edit/<uuid:id>/', views.staff_salary_edit, name='staff_salary_edit'),
 
+    # Staff Payslips
+    path('staff/payslips/', views.staff_payslip_list, name='staff_payslip_list'),
+    path('staff/payslips/pay/', views.staff_payslip_quick_pay, name='staff_payslip_quick_pay'),
+    path('staff/payslips/<uuid:staff_id>/<int:year>/<int:month>/', views.staff_payslip_detail, name='staff_payslip_detail'),
+    path('staff/payslips/<uuid:staff_id>/<int:year>/<int:month>/pdf/', views.staff_payslip_pdf, name='staff_payslip_pdf'),
+
     # Staff Leaves
     path('staff/leaves/', views.staff_leave_list, name='staff_leave_list'),
     path('staff/leaves/create/', views.staff_leave_create, name='staff_leave_create'),

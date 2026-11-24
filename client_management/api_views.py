@@ -5055,7 +5055,7 @@ def api_get_expense_items_by_head(request):
         normalized_head_name = ' '.join(
             head.name.strip().lower().replace('&', 'and').split()
         )
-        if normalized_head_name == 'salary and wages':
+        if normalized_head_name in {'salary and wages', 'salary', 'salary advance'}:
             from client_management.models import Branch, Staff
 
             staff_qs = Staff.objects.filter(
@@ -5075,16 +5075,31 @@ def api_get_expense_items_by_head(request):
                     )
                 )
 
-            staff_names = sorted({
-                staff.name.strip()
-                for staff in staff_qs
-                if staff.name and staff.name.strip()
-            }, key=str.casefold)
+            staff_items = []
+            staff_names = []
+            for staff in staff_qs:
+                if staff.name and staff.name.strip():
+                    name_str = staff.name.strip()
+                    if name_str not in staff_names:
+                        staff_names.append(name_str)
+                    staff_items.append({
+                        'id': str(staff.id),
+                        'name': name_str,
+                        'employee_id': staff.employee_id or '',
+                        'salary_mode': staff.salary_mode,
+                        'monthly_salary': float(staff.monthly_salary or 0),
+                        'daily_wage': float(staff.daily_wage or 0),
+                    })
+
+            staff_names = sorted(staff_names, key=str.casefold)
             return JsonResponse({
                 'success': True,
                 'expense_head_id': str(head.id),
                 'expense_head_name': head.name,
                 'items': staff_names,
+                'staffs': staff_items,
+                'is_salary_head': True,
+                'salary_type': 'ADVANCE' if normalized_head_name == 'salary advance' else 'SALARY',
             })
         
         items_set = set()

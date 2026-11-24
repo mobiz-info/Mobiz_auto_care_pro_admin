@@ -32,6 +32,8 @@ DEFAULT_EXPENSE_HEADS_ITEMS = {
         "Wage",
         "Commission",
         "Settlement",
+    ],
+    "Salary Advance": [
         "Salary advance",
     ],
     "Stationery & Office Supplies": [
@@ -124,37 +126,37 @@ def seed_expense_masters():
 
     for head_name, items in DEFAULT_EXPENSE_HEADS_ITEMS.items():
         # Create global master (company=None)
-        global_head, created = ExpenseHead.objects.get_or_create(
-            name=head_name,
-            company=None,
-            is_deleted=False,
-            defaults={'auto_id': get_auto_id(ExpenseHead)}
-        )
-        if created:
+        global_head = ExpenseHead.objects.filter(name=head_name, company=None, is_deleted=False).first()
+        if not global_head:
+            global_head = ExpenseHead.objects.create(
+                name=head_name,
+                company=None,
+                auto_id=get_auto_id(ExpenseHead)
+            )
             head_count += 1
 
         # Also ensure company-specific heads exist if any exist
         heads_to_attach = [global_head]
         for comp in companies:
-            comp_head, c_created = ExpenseHead.objects.get_or_create(
-                name=head_name,
-                company=comp,
-                is_deleted=False,
-                defaults={'auto_id': get_auto_id(ExpenseHead)}
-            )
-            if c_created:
+            comp_head = ExpenseHead.objects.filter(name=head_name, company=comp, is_deleted=False).first()
+            if not comp_head:
+                comp_head = ExpenseHead.objects.create(
+                    name=head_name,
+                    company=comp,
+                    auto_id=get_auto_id(ExpenseHead)
+                )
                 head_count += 1
             heads_to_attach.append(comp_head)
 
         for item_name in items:
             for h in heads_to_attach:
-                item, i_created = Expense.objects.get_or_create(
-                    expense_head=h,
-                    name=item_name,
-                    is_deleted=False,
-                    defaults={'auto_id': get_auto_id(Expense)}
-                )
-                if i_created:
+                item = Expense.objects.filter(expense_head=h, name=item_name, is_deleted=False).first()
+                if not item:
+                    Expense.objects.create(
+                        expense_head=h,
+                        name=item_name,
+                        auto_id=get_auto_id(Expense)
+                    )
                     item_count += 1
 
     print(f"SUCCESS: Created {head_count} Expense Heads and {item_count} Expense Items across all branches!")

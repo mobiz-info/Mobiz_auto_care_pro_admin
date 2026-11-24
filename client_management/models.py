@@ -851,6 +851,51 @@ class LeadFollowUp(BaseModel):
         ordering = ['-date_added']
 
 
+class StaffPayslip(BaseModel):
+    STATUS_CHOICES = (
+        ('UNPAID', 'Unpaid'),
+        ('PARTIAL', 'Partially Paid'),
+        ('PAID', 'Paid'),
+    )
+
+    company = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='payslips')
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='payslips')
+    staff = models.ForeignKey(Staff, on_delete=models.CASCADE, related_name='payslips')
+
+    payslip_number = models.CharField(max_length=50, unique=True)
+    salary_month = models.DateField(help_text="First day of month e.g. 2026-11-01")
+
+    salary_mode = models.CharField(max_length=20, choices=Staff.SALARY_MODE_CHOICES, default=Staff.SALARY_MODE_SALARIED)
+    basic_salary = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    daily_wage_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    total_days = models.PositiveSmallIntegerField(default=30)
+    working_days = models.DecimalField(max_digits=5, decimal_places=1, default=0.0)
+    leave_days = models.DecimalField(max_digits=5, decimal_places=1, default=0.0)
+
+    allowances = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Overtime, bonus, incentives")
+    commissions = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    gross_salary = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    advance_deduction = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    other_deductions = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    total_deductions = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    net_salary = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    balance_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    payment_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='UNPAID')
+    payment_date = models.DateField(blank=True, null=True)
+    remarks = models.TextField(blank=True, null=True)
+
+    class Meta:
+        unique_together = ('staff', 'salary_month')
+        ordering = ['-salary_month', 'staff__name']
+
+    def __str__(self):
+        return f"{self.payslip_number} - {self.staff.name} ({self.salary_month.strftime('%b %Y')})"
+
+
 
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -860,7 +905,7 @@ def create_default_expense_heads(sender, instance, created, **kwargs):
     if created:
         from master.models import ExpenseHead
         from core.functions import get_auto_id
-        for name in ['Purchase', 'Salary']:
+        for name in ['Purchase', 'Salary & Wages', 'Salary Advance']:
             ExpenseHead.objects.get_or_create(
                 company=instance,
                 name=name,

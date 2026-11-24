@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Payslip - {{ staff.name }} - {{ month_name }}</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 12mm 14mm 12mm 14mm;
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 7.5pt;
+                color: #64748b;
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            }
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 8.5pt;
+            color: #000000;
+            line-height: 1.35;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Header Table */
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 8px;
+        }
+
+        .header-table td {
+            vertical-align: top;
+        }
+
+        .company-header-box {
+            text-align: right;
+            padding-left: 10px;
+        }
+
+        .company-logo {
+            max-height: 48px;
+            max-width: 160px;
+            object-fit: contain;
+            margin-bottom: 4px;
+        }
+
+        .company-header-title {
+            font-size: 13pt;
+            font-weight: 800;
+            color: #000000;
+            margin-bottom: 2px;
+            letter-spacing: -0.2px;
+        }
+
+        .company-header-meta {
+            font-size: 8pt;
+            color: #333333;
+            line-height: 1.3;
+        }
+
+        /* Title */
+        .payslip-title-section {
+            text-align: center;
+            margin: 8px 0 12px 0;
+            padding: 6px 0;
+            border-top: 1.5px solid #000000;
+            border-bottom: 1.5px solid #000000;
+            background: #f8fafc;
+        }
+
+        .payslip-main-title {
+            font-size: 13pt;
+            font-weight: 900;
+            color: #000000;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .payslip-period-sub {
+            font-size: 8.5pt;
+            color: #333333;
+            margin-top: 2px;
+        }
+
+        /* Info Grid / Table */
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 12px;
+            border: 1px solid #000000;
+        }
+
+        .info-table td {
+            padding: 5px 8px;
+            border: 1px solid #cccccc;
+            font-size: 8pt;
+            vertical-align: top;
+        }
+
+        .info-label {
+            font-weight: 700;
+            color: #444444;
+            width: 25%;
+            background: #f8fafc;
+        }
+
+        .info-val {
+            font-weight: 600;
+            color: #000000;
+            width: 25%;
+        }
+
+        /* Dual Column Earnings & Deductions Table */
+        .breakdown-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 12px;
+            border: 1.5px solid #000000;
+        }
+
+        .breakdown-table th {
+            background-color: #f1f5f9;
+            color: #000000;
+            font-size: 8.5pt;
+            font-weight: 800;
+            text-transform: uppercase;
+            padding: 6px 10px;
+            border: 1px solid #000000;
+        }
+
+        .breakdown-table td {
+            padding: 5px 10px;
+            border: 1px solid #cccccc;
+            font-size: 8pt;
+            vertical-align: top;
+        }
+
+        .breakdown-subtable {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .breakdown-subtable td {
+            border: none;
+            padding: 4px 0;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+
+        .breakdown-subtable tr:last-child td {
+            border-bottom: none;
+        }
+
+        .total-row td {
+            background-color: #f8fafc !important;
+            font-weight: 800;
+            font-size: 8.5pt;
+            border-top: 1.5px solid #000000 !important;
+            color: #000000;
+            padding: 6px 10px;
+        }
+
+        /* Net Pay Box */
+        .net-pay-box {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 12px;
+            border: 2px solid #000000;
+            background: #f8fafc;
+        }
+
+        .net-pay-box td {
+            padding: 10px 14px;
+            vertical-align: middle;
+        }
+
+        .net-title {
+            font-size: 9.5pt;
+            font-weight: 800;
+            color: #000000;
+            text-transform: uppercase;
+        }
+
+        .net-amount {
+            font-size: 15pt;
+            font-weight: 900;
+            color: #000000;
+            text-align: right;
+        }
+
+        /* History Table */
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+            border: 1px solid #000000;
+        }
+
+        .history-table th {
+            background-color: #f1f5f9;
+            color: #000000;
+            font-size: 7.5pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 4px 6px;
+            border: 1px solid #000000;
+            text-align: left;
+        }
+
+        .history-table td {
+            padding: 4px 6px;
+            border: 1px solid #cccccc;
+            font-size: 7.5pt;
+        }
+
+        /* Footer & Signatures */
+        .footer-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 24px;
+            page-break-inside: avoid;
+        }
+
+        .footer-table td {
+            vertical-align: bottom;
+            width: 50%;
+        }
+
+        .signature-box {
+            text-align: center;
+        }
+
+        .signature-line {
+            border-top: 1px solid #000000;
+            width: 170px;
+            margin: 0 auto;
+            padding-top: 4px;
+            font-size: 7.5pt;
+            font-weight: 700;
+            color: #000000;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <table class="header-table">
+        <tr>
+            <td style="width: 50%;">
+                <div style="font-size: 13pt; font-weight: 900; color: #000000;">
+                    {{ company.name|default:"Mobiz Autocare Pro" }}
+                </div>
+                <div class="company-header-meta">
+                    {% if company.address %}{{ company.address }}<br>{% endif %}
+                    {% if company.trn %}<strong>TRN / Tax ID:</strong> {{ company.trn }}<br>{% endif %}
+                    {% if branch.name %}<strong>Branch:</strong> {{ branch.name }} &bull; {% endif %}
+                    {% if company.phone %}<strong>Ph:</strong> {{ company.phone }}{% endif %}
+                </div>
+            </td>
+            <td style="width: 50%; text-align: right;" class="company-header-box">
+                {% if company.logo_color %}
+                <img src="{{ company.logo_color.url }}" alt="Company Logo" class="company-logo">
+                {% elif company.logo_bw %}
+                <img src="{{ company.logo_bw.url }}" alt="Company Logo" class="company-logo">
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+
+    <!-- Title -->
+    <div class="payslip-title-section">
+        <div class="payslip-main-title">SALARY PAYSLIP</div>
+        <div class="payslip-period-sub">
+            Pay Period: <strong>{{ month_name }}</strong> &nbsp;|&nbsp;
+            Payslip No: <strong>{{ payslip.payslip_number|default:"-" }}</strong> &nbsp;|&nbsp;
+            Generated On: <strong>{{ generated_date }}</strong>
+        </div>
+    </div>
+
+    <!-- Employee Details Table -->
+    <table class="info-table">
+        <tr>
+            <td class="info-label">Employee Name:</td>
+            <td class="info-val"><strong>{{ staff.name }}</strong></td>
+            <td class="info-label">Employee ID:</td>
+            <td class="info-val">{{ staff.employee_id|default:"-" }}</td>
+        </tr>
+        <tr>
+            <td class="info-label">Designation:</td>
+            <td class="info-val">{{ staff.get_designation_display }}</td>
+            <td class="info-label">Branch:</td>
+            <td class="info-val">{{ staff.branch.name }}</td>
+        </tr>
+        <tr>
+            <td class="info-label">Salary Mode:</td>
+            <td class="info-val">
+                {% if staff.salary_mode == 'SALARIED' %}Monthly Salaried
+                {% elif staff.salary_mode == 'WAGE' %}Daily Wage
+                {% else %}Commissioned{% endif %}
+            </td>
+            <td class="info-label">Working Days:</td>
+            <td class="info-val">
+                <strong>{{ working_days|floatformat:1 }}</strong> / {{ total_days|floatformat:0 }} Days
+                {% if leave_days > 0 %}<span style="color: #666666; font-size: 7.5pt;">({{ leave_days|floatformat:1 }} Leaves)</span>{% endif %}
+            </td>
+        </tr>
+    </table>
+
+    <!-- Breakdown Table: Earnings vs Deductions -->
+    <table class="breakdown-table">
+        <thead>
+            <tr>
+                <th style="width: 50%;">Earnings (Income)</th>
+                <th style="width: 50%;">Deductions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <!-- Left: Earnings -->
+                <td style="padding: 8px 12px;">
+                    <table class="breakdown-subtable">
+                        <tr>
+                            <td>Basic Salary / Wages:</td>
+                            <td style="text-align: right; font-weight: 700;">
+                                {{ currency_symbol }} {{ basic_salary|floatformat:2 }}
+                            </td>
+                        </tr>
+                        {% if staff.salary_mode == 'WAGE' %}
+                        <tr>
+                            <td style="font-size: 7.5pt; color: #555555;">Rate per Day:</td>
+                            <td style="text-align: right; font-size: 7.5pt; color: #555555;">
+                                {{ currency_symbol }} {{ daily_wage_rate|floatformat:2 }}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% if allowances > 0 %}
+                        <tr>
+                            <td>Overtime / Allowances:</td>
+                            <td style="text-align: right; font-weight: 700; color: #000000;">
+                                {{ currency_symbol }} {{ allowances|floatformat:2 }}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% if commissions > 0 %}
+                        <tr>
+                            <td>Commissions:</td>
+                            <td style="text-align: right; font-weight: 700;">
+                                {{ currency_symbol }} {{ commissions|floatformat:2 }}
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </td>
+
+                <!-- Right: Deductions -->
+                <td style="padding: 8px 12px;">
+                    <table class="breakdown-subtable">
+                        <tr>
+                            <td>Salary Advances Deducted:</td>
+                            <td style="text-align: right; font-weight: 700; color: #000000;">
+                                {{ currency_symbol }} {{ advance_deduction|floatformat:2 }}
+                            </td>
+                        </tr>
+                        {% if other_deductions > 0 %}
+                        <tr>
+                            <td>Other Deductions:</td>
+                            <td style="text-align: right; font-weight: 700;">
+                                {{ currency_symbol }} {{ other_deductions|floatformat:2 }}
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% if advance_deduction == 0 and other_deductions == 0 %}
+                        <tr>
+                            <td style="color: #666666;">No deductions for this period</td>
+                            <td style="text-align: right;">{{ currency_symbol }} 0.00</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </td>
+            </tr>
+
+            <!-- Totals Row -->
+            <tr class="total-row">
+                <td>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>TOTAL GROSS EARNINGS:</span>
+                        <span>{{ currency_symbol }} {{ gross_salary|floatformat:2 }}</span>
+                    </div>
+                </td>
+                <td>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>TOTAL DEDUCTIONS:</span>
+                        <span>{{ currency_symbol }} {{ total_deductions|floatformat:2 }}</span>
+                    </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Net Salary Box -->
+    <table class="net-pay-box">
+        <tr>
+            <td style="width: 55%;">
+                <div class="net-title">NET SALARY PAYABLE:</div>
+                <div style="font-size: 8pt; color: #444444; margin-top: 3px;">
+                    Gross Earnings ({{ currency_symbol }}{{ gross_salary|floatformat:2 }}) - Deductions ({{ currency_symbol }}{{ total_deductions|floatformat:2 }})
+                </div>
+            </td>
+            <td style="width: 45%;" class="net-amount">
+                {{ currency_symbol }} {{ net_salary|floatformat:2 }}
+            </td>
+        </tr>
+    </table>
+
+    <!-- Payment Status Summary -->
+    <table class="info-table" style="margin-bottom: 12px;">
+        <tr style="background: #f8fafc;">
+            <td style="width: 33.3%;">
+                <span class="info-label" style="background: transparent;">Salary Paid So Far:</span>
+                <strong style="color: #000000;">{{ currency_symbol }} {{ paid_amount|floatformat:2 }}</strong>
+            </td>
+            <td style="width: 33.3%;">
+                <span class="info-label" style="background: transparent;">Balance Remaining:</span>
+                <strong>{{ currency_symbol }} {{ balance_amount|floatformat:2 }}</strong>
+            </td>
+            <td style="width: 33.4%; text-align: right;">
+                <span class="info-label" style="background: transparent;">Status:</span>
+                <strong>{{ payment_status }}</strong>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Payment Records Breakdown (if any) -->
+    {% if advances or payments %}
+    <div style="font-size: 8pt; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; color: #333333;">
+        Payment Transactions (Expense Entries)
+    </div>
+    <table class="history-table">
+        <thead>
+            <tr>
+                <th style="width: 80px;">Date</th>
+                <th style="width: 110px;">Type</th>
+                <th style="width: 80px;">Mode</th>
+                <th>Bank / Reference</th>
+                <th style="width: 90px; text-align: right;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for adv in advances %}
+            <tr>
+                <td>{{ adv.date|date:"d M Y" }}</td>
+                <td><strong>Salary Advance</strong></td>
+                <td>{{ adv.mode }}</td>
+                <td>{{ adv.bank|default:"Cash" }}</td>
+                <td style="text-align: right;">{{ currency_symbol }} {{ adv.amount|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+            {% for p in payments %}
+            <tr>
+                <td>{{ p.date|date:"d M Y" }}</td>
+                <td><strong>Salary Settlement</strong></td>
+                <td>{{ p.mode }}</td>
+                <td>{{ p.bank|default:"Cash" }}</td>
+                <td style="text-align: right;">{{ currency_symbol }} {{ p.amount|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if remarks %}
+    <div style="font-size: 7.5pt; color: #444444; margin-bottom: 12px; padding: 6px; background: #f8fafc; border: 1px solid #e2e8f0;">
+        <strong>Notes:</strong> {{ remarks }}
+    </div>
+    {% endif %}
+
+    <!-- Footer & Signatures -->
+    <table class="footer-table">
+        <tr>
+            <td class="signature-box">
+                <div class="signature-line">
+                    Employee Signature
+                </div>
+            </td>
+            <td class="signature-box">
+                {% if company.company_seal %}
+                <div style="margin-bottom: 4px;">
+                    <img src="{{ company.company_seal.url }}" alt="Company Seal" style="max-height: 44px; display: inline-block;">
+                </div>
+                {% endif %}
+                <div class="signature-line">
+                    Authorized Signatory & Seal
+                </div>
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>

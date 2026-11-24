@@ -1178,9 +1178,7 @@ def expense_create(request):
     expense_heads = ExpenseHead.objects.filter(
         Q(company=company) | Q(company__isnull=True),
         is_deleted=False
-    ).exclude(name__iexact='salary').exclude(
-        name__iexact='salary advance'
-    ).order_by('name')
+    ).exclude(name__iexact='salary').order_by('name')
 
     from client_management.models import Stock, Staff
     from master.models import Supplier
@@ -1250,19 +1248,50 @@ def expense_create(request):
         normalized_head_name = ' '.join(
             expense_head.name.strip().lower().replace('&', 'and').split()
         )
-        if normalized_head_name in {'salary', 'salary advance'}:
-            messages.error(request, 'Select Salary & Wages for staff expenses.')
-            return redirect('expense_create')
-        if normalized_head_name in {'salary and wages'}:
+        is_salary_head = normalized_head_name in {'salary and wages', 'salary'}
+        is_advance_head = normalized_head_name in {'salary advance'}
+
+        staff_member = None
+        salary_payment_type = None
+        salary_month_date = None
+
+        if is_salary_head or is_advance_head:
             from client_management.models import Staff
-            if not Staff.objects.filter(
-                company=company,
-                branch_id=branch_id,
-                is_deleted=False,
-                name__iexact=expense_name,
-            ).exists():
-                messages.error(request, 'Select a staff member for Salary & Wages expenses.')
+            from datetime import datetime, date
+
+            staff_id = request.POST.get('staff_id') or request.POST.get('staff')
+            if staff_id:
+                staff_member = Staff.objects.filter(company=company, id=staff_id, is_deleted=False).first()
+            if not staff_member and expense_name:
+                staff_member = Staff.objects.filter(
+                    company=company,
+                    branch_id=branch_id,
+                    is_deleted=False,
+                    name__iexact=expense_name,
+                ).first()
+
+            if not staff_member:
+                messages.error(request, f'Select a staff member for {expense_head.name} expenses.')
                 return redirect('expense_create')
+
+            salary_payment_type = 'ADVANCE' if is_advance_head else 'SALARY'
+
+            salary_month_str = request.POST.get('salary_month', '').strip()
+            if salary_month_str:
+                try:
+                    parts = salary_month_str.split('-')
+                    if len(parts) >= 2:
+                        salary_month_date = date(int(parts[0]), int(parts[1]), 1)
+                except Exception:
+                    pass
+            if not salary_month_date:
+                try:
+                    ed = datetime.strptime(expense_date, '%Y-%m-%d').date()
+                    salary_month_date = date(ed.year, ed.month, 1)
+                except Exception:
+                    salary_month_date = date.today().replace(day=1)
+
+            expense_name = staff_member.name.strip()
 
         expense, created = Expense.objects.get_or_create(
             expense_head=expense_head,
@@ -1300,7 +1329,10 @@ def expense_create(request):
             bank_account=bank_account,
             supplier_id=supplier_id,
             expense_date=expense_date,
-            remarks=remarks
+            remarks=remarks,
+            staff=staff_member,
+            salary_payment_type=salary_payment_type,
+            salary_month=salary_month_date
         )
 
         messages.success(request, "Expense Created Successfully")
@@ -1442,6 +1474,52 @@ def expense_edit(request, pk):
             is_deleted=False
         )
 
+        normalized_head_name = ' '.join(
+            expense_head.name.strip().lower().replace('&', 'and').split()
+        )
+        is_salary_head = normalized_head_name in {'salary and wages', 'salary'}
+        is_advance_head = normalized_head_name in {'salary advance'}
+
+        staff_member = None
+        salary_payment_type = None
+        salary_month_date = None
+
+        if is_salary_head or is_advance_head:
+            from client_management.models import Staff
+            from datetime import datetime, date
+
+            branch_id_val = expense_entry.branch_id
+            staff_id = request.POST.get('staff_id') or request.POST.get('staff')
+            if staff_id:
+                staff_member = Staff.objects.filter(company=company, id=staff_id, is_deleted=False).first()
+            if not staff_member and expense_name:
+                staff_member = Staff.objects.filter(
+                    company=company,
+                    branch_id=branch_id_val,
+                    is_deleted=False,
+                    name__iexact=expense_name,
+                ).first()
+
+            if staff_member:
+                expense_name = staff_member.name.strip()
+                salary_payment_type = 'ADVANCE' if is_advance_head else 'SALARY'
+                salary_month_str = request.POST.get('salary_month', '').strip()
+                if salary_month_str:
+                    try:
+                        parts = salary_month_str.split('-')
+                        if len(parts) >= 2:
+                            salary_month_date = date(int(parts[0]), int(parts[1]), 1)
+                    except Exception:
+                        pass
+                if not salary_month_date and expense_entry.salary_month:
+                    salary_month_date = expense_entry.salary_month
+                elif not salary_month_date:
+                    try:
+                        ed = datetime.strptime(expense_date, '%Y-%m-%d').date()
+                        salary_month_date = date(ed.year, ed.month, 1)
+                    except Exception:
+                        salary_month_date = date.today().replace(day=1)
+
         expense, created = Expense.objects.get_or_create(
             expense_head=expense_head,
             name=expense_name,
@@ -1480,6 +1558,9 @@ def expense_edit(request, pk):
         expense_entry.supplier_id = supplier_id
         expense_entry.expense_date = expense_date
         expense_entry.remarks = remarks
+        expense_entry.staff = staff_member
+        expense_entry.salary_payment_type = salary_payment_type
+        expense_entry.salary_month = salary_month_date
         expense_entry.updater = request.user
         expense_entry.save()
 
