@@ -875,12 +875,6 @@ def staff_salary_edit(request, id):
 
     instance = get_object_or_404(Staff, id=id, company=company, is_deleted=False)
     form = StaffSalaryForm(request.POST or None, instance=instance, request=request)
-    services = Service.objects.filter(is_active=True, is_deleted=False).order_by('name')
-    vehicle_types = VehicleType.objects.filter(is_active=True, is_deleted=False).order_by('name')
-    
-    existing_commissions = list(
-        instance.commissions.values('service_id', 'vehicle_type_id', 'commission_type', 'amount')
-    )
     
     if request.method == 'POST':
         if form.is_valid():
@@ -888,18 +882,8 @@ def staff_salary_edit(request, id):
             staff.updater = request.user
             staff.save()
             
-            # Handle commission data
-            commission_json = request.POST.get('commission_data', '[]')
-            try:
-                commission_data = json.loads(commission_json)
-            except (json.JSONDecodeError, ValueError):
-                commission_data = []
-                
-            if staff.salary_mode == Staff.SALARY_MODE_COMMISSION:
-                form.save_commissions(staff, commission_data)
-            else:
-                # Clear commissions if mode changed away from commission
-                StaffCommission.objects.filter(staff=staff).delete()
+            # Clear commissions if any exist
+            StaffCommission.objects.filter(staff=staff).delete()
                 
             messages.success(request, f"Salary settings updated for {staff.name}")
             return redirect('staff_salary_list')
@@ -910,9 +894,6 @@ def staff_salary_edit(request, id):
         'form': form,
         'staff': instance,
         'title': f'Manage Salary - {instance.name}',
-        'services': services,
-        'vehicle_types': vehicle_types,
-        'existing_commissions': json.dumps(existing_commissions, default=str),
     })
 
 @login_required

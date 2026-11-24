@@ -64,10 +64,6 @@
                             <span class="badge" style="background:#fef3c7;color:#d97706;padding:4px 8px;border-radius:4px;font-size:0.8rem;font-weight:600;">
                                 <i class="ph ph-calendar" style="vertical-align:middle;margin-right:4px;"></i>Wage
                             </span>
-                        {% elif staff.salary_mode == 'COMMISSION' %}
-                            <span class="badge" style="background:#f0fdf4;color:#166534;padding:4px 8px;border-radius:4px;font-size:0.8rem;font-weight:600;">
-                                <i class="ph ph-percent" style="vertical-align:middle;margin-right:4px;"></i>Commissioned
-                            </span>
                         {% else %}
                             <span class="badge" style="background:#f1f5f9;color:#64748b;padding:4px 8px;border-radius:4px;font-size:0.8rem;">
                                 Unconfigured
@@ -80,8 +76,6 @@
                             <strong style="color:#0f172a;">₹{{ staff.monthly_salary|default:"0.00" }}</strong> <span style="font-size:0.8rem;color:#64748b;">/ month</span>
                         {% elif staff.salary_mode == 'WAGE' %}
                             <strong style="color:#0f172a;">₹{{ staff.daily_wage|default:"0.00" }}</strong> <span style="font-size:0.8rem;color:#64748b;">/ day</span>
-                        {% elif staff.salary_mode == 'COMMISSION' %}
-                            <span style="font-weight:500;color:#166534;">{{ staff.commissions.count }} configured commissions</span>
                         {% else %}
                             <span style="color:#94a3b8;">-</span>
                         {% endif %}

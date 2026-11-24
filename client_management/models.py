@@ -172,7 +172,6 @@ class Staff(BaseModel):
     SALARY_MODE_CHOICES = (
         (SALARY_MODE_SALARIED, 'Salaried'),
         (SALARY_MODE_WAGE, 'Wage'),
-        (SALARY_MODE_COMMISSION, 'Commissioned'),
     )
 
     company = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='staffs')

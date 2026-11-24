@@ -261,9 +261,6 @@
             <button type="button" class="salary-btn" id="btn-WAGE" onclick="chooseSalaryMode('WAGE')">
                 <i class="ph ph-calendar"></i>Wage
             </button>
-            <button type="button" class="salary-btn" id="btn-COMMISSION" onclick="chooseSalaryMode('COMMISSION')">
-                <i class="ph ph-percent"></i>Commissioned
-            </button>
         </div>
 
         {# Salaried panel #}
@@ -286,17 +283,6 @@
                     {% if form.daily_wage.errors %}<div class="error-text">{{ form.daily_wage.errors.0 }}</div>{% endif %}
                 </div>
             </div>
-        </div>
-
-        {# Commission panel #}
-        <div id="panel-COMMISSION" class="salary-panel">
-            <p style="font-size:0.85rem;color:#64748b;margin-bottom:14px;">
-                Add one block per service. Choose percentage (%) or exact amount (₹), then fill in each vehicle type's value.
-            </p>
-            <div id="commission-container"></div>
-            <button type="button" class="btn-add-service" onclick="addCommissionBlock()">
-                <i class="ph ph-plus-circle"></i> Add Service
-            </button>
         </div>
         {% endif %}
 
