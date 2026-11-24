@@ -1358,6 +1358,7 @@ def _save_invoice_service_detail(item, detail_data, invoice, vehicle, user):
             detail.tyre_size = detail_data.get('tyre_size', '')
             detail.tyres_changed_count = detail_data.get('tyres_changed_count', 0)
 
+        detail.odometer_at_service = detail_data.get('odometer_at_service') or None
         detail.next_tyre_change_km = detail_data.get('next_tyre_change_km') or None
         detail.next_tyre_change_date = detail_data.get('next_tyre_change_date') or None
 
