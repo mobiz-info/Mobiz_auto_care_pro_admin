@@ -497,9 +497,7 @@
                     <h5 style="margin: 0 0 12px 0; font-size: 0.95rem; font-weight: 800; color: #1e293b;">
                         Record Payments for {{ staff.name }}
                     </h5>
-                    <p style="font-size: 0.82rem; color: #64748b; margin-bottom: 14px;">
-                        Make salary disbursements or give advances. Each creates an accounting Expense Entry automatically.
-                    </p>
+                   
 
                     <div style="display: flex; flex-direction: column; gap: 8px;">
                         {% if balance_amount > 0 %}
@@ -660,7 +658,7 @@ function openPayModal(staffId, staffName, payType, suggestedAmount) {
         noticeBox.style.background = '#fffbeb';
         noticeBox.style.color = '#92400e';
         noticeBox.style.borderColor = '#fef3c7';
-        noticeText.innerHTML = 'This advance is recorded as an Expense under <strong>Salary Advance</strong> and automatically deducted from {{ month_name }} payslip.';
+        noticeText.innerHTML = '';
         amtInput.value = '';
         remarksInput.value = `Salary advance for ${staffName} ({{ month_name }})`;
     } else {
@@ -670,7 +668,7 @@ function openPayModal(staffId, staffName, payType, suggestedAmount) {
         noticeBox.style.background = '#eff6ff';
         noticeBox.style.color = '#1e40af';
         noticeBox.style.borderColor = '#dbeafe';
-        noticeText.innerHTML = 'Disbursing monthly salary records an expense entry under <strong>Salary & Wages</strong>.';
+        noticeText.innerHTML = '';
         const numAmt = parseFloat(suggestedAmount) || 0;
         amtInput.value = numAmt > 0 ? numAmt.toFixed(2) : '';
         remarksInput.value = `Salary payment for ${staffName} ({{ month_name }})`;

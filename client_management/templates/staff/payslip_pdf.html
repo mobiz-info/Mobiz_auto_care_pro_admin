@@ -404,9 +404,7 @@
         <tr>
             <td style="width: 55%;">
                 <div class="net-title">NET SALARY PAYABLE:</div>
-                <div style="font-size: 8pt; color: #444444; margin-top: 3px;">
-                    Gross Earnings ({{ currency_symbol }}{{ gross_salary|floatformat:2 }}) - Deductions ({{ currency_symbol }}{{ total_deductions|floatformat:2 }})
-                </div>
+                
             </td>
             <td style="width: 45%;" class="net-amount">
                 {{ currency_symbol }} {{ net_salary|floatformat:2 }}
@@ -414,23 +412,7 @@
         </tr>
     </table>
 
-    <!-- Payment Status Summary -->
-    <table class="info-table" style="margin-bottom: 12px;">
-        <tr style="background: #f8fafc;">
-            <td style="width: 33.3%;">
-                <span class="info-label" style="background: transparent;">Salary Paid So Far:</span>
-                <strong style="color: #000000;">{{ currency_symbol }} {{ paid_amount|floatformat:2 }}</strong>
-            </td>
-            <td style="width: 33.3%;">
-                <span class="info-label" style="background: transparent;">Balance Remaining:</span>
-                <strong>{{ currency_symbol }} {{ balance_amount|floatformat:2 }}</strong>
-            </td>
-            <td style="width: 33.4%; text-align: right;">
-                <span class="info-label" style="background: transparent;">Status:</span>
-                <strong>{{ payment_status }}</strong>
-            </td>
-        </tr>
-    </table>
+   
 
     <!-- Payment Records Breakdown (if any) -->
     {% if advances or payments %}
