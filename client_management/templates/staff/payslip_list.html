@@ -164,12 +164,12 @@
     font-size: 1.1rem;
 }
 
-/* Action Modals */
+/* Action Modals & Form Field Design */
 .modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(4px);
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(5px);
     display: none;
     align-items: center;
     justify-content: center;
@@ -179,11 +179,89 @@
 
 .modal-box {
     background: #ffffff;
-    border-radius: 18px;
-    max-width: 500px;
+    border-radius: 20px;
+    max-width: 520px;
     width: 100%;
-    padding: 26px;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+    padding: 26px 28px;
+    box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+    border: 1px solid #e2e8f0;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 5px;
+    letter-spacing: 0.2px;
+}
+
+.form-control, input.form-control, select.form-control, textarea.form-control {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 10px;
+    font-size: 0.92rem;
+    color: #0f172a;
+    background: #ffffff;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.form-control:focus, input.form-control:focus, select.form-control:focus, textarea.form-control:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    outline: none;
+    background: #ffffff;
+}
+
+.input-with-prefix {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-prefix {
+    position: absolute;
+    left: 14px;
+    font-weight: 700;
+    color: #64748b;
+    pointer-events: none;
+    font-size: 0.95rem;
+}
+
+.input-with-prefix input {
+    padding-left: 38px !important;
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: #0f172a;
+}
+
+.staff-info-badge {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.modal-notice {
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 16px;
 }
 </style>
 
@@ -458,12 +536,12 @@
 <!-- Quick Pay Salary / Advance Modal -->
 <div class="modal-overlay" id="quickPayModal">
     <div class="modal-box">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; border-bottom: 1px solid #f1f5f9; padding-bottom: 14px;">
-            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 8px;" id="payModalTitle">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1.5px solid #f1f5f9; padding-bottom: 16px;">
+            <h3 style="margin: 0; font-size: 1.2rem; font-weight: 800; color: #0f172a; display: flex; align-items: center; gap: 10px;" id="payModalTitle">
                 <i class="ph-bold ph-wallet" style="color: #2563eb;"></i>
                 Pay Salary
             </h3>
-            <button type="button" onclick="closePayModal()" style="background: none; border: none; font-size: 1.3rem; color: #94a3b8; cursor: pointer;">
+            <button type="button" onclick="closePayModal()" style="background: none; border: none; font-size: 1.4rem; color: #94a3b8; cursor: pointer; border-radius: 8px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; transition: 0.15s ease;" onmouseover="this.style.background='#f1f5f9'; this.style.color='#0f172a'" onmouseout="this.style.background='none'; this.style.color='#94a3b8'">
                 &times;
             </button>
         </div>
@@ -475,66 +553,89 @@
             <input type="hidden" name="year" value="{{ year }}">
             <input type="hidden" name="month" value="{{ month }}">
 
-            <div style="margin-bottom: 14px;">
-                <label style="font-size: 0.82rem; font-weight: 600; color: #64748b; margin-bottom: 4px; display: block;">Staff Member</label>
-                <div style="padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; font-weight: 700; color: #0f172a;" id="modalStaffName">
-                    -
+            <!-- Staff Info Badge -->
+            <div class="form-group">
+                <div class="staff-info-badge">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; border-radius: 50%; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.05rem;" id="modalStaffInitial">
+                            S
+                        </div>
+                        <div>
+                            <div style="font-weight: 800; color: #0f172a; font-size: 0.95rem;" id="modalStaffName">-</div>
+                            <div style="font-size: 0.78rem; color: #64748b;" id="modalStaffSubtitle">Payroll for {{ month_name }}</div>
+                        </div>
+                    </div>
+                    <span style="font-size: 0.78rem; font-weight: 700; background: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 20px;">
+                        {{ month_name }}
+                    </span>
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+            <!-- Context Banner -->
+            <div class="modal-notice" id="modalNoticeBox" style="background: #eff6ff; color: #1e40af; border: 1px solid #dbeafe;">
+                <i class="ph-bold ph-info" style="font-size: 1.1rem; flex-shrink: 0; margin-top: 2px;"></i>
+                <div id="modalNoticeText">
+                    Disbursing monthly salary records an expense entry under <strong>Salary & Wages</strong>.
+                </div>
+            </div>
+
+            <!-- Amount & Date Grid -->
+            <div style="display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 14px;" class="form-group">
                 <div>
-                    <label style="font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 4px; display: block;">
-                        Amount <span style="color: #ef4444;">*</span>
+                    <label class="form-label">
+                        Amount to Pay <span style="color: #ef4444;">*</span>
                     </label>
-                    <div style="position: relative; display: flex; align-items: center;">
-                        <span style="position: absolute; left: 12px; font-weight: 700; color: #64748b;">{{ currency_symbol }}</span>
-                        <input type="number" step="0.01" name="amount" id="modalAmount" class="form-control" style="padding-left: 32px;" required>
+                    <div class="input-with-prefix">
+                        <span class="input-prefix">{{ currency_symbol }}</span>
+                        <input type="number" step="0.01" min="0.01" name="amount" id="modalAmount" class="form-control" placeholder="0.00" required>
                     </div>
                 </div>
 
                 <div>
-                    <label style="font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 4px; display: block;">
+                    <label class="form-label">
                         Payment Date <span style="color: #ef4444;">*</span>
                     </label>
                     <input type="date" name="expense_date" id="modalExpenseDate" class="form-control" required>
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
+            <!-- Payment Mode & Bank Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;" class="form-group">
                 <div>
-                    <label style="font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 4px; display: block;">
+                    <label class="form-label">
                         Payment Mode <span style="color: #ef4444;">*</span>
                     </label>
                     <select name="payment_mode" id="modalPaymentMode" class="form-control" onchange="toggleModalBank(this.value)">
-                        <option value="CASH">Cash</option>
-                        <option value="BANK">Bank Account</option>
+                        <option value="CASH">Cash in Hand</option>
+                        <option value="BANK">Bank Account / Transfer</option>
                     </select>
                 </div>
 
                 <div id="modalBankWrapper" style="display: none;">
-                    <label style="font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 4px; display: block;">
+                    <label class="form-label">
                         Bank Account <span style="color: #ef4444;">*</span>
                     </label>
                     <select name="bank_account" id="modalBankAccount" class="form-control">
-                        <option value="">-- Select Bank --</option>
+                        <option value="">-- Choose Bank --</option>
                         {% for b in bank_accounts %}
-                        <option value="{{ b.id }}">{{ b.bank_name }} - {{ b.account_number }}</option>
+                        <option value="{{ b.id }}">{{ b.bank_name }} ({{ b.account_number }})</option>
                         {% endfor %}
                     </select>
                 </div>
             </div>
 
-            <div style="margin-bottom: 20px;">
-                <label style="font-size: 0.82rem; font-weight: 600; color: #334155; margin-bottom: 4px; display: block;">Remarks / Note</label>
-                <input type="text" name="remarks" id="modalRemarks" class="form-control" placeholder="Optional notes...">
+            <!-- Remarks -->
+            <div class="form-group" style="margin-bottom: 22px;">
+                <label class="form-label">Expense Remarks / Description</label>
+                <input type="text" name="remarks" id="modalRemarks" class="form-control" placeholder="Optional notes for accounting ledger...">
             </div>
 
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button type="button" class="btn-secondary" onclick="closePayModal()" style="padding: 10px 18px; border-radius: 10px;">
+            <!-- Footer Buttons -->
+            <div style="display: flex; gap: 12px; justify-content: flex-end; border-top: 1.5px solid #f1f5f9; padding-top: 18px;">
+                <button type="button" onclick="closePayModal()" style="padding: 10px 18px; border-radius: 10px; background: #ffffff; border: 1.5px solid #cbd5e1; font-weight: 600; color: #475569; cursor: pointer; transition: 0.15s ease;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#ffffff'">
                     Cancel
                 </button>
-                <button type="submit" class="btn-primary" style="padding: 10px 22px; border-radius: 10px; font-weight: 700;" id="btnSubmitModal">
+                <button type="submit" class="btn-primary" style="padding: 10px 24px; border-radius: 10px; font-weight: 700; border: none; cursor: pointer; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);" id="btnSubmitModal">
                     Confirm & Record Payment
                 </button>
             </div>
@@ -546,6 +647,7 @@
 function openPayModal(staffId, staffName, payType, suggestedAmount) {
     document.getElementById('modalStaffId').value = staffId;
     document.getElementById('modalStaffName').textContent = staffName;
+    document.getElementById('modalStaffInitial').textContent = (staffName || 'S').trim().charAt(0).toUpperCase();
     document.getElementById('modalPayType').value = payType;
     
     const titleEl = document.getElementById('payModalTitle');
@@ -553,6 +655,8 @@ function openPayModal(staffId, staffName, payType, suggestedAmount) {
     const amtInput = document.getElementById('modalAmount');
     const dateInput = document.getElementById('modalExpenseDate');
     const remarksInput = document.getElementById('modalRemarks');
+    const noticeBox = document.getElementById('modalNoticeBox');
+    const noticeText = document.getElementById('modalNoticeText');
 
     if (!dateInput.value) {
         dateInput.value = new Date().toISOString().split('T')[0];
@@ -561,19 +665,28 @@ function openPayModal(staffId, staffName, payType, suggestedAmount) {
     if (payType === 'ADVANCE') {
         titleEl.innerHTML = '<i class="ph-bold ph-hand-coins" style="color: #d97706;"></i> Record Salary Advance';
         submitBtn.style.background = '#d97706';
-        submitBtn.textContent = 'Record Advance';
+        submitBtn.textContent = 'Confirm & Record Advance';
+        noticeBox.style.background = '#fffbeb';
+        noticeBox.style.color = '#92400e';
+        noticeBox.style.borderColor = '#fef3c7';
+        noticeText.innerHTML = 'This advance is recorded as an Expense under <strong>Salary Advance</strong> and automatically deducted from {{ month_name }} payslip.';
         amtInput.value = '';
         remarksInput.value = `Salary advance for ${staffName} ({{ month_name }})`;
     } else {
         titleEl.innerHTML = '<i class="ph-bold ph-credit-card" style="color: #2563eb;"></i> Pay Monthly Salary';
         submitBtn.style.background = '#2563eb';
-        submitBtn.textContent = 'Record Salary Payment';
+        submitBtn.textContent = 'Confirm & Pay Salary';
+        noticeBox.style.background = '#eff6ff';
+        noticeBox.style.color = '#1e40af';
+        noticeBox.style.borderColor = '#dbeafe';
+        noticeText.innerHTML = 'Disbursing monthly salary records an expense entry under <strong>Salary & Wages</strong>.';
         const numAmt = parseFloat(suggestedAmount) || 0;
         amtInput.value = numAmt > 0 ? numAmt.toFixed(2) : '';
         remarksInput.value = `Salary payment for ${staffName} ({{ month_name }})`;
     }
 
     document.getElementById('quickPayModal').style.display = 'flex';
+    setTimeout(() => { amtInput.focus(); }, 100);
 }
 
 function closePayModal() {
@@ -583,6 +696,12 @@ function closePayModal() {
 function toggleModalBank(mode) {
     const bankWrap = document.getElementById('modalBankWrapper');
     bankWrap.style.display = (mode === 'BANK') ? 'block' : 'none';
+    const bankSelect = document.getElementById('modalBankAccount');
+    if (mode === 'BANK') {
+        bankSelect.setAttribute('required', 'required');
+    } else {
+        bankSelect.removeAttribute('required');
+    }
 }
 </script>
 

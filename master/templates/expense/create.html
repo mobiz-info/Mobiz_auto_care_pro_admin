@@ -257,7 +257,7 @@ textarea.form-control:focus {
             <!-- Expense Name / Item -->
             <div class="form-group">
                 <label class="form-label">
-                    <span>Expense Name / Item <span class="required">*</span></span>
+                    <span id="expense_item_label_text">Expense Name / Item <span class="required">*</span></span>
                     <button type="button" class="btn-inline-action" id="toggle_custom_name_btn" onclick="toggleCustomNameInput()">
                         <i class="ph ph-pencil-simple"></i> Custom Name
                     </button>
@@ -315,7 +315,7 @@ textarea.form-control:focus {
             </div>
 
             <!-- Has Supplier / Credit Supplier Checkbox -->
-            <div class="form-col-span-2">
+            <div class="form-col-span-2" id="supplier_checkbox_wrapper">
                 <label style="display: inline-flex; align-items: center; gap: 10px; cursor: pointer; padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; width: 100%; box-sizing: border-box;">
                     <input type="checkbox" id="has_supplier_checkbox" name="has_supplier"
                            style="width: 18px; height: 18px; cursor: pointer; accent-color: #3b82f6;"
@@ -582,6 +582,12 @@ textarea.form-control:focus {
         const salaryMonthWrapper = document.getElementById('salary_month_wrapper');
         const salaryMonthInput = document.getElementById('salary_month_input');
         const staffInfoCard = document.getElementById('staff_salary_info_card');
+        const supplierCheckboxWrapper = document.getElementById('supplier_checkbox_wrapper');
+        const hasSupplierCheckbox = document.getElementById('has_supplier_checkbox');
+        const supplierWrapper = document.getElementById('supplier_wrapper');
+        const supplierSelect = document.getElementById('supplier_select');
+        const expenseItemLabel = document.getElementById('expense_item_label_text');
+
         const selectedHeadName = (headSelect.selectedOptions[0]?.dataset.headName || '')
             .trim().toLowerCase().replace(/&/g, 'and').replace(/\s+/g, ' ');
         const isSalaryHead = selectedHeadName === 'salary and wages' || selectedHeadName === 'salary' || selectedHeadName === 'salary advance';
@@ -592,6 +598,15 @@ textarea.form-control:focus {
             document.getElementById('expense_text_container').style.display = 'none';
             document.getElementById('expense_select_container').style.display = 'block';
             finalInput.value = '';
+            if (expenseItemLabel) {
+                expenseItemLabel.innerHTML = 'Staff Member <span class="required">*</span>';
+            }
+            if (supplierCheckboxWrapper) {
+                supplierCheckboxWrapper.style.display = 'none';
+                if (hasSupplierCheckbox) hasSupplierCheckbox.checked = false;
+                if (supplierWrapper) supplierWrapper.style.display = 'none';
+                if (supplierSelect) supplierSelect.value = '';
+            }
             if (salaryMonthWrapper) {
                 salaryMonthWrapper.style.display = 'flex';
                 if (!salaryMonthInput.value) {
@@ -602,6 +617,12 @@ textarea.form-control:focus {
                 }
             }
         } else {
+            if (expenseItemLabel) {
+                expenseItemLabel.innerHTML = 'Expense Name / Item <span class="required">*</span>';
+            }
+            if (supplierCheckboxWrapper) {
+                supplierCheckboxWrapper.style.display = 'block';
+            }
             if (salaryMonthWrapper) salaryMonthWrapper.style.display = 'none';
             if (staffInfoCard) staffInfoCard.style.display = 'none';
         }
