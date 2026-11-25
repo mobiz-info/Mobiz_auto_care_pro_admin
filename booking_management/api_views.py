@@ -4783,6 +4783,7 @@ def api_job_card_detail(request, job_card_id):
             'labour': labour_list,
             'extras': extras_list,
             'local_purchases': local_purchases_list,
+            'custom_reminders': jc.custom_reminders or [],
             'reported_issues': reported_issues,
             'quotation_id': str(jc.quotation_id or jc.job_quotation_id or ''),
             'quotation_number': jc.quotation.quotation_number if jc.quotation_id else (jc.job_quotation.quotation_number if jc.job_quotation_id else ''),
@@ -5391,6 +5392,7 @@ def api_job_card_create(request):
                 appointment_details=data.get('appointment_details', '').strip() or None,
                 inspection_at=inspection_at,
                 inspection_details=data.get('inspection_details') or {},
+                custom_reminders=data.get('custom_reminders') or data.get('reminders') or [],
                 internal_notes=data.get('internal_notes', '').strip() or None,
                 prepared_by=prepared_by,
                 creator=user,
@@ -5781,6 +5783,8 @@ def api_job_card_update(request, job_card_id):
             jc.inspection_at = inspection_at
         if 'inspection_details' in data:
             jc.inspection_details = data.get('inspection_details') or {}
+        if 'custom_reminders' in data or 'reminders' in data:
+            jc.custom_reminders = data.get('custom_reminders') or data.get('reminders') or []
         if 'internal_notes' in data:
             jc.internal_notes = data['internal_notes']
         if 'prepared_by_id' in data:
@@ -6201,6 +6205,16 @@ def api_job_card_invoice(request, job_card_id):
                 )
             job.status = JobCard.STATUS_COMPLETED
             job.save(update_fields=['status'])
+
+            # Create scheduled ReminderPlan entries
+            try:
+                from booking_management.utils import create_reminder_plans_for_invoice
+                reminders_payload = data.get('reminders') or data.get('custom_reminders') or job.custom_reminders
+                if reminders_payload:
+                    create_reminder_plans_for_invoice(invoice, custom_reminders=reminders_payload)
+            except Exception as _re:
+                import logging
+                logging.getLogger(__name__).warning("Failed creating reminder plans for job card invoice %s: %s", invoice.invoice_number, _re)
 
             # Automatically send invoice via WhatsApp if enabled in branch customisation & settings exist
             try:
