@@ -383,43 +383,6 @@
             </label>
         </div>
 
-        <!-- 4. Oil Change & Lubricants Validation -->
-        <div class="form-section-label" style="margin-top: 28px;">
-            <i class="ph ph-drop" style="color: #f59e0b; font-size: 1.15rem;"></i> Oil Change &amp; Lubricants Validation
-        </div>
-
-        <div class="switch-toggle-card" style="margin-bottom: 12px;">
-            <div style="flex: 1;">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                    <span style="font-size: 0.95rem; font-weight: 600; color: #1e293b;">Require Odometer Reading</span>
-                    <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 600; background: #e0f2fe; color: #0369a1;">
-                        <i class="ph ph-gauge"></i> KM Required
-                    </span>
-                </div>
-                
-            </div>
-            <label class="switch">
-                <input type="checkbox" name="oil_change_odometer_required" id="oil_change_odometer_required" {% if customisation.oil_change_odometer_required %}checked{% endif %}>
-                <span class="slider"></span>
-            </label>
-        </div>
-
-        <div class="switch-toggle-card">
-            <div style="flex: 1;">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                    <span style="font-size: 0.95rem; font-weight: 600; color: #1e293b;">Require Service Reminders</span>
-                    <span style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 600; background: #fef3c7; color: #b45309;">
-                        <i class="ph ph-bell"></i> Reminder Required
-                    </span>
-                </div>
-               
-            </div>
-            <label class="switch">
-                <input type="checkbox" name="oil_change_reminder_required" id="oil_change_reminder_required" {% if customisation.oil_change_reminder_required %}checked{% endif %}>
-                <span class="slider"></span>
-            </label>
-        </div>
-
         <!-- Form Actions -->
         <div class="form-actions" style="margin-top: 32px; display: flex; justify-content: flex-end; gap: 12px;">
             <button type="submit" class="btn-primary">
