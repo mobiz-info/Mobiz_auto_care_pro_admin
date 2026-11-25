@@ -1913,6 +1913,10 @@
                     <label>Rate (${CURRENCY})</label>
                     <input type="number" step="0.01" class="form-control service-rate" value="0.00" oninput="calculateRowLineTotal('${rowId}')">
                 </div>
+                <div class="form-group" style="max-width: 90px;">
+                    <label>Qty</label>
+                    <input type="number" step="1" min="1" class="form-control service-qty" value="1" oninput="calculateRowLineTotal('${rowId}')">
+                </div>
                 <div class="form-group">
                     <label>Discount (${CURRENCY})</label>
                     <input type="number" step="0.01" class="form-control service-discount" value="0.00" oninput="calculateRowLineTotal('${rowId}')">
@@ -1987,14 +1991,15 @@
         if (!row) return;
 
         const rate = parseFloat(row.querySelector('.service-rate')?.value) || 0;
+        const qty = parseFloat(row.querySelector('.service-qty')?.value) || 1;
         const discount = parseFloat(row.querySelector('.service-discount')?.value) || 0;
 
-        const lineTotal = Math.max(0, rate - discount);
+        const lineTotal = Math.max(0, (rate * qty) - discount);
         const ltEl = document.getElementById(`${rowId}_line_total`);
         if (ltEl) ltEl.innerText = `${CURRENCY}${lineTotal.toFixed(2)}`;
 
         const rateBadge = document.getElementById(`${rowId}_rate_badge`);
-        if (rateBadge) rateBadge.innerText = `${CURRENCY}${rate.toFixed(2)}`;
+        if (rateBadge) rateBadge.innerText = qty > 1 ? `${qty} × ${CURRENCY}${rate.toFixed(2)}` : `${CURRENCY}${rate.toFixed(2)}`;
 
         calculateTotals();
     }
@@ -2603,10 +2608,11 @@
             const sel = row.querySelector('.service-select');
             const sName = sel.options[sel.selectedIndex]?.text.split(' (')[0] || '';
             const rate = parseFloat(row.querySelector('.service-rate')?.value) || 0;
+            const qty = parseFloat(row.querySelector('.service-qty')?.value) || 1;
             const disc = parseFloat(row.querySelector('.service-discount')?.value) || 0;
 
             if (sel.value) {
-                const sLineGross = rate;
+                const sLineGross = rate * qty;
                 subtotalServices += sLineGross;
                 servicesDiscount += disc;
 
@@ -2614,7 +2620,7 @@
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'summary-line';
                 itemDiv.innerHTML = `
-                    <span>${sName}</span>
+                    <span>${sName}${qty > 1 ? ` (x${qty})` : ''}</span>
                     <span>${CURRENCY}${sLineGross.toFixed(2)}</span>
                 `;
                 summaryItemsList.appendChild(itemDiv);
@@ -2806,13 +2812,14 @@
             const svcId = sel.value;
             const svcName = sel.options[sel.selectedIndex]?.text.split(' (')[0] || '';
             const rate = parseFloat(row.querySelector('.service-rate').value) || 0;
+            const qty = parseFloat(row.querySelector('.service-qty')?.value) || 1;
             const discount = parseFloat(row.querySelector('.service-discount').value) || 0;
 
             const svcItem = {
                 id: svcId,
                 name: svcName,
                 rate: rate,
-                qty: 1,
+                qty: qty,
                 discount: discount
             };
 
