@@ -5502,6 +5502,24 @@ def api_job_card_create(request):
             jc.calculate_estimated_cost()
             jc.save()
 
+        # Trigger WhatsApp sending for Job Card in background thread if WhatsApp settings exist
+        try:
+            company_obj = (jc.branch.company if jc.branch else None) or (jc.customer.company if jc.customer else None) or company
+            has_wa = WhatsAppSetting.objects.filter(company=company_obj, is_deleted=False).exclude(username='').exclude(password='').exists() if company_obj else False
+            if has_wa:
+                base_url = request.build_absolute_uri('/')
+                if not base_url or '127.0.0.1' in base_url or 'localhost' in base_url:
+                    base_url = 'http://68.183.94.11:78'
+                import threading
+                threading.Thread(
+                    target=send_job_card_whatsapp_background,
+                    args=(jc.id, base_url),
+                    daemon=True
+                ).start()
+        except Exception as we:
+            import logging
+            logging.getLogger(__name__).exception("Failed to launch Job Card WhatsApp thread: %s", we)
+
         return JsonResponse({
             'success': True,
             'message': 'Job Card created successfully',
@@ -5628,6 +5646,24 @@ def api_job_card_from_quotation(request, quotation_id):
 
             jc.estimated_cost = quotation.grand_total
             jc.save(update_fields=['estimated_cost', 'date_updated'])
+
+        # Trigger WhatsApp sending for Job Card in background thread if WhatsApp settings exist
+        try:
+            company_obj = (jc.branch.company if jc.branch else None) or (jc.customer.company if jc.customer else None) or quote_company
+            has_wa = WhatsAppSetting.objects.filter(company=company_obj, is_deleted=False).exclude(username='').exclude(password='').exists() if company_obj else False
+            if has_wa:
+                base_url = request.build_absolute_uri('/')
+                if not base_url or '127.0.0.1' in base_url or 'localhost' in base_url:
+                    base_url = 'http://68.183.94.11:78'
+                import threading
+                threading.Thread(
+                    target=send_job_card_whatsapp_background,
+                    args=(jc.id, base_url),
+                    daemon=True
+                ).start()
+        except Exception as we:
+            import logging
+            logging.getLogger(__name__).exception("Failed to launch Job Card WhatsApp thread: %s", we)
 
         return JsonResponse({
             'success': True,
@@ -6616,11 +6652,121 @@ def api_job_card_pdf(request, job_card_id):
     base_url = request.build_absolute_uri('/')
     try:
         pdf_url = generate_job_card_pdf_file(jc, base_url)
+        send_wa = str(request.GET.get('send_whatsapp', '')).lower() in ('true', '1') or str(request.POST.get('send_whatsapp', '')).lower() in ('true', '1')
+        if send_wa:
+            import threading
+            threading.Thread(
+                target=send_job_card_whatsapp_background,
+                args=(jc.id, base_url),
+                daemon=True
+            ).start()
         return JsonResponse({'success': True, 'pdf_url': pdf_url, 'job_number': jc.job_number})
     except Exception as e:
         import traceback
         traceback.print_exc()
         return JsonResponse({'success': False, 'message': f'Failed to generate PDF: {str(e)}'}, status=500)
+
+
+def send_job_card_whatsapp_background(job_card_id, base_url):
+    _log_path = '/tmp/whatsapp_jobcard.log'
+    def _log(msg):
+        try:
+            from datetime import datetime as _dt
+            with open(_log_path, 'a') as _f:
+                _f.write(f"[{_dt.now()}] {msg}\n")
+        except Exception:
+            pass
+
+    _log(f"BG START: job_card_id={job_card_id}, base_url={base_url}")
+    try:
+        from booking_management.models import JobCard
+        from client_management.models import WhatsAppSetting
+
+        if not base_url or '127.0.0.1' in base_url or 'localhost' in base_url:
+            base_url = 'http://68.183.94.11:78'
+
+        jc = JobCard.objects.select_related(
+            'customer', 'vehicle', 'branch', 'branch__company', 'branch__company__country'
+        ).filter(id=job_card_id, is_deleted=False).first()
+        if not jc:
+            _log(f"Job Card {job_card_id} not found")
+            return
+
+        customer = jc.customer
+        if not customer:
+            _log(f"Job Card {jc.job_number}: Customer not found")
+            return
+
+        phone_to_send = customer.whatsapp_number or customer.phone
+        if not phone_to_send:
+            _log(f"Job Card {jc.job_number}: Customer {customer.name} has no phone")
+            return
+
+        cleaned_num = clean_whatsapp_number(phone_to_send)
+        if not cleaned_num:
+            _log(f"Job Card {jc.job_number}: Invalid phone number '{phone_to_send}'")
+            return
+
+        company = (jc.branch.company if jc.branch else None) or (customer.company if customer else None)
+        setting = None
+        if company:
+            setting = WhatsAppSetting.objects.filter(company=company, is_deleted=False).exclude(username='').exclude(password='').first()
+
+        if not setting:
+            _log(f"Job Card {jc.job_number}: Missing/incomplete WhatsAppSetting for company {company}")
+            return
+
+        # Generate Job Card PDF
+        pdf_url = ""
+        try:
+            pdf_url = generate_job_card_pdf_file(jc, base_url)
+            _log(f"PDF URL: {pdf_url}")
+        except Exception as pe:
+            _log(f"PDF generation failed: {pe}")
+
+        currency = '₹'
+        if company and getattr(company, 'country', None) and getattr(company.country, 'currency_symbol', None):
+            currency = company.country.currency_symbol
+
+        comp_name = company.company_name if company else "Auto Care"
+        branch_name = jc.branch.name if jc.branch else ""
+        veh_str = jc.vehicle.vehicle_number if getattr(jc, 'vehicle', None) else "N/A"
+        est_cost = float(jc.estimated_cost or 0)
+        delivery_str = jc.expected_delivery_date.strftime('%d-%m-%Y %I:%M %p') if jc.expected_delivery_date else (jc.delivery_lead_time or 'As scheduled')
+
+        message_text = (
+            f"📋 *JOB CARD #{jc.job_number}*\n\n"
+            f"Dear *{customer.name}*,\n"
+            f"Thank you for choosing *{comp_name}*{f' ({branch_name})' if branch_name else ''}!\n\n"
+            f"🚗 Vehicle: *{veh_str}*\n"
+            f"📅 Expected Delivery: *{delivery_str}*\n"
+            f"💰 Estimated Cost: *{currency} {est_cost:.2f}*\n\n"
+            f"Your vehicle service job card has been created. Our team has initiated work on your vehicle.\n"
+        )
+        if pdf_url:
+            message_text += f"\n📥 *View / Download Job Card PDF:*\n{pdf_url}\n"
+        message_text += "\nWe will notify you once the vehicle is ready for delivery! ✨"
+
+        _log(f"SEND JC WA: num={cleaned_num}, pdf_url={pdf_url}")
+
+        res = None
+        if setting.is_official_api:
+            tmpl_name = 'jobcard'
+            params = [customer.name]
+            res = send_whatsapp_template(cleaned_num, tmpl_name, params, doc_url=pdf_url, setting=setting)
+            _log(f"SEND JC WA TEMPLATE RESULT: {res}")
+            res_str = str(res or '').lower()
+            if not res or ('trackid' not in res_str and 'alert_' not in res_str):
+                _log("Official template did not return trackid, falling back to simple message")
+                res = send_whatsapp_simple(cleaned_num, message_text, setting=setting, media_url=pdf_url)
+                _log(f"SEND JC WA SIMPLE FALLBACK RESULT: {res}")
+        else:
+            res = send_whatsapp_simple(cleaned_num, message_text, setting=setting, media_url=pdf_url)
+            _log(f"SEND JC WA SIMPLE RESULT: {res}")
+        _log(f"BG DONE: job_card_id={job_card_id}")
+    except Exception as e:
+        import traceback
+        _log(f"Error in send_job_card_whatsapp_background: {e}\n{traceback.format_exc()}")
 
 
 def _job_pipeline_scope(user):
@@ -8520,6 +8666,25 @@ def api_job_card_from_job_quotation(request, quotation_id):
                     )
             job.estimated_cost = quote.grand_total
             job.save(update_fields=['estimated_cost', 'date_updated'])
+
+        # Trigger WhatsApp sending for Job Card in background thread if WhatsApp settings exist
+        try:
+            company_obj = (job.branch.company if job.branch else None) or (job.customer.company if job.customer else None) or company
+            has_wa = WhatsAppSetting.objects.filter(company=company_obj, is_deleted=False).exclude(username='').exclude(password='').exists() if company_obj else False
+            if has_wa:
+                base_url = request.build_absolute_uri('/')
+                if not base_url or '127.0.0.1' in base_url or 'localhost' in base_url:
+                    base_url = 'http://68.183.94.11:78'
+                import threading
+                threading.Thread(
+                    target=send_job_card_whatsapp_background,
+                    args=(job.id, base_url),
+                    daemon=True
+                ).start()
+        except Exception as we:
+            import logging
+            logging.getLogger(__name__).exception("Failed to launch Job Card WhatsApp thread: %s", we)
+
         return JsonResponse({'success': True, 'already_converted': False, 'job_card_id': str(job.id), 'job_number': job.job_number})
     except Exception as exc:
         return JsonResponse({'success': False, 'message': str(exc)}, status=500)
