@@ -107,7 +107,27 @@ def create_reminder_plans_for_invoice(invoice, custom_reminders=None):
             if days <= 0:
                 continue
 
-            tmpl = (rem.get('template_name') or default_tmpl or 'servicesreminder').strip()
+            sr_obj = None
+            if rem.get('service_id'):
+                sr_obj = ServiceReminder.objects.filter(branch=branch, service_id=rem.get('service_id'), is_deleted=False).first()
+            if not sr_obj and rem.get('service_name'):
+                sr_obj = ServiceReminder.objects.filter(branch=branch, service__name__iexact=rem.get('service_name'), is_deleted=False).first()
+
+            s_name = (rem.get('service_name') or (sr_obj.service.name if sr_obj and sr_obj.service else '')).lower()
+            service_tmpl = sr_obj.template_name if sr_obj and sr_obj.template_name else None
+            if not service_tmpl:
+                if 'wheel' in s_name or 'balance' in s_name or 'alignment' in s_name:
+                    service_tmpl = 'wheelalignment'
+                elif 'smoke' in s_name or 'pollution' in s_name:
+                    service_tmpl = 'smoketest'
+                elif 'battery' in s_name:
+                    service_tmpl = 'batteryservice'
+                elif 'oil' in s_name:
+                    service_tmpl = 'oilreminder'
+                elif 'insurance' in s_name:
+                    service_tmpl = 'insurancereminder'
+
+            tmpl = (rem.get('template_name') or service_tmpl or default_tmpl or 'servicesreminder').strip()
             scheduled_date = None
             explicit_date = rem.get('scheduled_date') or rem.get('reminder_date')
             if explicit_date:
@@ -123,7 +143,7 @@ def create_reminder_plans_for_invoice(invoice, custom_reminders=None):
             ReminderPlan.objects.create(
                 branch=branch,
                 invoice=invoice,
-                reminder=None,
+                reminder=sr_obj,
                 template_name=tmpl,
                 reminder_no=idx,
                 scheduled_date=scheduled_date,
