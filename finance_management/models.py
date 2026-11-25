@@ -235,6 +235,16 @@ class BranchInvoiceCustomisation(BaseModel):
         help_text="Automatically send invoice via WhatsApp upon creation if WhatsApp settings exist"
     )
 
+    # Oil Change & Lubricants validation settings
+    oil_change_odometer_required = models.BooleanField(
+        default=True,
+        help_text="Require current odometer when oil change services are selected"
+    )
+    oil_change_reminder_required = models.BooleanField(
+        default=True,
+        help_text="Require service reminders when oil change services are selected"
+    )
+
     def __str__(self):
         return f"Invoice Customisation - {self.branch.name}"
 

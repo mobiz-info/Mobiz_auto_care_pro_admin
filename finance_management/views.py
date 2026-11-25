@@ -4834,6 +4834,8 @@ def invoice_customisation_manage(request, branch_id):
             'show_vehicle_emission_std': True,
             'show_vehicle_odometer': True,
             'send_invoice_via_whatsapp': False,
+            'oil_change_odometer_required': True,
+            'oil_change_reminder_required': True,
         }
     )
 
@@ -4854,6 +4856,8 @@ def invoice_customisation_manage(request, branch_id):
         customisation.show_vehicle_emission_std = (request.POST.get('show_vehicle_emission_std') == 'on')
         customisation.show_vehicle_odometer = (request.POST.get('show_vehicle_odometer') == 'on')
         customisation.send_invoice_via_whatsapp = (request.POST.get('send_invoice_via_whatsapp') == 'on')
+        customisation.oil_change_odometer_required = (request.POST.get('oil_change_odometer_required') == 'on')
+        customisation.oil_change_reminder_required = (request.POST.get('oil_change_reminder_required') == 'on')
         customisation.save()
 
         messages.success(request, f"Invoice customisation for {branch.name} saved successfully.")

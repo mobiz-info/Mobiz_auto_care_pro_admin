@@ -870,6 +870,10 @@ def api_get_services(request):
             and whatsapp_setting.username
             and whatsapp_setting.password
         )
+        branch_customisation = getattr(customer.branch, 'invoice_customisation', None) if customer.branch else None
+        oil_change_odometer_required = branch_customisation.oil_change_odometer_required if branch_customisation else True
+        oil_change_reminder_required = branch_customisation.oil_change_reminder_required if branch_customisation else True
+
         return JsonResponse({
             'success': True,
             'services': services_data,
@@ -881,6 +885,8 @@ def api_get_services(request):
             'emission_standard': eff_es.name if eff_es else '',
             'enabled_categories': enabled_category_slugs,  # ← branch-level category filter
             'whatsapp_invoice_enabled': whatsapp_invoice_enabled,
+            'oil_change_odometer_required': oil_change_odometer_required,
+            'oil_change_reminder_required': oil_change_reminder_required,
         })
         
     except (Customer.DoesNotExist, CustomerVehicle.DoesNotExist) as e:
