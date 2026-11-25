@@ -4621,6 +4621,23 @@ def api_job_card_detail(request, job_card_id):
             'remarks': e.remarks or '',
         })
 
+    local_purchases_list = []
+    for lp in jc.local_purchase_items.filter(is_deleted=False):
+        local_purchases_list.append({
+            'id': str(lp.id),
+            'item_name': lp.item_name,
+            'supplier_name': lp.supplier_name or '',
+            'bill_number': lp.bill_number or '',
+            'quantity': float(lp.quantity or 1),
+            'unit': lp.unit or 'Pcs',
+            'cost_price': float(lp.cost_price or 0),
+            'rate': float(lp.rate or 0),
+            'discount': float(lp.discount or 0),
+            'vat_percentage': float(lp.vat_percentage or 0),
+            'total_amount': float(lp.total_amount or 0),
+            'remarks': lp.remarks or '',
+        })
+
     reported_issues = []
     for report in jc.reported_issues.filter(is_deleted=False).select_related(
         'category', 'service', 'issue'
@@ -4765,6 +4782,7 @@ def api_job_card_detail(request, job_card_id):
             'parts': parts_list,
             'labour': labour_list,
             'extras': extras_list,
+            'local_purchases': local_purchases_list,
             'reported_issues': reported_issues,
             'quotation_id': str(jc.quotation_id or jc.job_quotation_id or ''),
             'quotation_number': jc.quotation.quotation_number if jc.quotation_id else (jc.job_quotation.quotation_number if jc.job_quotation_id else ''),
@@ -5454,6 +5472,29 @@ def api_job_card_create(request):
                     creator=user,
                 )
 
+            # Local Purchases
+            from booking_management.models import JobCardLocalPurchaseItem
+            for lp in data.get('local_purchases', []):
+                cost = Decimal(str(lp.get('cost_price', 0) or 0))
+                rate = Decimal(str(lp.get('rate', 0) or 0))
+                qty = Decimal(str(lp.get('quantity', 1) or 1))
+                disc = Decimal(str(lp.get('discount', 0) or 0))
+                tot = Decimal(str(lp.get('total_amount', max(0, rate * qty - disc)) or 0))
+                JobCardLocalPurchaseItem.objects.create(
+                    job_card=jc,
+                    item_name=lp.get('item_name', 'Local Item').strip(),
+                    supplier_name=lp.get('supplier_name', '').strip() or None,
+                    bill_number=lp.get('bill_number', '').strip() or None,
+                    quantity=qty,
+                    unit=lp.get('unit', 'Pcs') or 'Pcs',
+                    cost_price=cost,
+                    rate=rate,
+                    discount=disc,
+                    total_amount=tot,
+                    remarks=lp.get('remarks', '').strip() or None,
+                    creator=user,
+                )
+
             _save_job_card_reported_issues(jc, data.get('reported_issues', []), request.FILES, user)
             _save_job_card_vehicle_photos(jc, request.FILES, user)
             _save_job_card_quality_checks(jc, data, request.FILES, user)
@@ -5803,6 +5844,30 @@ def api_job_card_update(request, job_card_id):
                         creator=user,
                     )
 
+            if 'local_purchases' in data:
+                from booking_management.models import JobCardLocalPurchaseItem
+                jc.local_purchase_items.all().delete()
+                for lp in data['local_purchases']:
+                    cost = Decimal(str(lp.get('cost_price', 0) or 0))
+                    rate = Decimal(str(lp.get('rate', 0) or 0))
+                    qty = Decimal(str(lp.get('quantity', 1) or 1))
+                    disc = Decimal(str(lp.get('discount', 0) or 0))
+                    tot = Decimal(str(lp.get('total_amount', max(0, rate * qty - disc)) or 0))
+                    JobCardLocalPurchaseItem.objects.create(
+                        job_card=jc,
+                        item_name=lp.get('item_name', 'Local Item').strip(),
+                        supplier_name=lp.get('supplier_name', '').strip() or None,
+                        bill_number=lp.get('bill_number', '').strip() or None,
+                        quantity=qty,
+                        unit=lp.get('unit', 'Pcs') or 'Pcs',
+                        cost_price=cost,
+                        rate=rate,
+                        discount=disc,
+                        total_amount=tot,
+                        remarks=lp.get('remarks', '').strip() or None,
+                        creator=user,
+                    )
+
             if 'reported_issues' in data:
                 _save_job_card_reported_issues(jc, data['reported_issues'], request.FILES, user)
 
@@ -6034,6 +6099,11 @@ def api_job_card_invoice(request, job_card_id):
                 taxable = max(Decimal('0'), rate * qty - discount)
                 tax = taxable * (item.vat_percentage or 0) / Decimal('100')
                 lines.append((None, None, item.extra_details, qty, rate, discount, taxable, tax, item.remarks, None))
+            for item in job.local_purchase_items.filter(is_deleted=False):
+                rate, qty, discount = item.rate or 0, item.quantity or 0, item.discount or 0
+                taxable = max(Decimal('0'), rate * qty - discount)
+                tax = taxable * (item.vat_percentage or 0) / Decimal('100')
+                lines.append((None, None, item.item_name, qty, rate, discount, taxable, tax, item.remarks, None))
 
             if not lines or not any(line[6] > 0 for line in lines):
                 return JsonResponse({'success': False, 'message': 'Add priced items to the Job Card before creating an invoice'}, status=400)
@@ -6456,12 +6526,14 @@ def generate_job_card_pdf_file(job_card, base_url=None):
     parts = list(job_card.part_items.filter(is_deleted=False))
     labour = list(job_card.labour_items.filter(is_deleted=False))
     extras = list(job_card.extra_items.filter(is_deleted=False))
+    local_purchases = list(job_card.local_purchase_items.filter(is_deleted=False))
 
     services_subtotal = sum(float(s.total_amount or 0) for s in services)
     parts_subtotal = sum(float(p.total_amount or 0) for p in parts)
     labour_subtotal = sum(float(l.total_amount or 0) for l in labour)
     extras_subtotal = sum(float(e.total_amount or 0) for e in extras)
-    grand_total = float(job_card.estimated_cost or (services_subtotal + parts_subtotal + labour_subtotal + extras_subtotal))
+    local_purchases_subtotal = sum(float(lp.total_amount or 0) for lp in local_purchases)
+    grand_total = float(job_card.estimated_cost or (services_subtotal + parts_subtotal + labour_subtotal + extras_subtotal + local_purchases_subtotal))
 
     company = job_card.company or (job_card.branch.company if job_card.branch else None)
     company_logo = None
@@ -6493,10 +6565,12 @@ def generate_job_card_pdf_file(job_card, base_url=None):
         'parts': parts,
         'labour': labour,
         'extras': extras,
+        'local_purchases': local_purchases,
         'services_subtotal': services_subtotal,
         'parts_subtotal': parts_subtotal,
         'labour_subtotal': labour_subtotal,
         'extras_subtotal': extras_subtotal,
+        'local_purchases_subtotal': local_purchases_subtotal,
         'grand_total': grand_total,
         'reported_issues': list(job_card.reported_issues.filter(is_deleted=False)),
         'inspection_details': job_card.inspection_details or {},

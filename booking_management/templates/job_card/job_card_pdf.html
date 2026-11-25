@@ -546,6 +546,35 @@
     </table>
     {% endif %}
 
+    <!-- Local Purchases Table -->
+    {% if local_purchases %}
+    <div class="section-title">Local Purchases</div>
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th style="width: 5%;">#</th>
+                <th style="width: 35%;">Item Details</th>
+                <th style="width: 20%;">Supplier / Bill</th>
+                <th style="width: 8%;" class="text-center">Qty</th>
+                <th style="width: 14%;" class="text-right">Rate ({{ currency }})</th>
+                <th style="width: 18%;" class="text-right">Amount ({{ currency }})</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for lp in local_purchases %}
+            <tr>
+                <td class="text-center">{{ forloop.counter }}</td>
+                <td>{{ lp.item_name }}{% if lp.remarks %}<br><small style="color: #64748b;">{{ lp.remarks }}</small>{% endif %}</td>
+                <td>{{ lp.supplier_name|default:"-" }}{% if lp.bill_number %}<br><small style="color: #64748b;">Bill: {{ lp.bill_number }}</small>{% endif %}</td>
+                <td class="text-center">{{ lp.quantity }}</td>
+                <td class="text-right">{{ lp.rate|floatformat:2 }}</td>
+                <td class="text-right"><strong>{{ lp.total_amount|floatformat:2 }}</strong></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
     <!-- Totals Summary -->
     <div class="totals-card">
         <table class="totals-table">
@@ -560,6 +589,9 @@
             {% endif %}
             {% if extras_subtotal %}
             <tr><td>Extras:</td><td class="text-right">{{ currency }}{{ extras_subtotal|floatformat:2 }}</td></tr>
+            {% endif %}
+            {% if local_purchases_subtotal %}
+            <tr><td>Local Purchases:</td><td class="text-right">{{ currency }}{{ local_purchases_subtotal|floatformat:2 }}</td></tr>
             {% endif %}
             <tr class="grand-total">
                 <td>ESTIMATED TOTAL:</td>

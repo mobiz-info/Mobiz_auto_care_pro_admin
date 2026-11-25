@@ -269,6 +269,7 @@ class JobCard(BaseModel):
         p_tot = sum((item.total_amount or 0) for item in self.part_items.filter(is_deleted=False))
         l_tot = sum((item.total_amount or 0) for item in self.labour_items.filter(is_deleted=False))
         e_tot = sum((item.total_amount or 0) for item in self.extra_items.filter(is_deleted=False))
+        lp_tot = sum((item.total_amount or 0) for item in self.local_purchase_items.filter(is_deleted=False))
         issue_tot = sum(
             max((item.rate or 0) * (item.quantity or 0) - (item.discount or 0), 0)
             for item in self.reported_issues.filter(is_deleted=False)
@@ -280,7 +281,7 @@ class JobCard(BaseModel):
                 is_deleted=False,
             )
         )
-        self.estimated_cost = s_tot + p_tot + l_tot + e_tot + issue_tot + activity_tot
+        self.estimated_cost = s_tot + p_tot + l_tot + e_tot + lp_tot + issue_tot + activity_tot
         return self.estimated_cost
 
     def __str__(self):
@@ -379,6 +380,30 @@ class JobCardExtraItem(BaseModel):
 
     def __str__(self):
         return f"{self.extra_details} ({self.job_card.job_number})"
+
+
+class JobCardLocalPurchaseItem(BaseModel):
+    job_card = models.ForeignKey(JobCard, on_delete=models.CASCADE, related_name='local_purchase_items')
+    item_name = models.CharField(max_length=200)
+    supplier_name = models.CharField(max_length=200, blank=True, null=True)
+    bill_number = models.CharField(max_length=100, blank=True, null=True)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
+    unit = models.CharField(max_length=50, default='Pcs')
+    cost_price = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    rate = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    discount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    vat_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    remarks = models.TextField(blank=True, null=True)
+
+    def save(self, *args, **kwargs):
+        if not self.auto_id:
+            from core.functions import get_auto_id
+            self.auto_id = get_auto_id(JobCardLocalPurchaseItem)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.item_name} ({self.job_card.job_number})"
 
 
 class JobLead(BaseModel):
