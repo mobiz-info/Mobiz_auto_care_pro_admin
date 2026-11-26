@@ -284,7 +284,29 @@ textarea.form-control:focus {
                        value="{% if expense_entry and expense_entry.staff_id %}{{ expense_entry.staff_id }}{% endif %}">
             </div>
 
-            <!-- Salary Month Container (Appears when Salary & Wages or Salary Advance selected) -->
+            <!-- Salary Payment Type (Salary vs Advance) -->
+            <div class="form-group" id="salary_type_wrapper" style="display: none;">
+                <label class="form-label">
+                    <span>Payment Type <span class="required">*</span></span>
+                    <span style="font-size: 0.78rem; color: #64748b;">Salary settlement or advance</span>
+                </label>
+                <div style="display: flex; gap: 10px; margin-top: 4px;">
+                    <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding: 9px 16px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-weight: 600; font-size: 0.88rem; background: #fff; user-select: none;" id="label_type_salary">
+                        <input type="radio" name="salary_payment_type" value="SALARY" id="salary_type_salary"
+                               {% if not expense_entry or expense_entry.salary_payment_type != 'ADVANCE' %}checked{% endif %}
+                               style="accent-color: #2563eb; width: 16px; height: 16px;">
+                        <span>Salary & Wages</span>
+                    </label>
+                    <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding: 9px 16px; border: 1.5px solid #cbd5e1; border-radius: 8px; font-weight: 600; font-size: 0.88rem; background: #fff; user-select: none;" id="label_type_advance">
+                        <input type="radio" name="salary_payment_type" value="ADVANCE" id="salary_type_advance"
+                               {% if expense_entry and expense_entry.salary_payment_type == 'ADVANCE' %}checked{% endif %}
+                               style="accent-color: #d97706; width: 16px; height: 16px;">
+                        <span>Salary Advance</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Salary Month Container (Appears when Salary & Wages selected) -->
             <div class="form-group" id="salary_month_wrapper" style="display: none;">
                 <label class="form-label">
                     <span>Target Salary Month <span class="required">*</span></span>
@@ -579,6 +601,7 @@ textarea.form-control:focus {
         const nameSelect = document.getElementById('expense_name_select');
         const finalInput = document.getElementById('final_expense_name');
         const customNameButton = document.getElementById('toggle_custom_name_btn');
+        const salaryTypeWrapper = document.getElementById('salary_type_wrapper');
         const salaryMonthWrapper = document.getElementById('salary_month_wrapper');
         const salaryMonthInput = document.getElementById('salary_month_input');
         const staffInfoCard = document.getElementById('staff_salary_info_card');
@@ -607,6 +630,9 @@ textarea.form-control:focus {
                 if (supplierWrapper) supplierWrapper.style.display = 'none';
                 if (supplierSelect) supplierSelect.value = '';
             }
+            if (salaryTypeWrapper) {
+                salaryTypeWrapper.style.display = 'flex';
+            }
             if (salaryMonthWrapper) {
                 salaryMonthWrapper.style.display = 'flex';
                 if (!salaryMonthInput.value) {
@@ -623,6 +649,7 @@ textarea.form-control:focus {
             if (supplierCheckboxWrapper) {
                 supplierCheckboxWrapper.style.display = 'block';
             }
+            if (salaryTypeWrapper) salaryTypeWrapper.style.display = 'none';
             if (salaryMonthWrapper) salaryMonthWrapper.style.display = 'none';
             if (staffInfoCard) staffInfoCard.style.display = 'none';
         }
@@ -644,7 +671,7 @@ textarea.form-control:focus {
             const defaultOpt = document.createElement('option');
             defaultOpt.value = '';
             defaultOpt.textContent = isSalaryHead
-                ? (selectedHeadName === 'salary advance' ? '-- Select Staff for Advance --' : '-- Select Staff for Salary --')
+                ? '-- Select Staff --'
                 : '-- Select Item or Type Custom --';
             nameSelect.appendChild(defaultOpt);
 

@@ -33,9 +33,6 @@ DEFAULT_EXPENSE_HEADS_ITEMS = {
         "Commission",
         "Settlement",
     ],
-    "Salary Advance": [
-        "Salary advance",
-    ],
     "Stationery & Office Supplies": [
         "Paper Rolls",
         "Printer",

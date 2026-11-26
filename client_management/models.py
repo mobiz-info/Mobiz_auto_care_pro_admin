@@ -904,7 +904,7 @@ def create_default_expense_heads(sender, instance, created, **kwargs):
     if created:
         from master.models import ExpenseHead
         from core.functions import get_auto_id
-        for name in ['Purchase', 'Salary & Wages', 'Salary Advance']:
+        for name in ['Purchase', 'Salary & Wages']:
             ExpenseHead.objects.get_or_create(
                 company=instance,
                 name=name,

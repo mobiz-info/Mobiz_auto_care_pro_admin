@@ -114,17 +114,17 @@ class ExpenseHead(BaseModel):
     def is_deletable(self):
         if self.name:
             normalized = self.name.strip().lower().replace('&', 'and')
-            return normalized not in ['salary', 'salary and wages', 'salary advance', 'purchase']
+            return normalized not in ['salary and wages', 'purchase']
         return True
 
     def delete(self, *args, **kwargs):
         if not self.is_deletable:
-            raise PermissionError("Salary, Salary Advance, and Purchase expense heads cannot be deleted.")
+            raise PermissionError("Salary & Wages and Purchase expense heads cannot be deleted.")
         super().delete(*args, **kwargs)
 
     def save(self, *args, **kwargs):
         if self.is_deleted and not self.is_deletable:
-            raise PermissionError("Salary, Salary Advance, and Purchase expense heads cannot be deleted.")
+            raise PermissionError("Salary & Wages and Purchase expense heads cannot be deleted.")
         super().save(*args, **kwargs)
     
 class Expense(BaseModel):

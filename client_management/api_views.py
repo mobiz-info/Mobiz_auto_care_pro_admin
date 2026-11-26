@@ -5034,12 +5034,18 @@ def api_get_expense_heads(request):
         unique_heads = []
         for h in heads:
             norm_name = (h.name or '').strip().lower()
-            if norm_name and norm_name not in seen_names and norm_name != 'purchase':
+            norm_clean = norm_name.replace('&', 'and')
+            if (
+                norm_name
+                and norm_name not in seen_names
+                and norm_name != 'purchase'
+                and norm_clean not in ['salary', 'salary advance']
+            ):
                 seen_names.add(norm_name)
                 unique_heads.append(h)
 
-        # Ensure 'Salary & Wages' and 'Salary Advance' are always present
-        required_heads = ['Salary & Wages', 'Salary Advance']
+        # Ensure only 'Salary & Wages' is present
+        required_heads = ['Salary & Wages']
         for req in required_heads:
             norm_req = req.strip().lower()
             if norm_req not in seen_names:
@@ -6040,7 +6046,7 @@ def api_record_payslip_payment(request):
     from master.models import ExpenseHead, Expense, ExpenseEntry, BankAccount
     from core.functions import get_auto_id
 
-    head_name = 'Salary Advance' if pay_type == 'ADVANCE' else 'Salary & Wages'
+    head_name = 'Salary & Wages'
 
     head = ExpenseHead.objects.filter(
         Q(company=company) | Q(company__isnull=True),
@@ -6072,6 +6078,7 @@ def api_record_payslip_payment(request):
         payment_mode = 'CASH'
 
     salary_month_date = d_date(year, month, 1)
+    type_display = 'Salary Advance' if pay_type == 'ADVANCE' else 'Salary'
 
     entry = ExpenseEntry.objects.create(
         auto_id=get_auto_id(ExpenseEntry),
@@ -6084,7 +6091,7 @@ def api_record_payslip_payment(request):
         payment_mode=payment_mode,
         bank_account=bank_account,
         expense_date=expense_date,
-        remarks=remarks or f"{head_name} for {salary_month_date.strftime('%B %Y')}",
+        remarks=remarks or f"{type_display} for {salary_month_date.strftime('%B %Y')}",
         staff=staff,
         salary_payment_type=pay_type,
         salary_month=salary_month_date

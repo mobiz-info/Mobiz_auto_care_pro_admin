@@ -752,7 +752,7 @@ def expense_head_list(request):
 
         queryset = ExpenseHead.objects.filter(
             is_deleted=False,company=None
-        )
+        ).exclude(name__iexact='salary').exclude(name__iexact='salary advance')
 
     else:
 
@@ -762,7 +762,7 @@ def expense_head_list(request):
             Q(company=company) |
             Q(company__isnull=True),
             is_deleted=False
-        )
+        ).exclude(name__iexact='salary').exclude(name__iexact='salary advance')
 
     if search:
 
@@ -1118,7 +1118,7 @@ def expense_list(request):
     expense_heads = ExpenseHead.objects.filter(
         Q(company=company) | Q(company__isnull=True),
         is_deleted=False
-    ).order_by('name')
+    ).exclude(name__iexact='salary').exclude(name__iexact='salary advance').order_by('name')
 
     # Pagination
     paginator = Paginator(expenses, 15)
@@ -1178,7 +1178,7 @@ def expense_create(request):
     expense_heads = ExpenseHead.objects.filter(
         Q(company=company) | Q(company__isnull=True),
         is_deleted=False
-    ).exclude(name__iexact='salary').order_by('name')
+    ).exclude(name__iexact='salary').exclude(name__iexact='salary advance').order_by('name')
 
     from client_management.models import Stock, Staff
     from master.models import Supplier
@@ -1274,7 +1274,11 @@ def expense_create(request):
                 messages.error(request, f'Select a staff member for {expense_head.name} expenses.')
                 return redirect('expense_create')
 
-            salary_payment_type = 'ADVANCE' if is_advance_head else 'SALARY'
+            req_salary_type = request.POST.get('salary_payment_type', '').strip().upper()
+            if req_salary_type in ['SALARY', 'ADVANCE']:
+                salary_payment_type = req_salary_type
+            else:
+                salary_payment_type = 'ADVANCE' if is_advance_head else 'SALARY'
 
             salary_month_str = request.POST.get('salary_month', '').strip()
             if salary_month_str:
@@ -1406,7 +1410,7 @@ def expense_edit(request, pk):
     expense_heads = ExpenseHead.objects.filter(
         Q(company=company) | Q(company__isnull=True),
         is_deleted=False
-    ).order_by('name')
+    ).exclude(name__iexact='salary').exclude(name__iexact='salary advance').order_by('name')
 
     from client_management.models import Stock, Staff
     from master.models import Supplier
@@ -1502,7 +1506,11 @@ def expense_edit(request, pk):
 
             if staff_member:
                 expense_name = staff_member.name.strip()
-                salary_payment_type = 'ADVANCE' if is_advance_head else 'SALARY'
+                req_salary_type = request.POST.get('salary_payment_type', '').strip().upper()
+                if req_salary_type in ['SALARY', 'ADVANCE']:
+                    salary_payment_type = req_salary_type
+                else:
+                    salary_payment_type = 'ADVANCE' if is_advance_head else 'SALARY'
                 salary_month_str = request.POST.get('salary_month', '').strip()
                 if salary_month_str:
                     try:

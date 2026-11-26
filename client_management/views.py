@@ -1003,12 +1003,15 @@ def _get_staff_payslip_data(company, staff, year, month):
         company=company,
         staff=staff,
         is_deleted=False
+    ).exclude(
+        id__in=[a['id'] for a in advances_list]
+    ).exclude(
+        salary_payment_type='ADVANCE'
     ).filter(
         Q(salary_payment_type='SALARY', salary_month=month_start) |
         (
-            Q(expense__expense_head__name__iexact='Salary & Wages') &
+            Q(expense__expense_head__name__in=['Salary & Wages', 'Salary']) &
             Q(expense_date__range=(month_start, month_end)) &
-            ~Q(id__in=[a['id'] for a in advances_list]) &
             (Q(salary_month=month_start) | Q(salary_month__isnull=True))
         )
     ).distinct().order_by('expense_date')
@@ -1225,13 +1228,9 @@ def staff_payslip_quick_pay(request):
 
     from master.models import ExpenseHead, Expense, ExpenseEntry, BankAccount
 
-    # Determine expense head
-    if pay_type == 'ADVANCE':
-        head_name = 'Salary Advance'
-        exp_item_name = f"{staff.name} - Advance"
-    else:
-        head_name = 'Salary & Wages'
-        exp_item_name = f"{staff.name} - Salary"
+    # All staff payments recorded under 'Salary & Wages'
+    head_name = 'Salary & Wages'
+    type_display = 'Salary Advance' if pay_type == 'ADVANCE' else 'Salary'
 
     head = ExpenseHead.objects.filter(
         Q(company=company) | Q(company__isnull=True),
@@ -1279,7 +1278,7 @@ def staff_payslip_quick_pay(request):
         payment_mode=payment_mode,
         bank_account=bank_account,
         expense_date=expense_date,
-        remarks=remarks or f"{head_name} for {salary_month_date.strftime('%B %Y')}",
+        remarks=remarks or f"{type_display} for {salary_month_date.strftime('%B %Y')}",
         staff=staff,
         salary_payment_type=pay_type,
         salary_month=salary_month_date
@@ -1288,7 +1287,7 @@ def staff_payslip_quick_pay(request):
     # Sync payslip
     _get_staff_payslip_data(company, staff, year, month)
 
-    messages.success(request, f"Successfully recorded {head_name} of {amount} for {staff.name}.")
+    messages.success(request, f"Successfully recorded {type_display} of {amount} for {staff.name}.")
     return redirect(f"{reverse('staff_payslip_list')}?year={year}&month={month}")
 
 
