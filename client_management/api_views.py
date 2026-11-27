@@ -9288,7 +9288,7 @@ def api_get_quotation_detail(request, quotation_id=None):
             'free_topup': it.free_topup or '',
             'quantity': float(getattr(it, 'quantity', 1) or 1),
             'stock_qty': float(getattr(it, 'quantity', 1) or 1),
-        } for it in quotation.items.filter(is_deleted=False)]
+        } for it in quotation.items.filter(is_deleted=False).order_by('auto_id')]
 
         extras = [{
             'id': str(ex.id),
@@ -9301,7 +9301,7 @@ def api_get_quotation_detail(request, quotation_id=None):
             'discount_percentage': float(getattr(ex, 'discount_percentage', 0) or 0),
             'total': float(getattr(ex, 'total', 0) or 0) if getattr(ex, 'total', None) is not None else max(0.0, (float(ex.price or 0) * float(getattr(ex, 'quantity', 1) or 1) - float(getattr(ex, 'discount', 0) or 0))),
             'remarks': getattr(ex, 'remarks', '') or '',
-        } for ex in quotation.extras.filter(is_deleted=False)]
+        } for ex in quotation.extras.filter(is_deleted=False).order_by('auto_id')]
 
         vehicle_model_name = ''
         if quotation.vehicle:

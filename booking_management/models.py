@@ -181,6 +181,9 @@ class ReminderPlan(BaseModel):
     scheduled_date = models.DateField()
     is_sent = models.BooleanField(default=False)
 
+    class Meta:
+        ordering = ['reminder_no', 'scheduled_date', 'auto_id']
+
     def save(self, *args, **kwargs):
         if not self.auto_id:
             from core.functions import get_auto_id

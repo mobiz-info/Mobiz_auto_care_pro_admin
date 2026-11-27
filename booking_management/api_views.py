@@ -5583,7 +5583,7 @@ def api_job_card_from_quotation(request, quotation_id):
             if not branch:
                 return JsonResponse({'success': False, 'message': 'Quotation has no branch'}, status=400)
 
-            quotation_items = list(quotation.items.filter(is_deleted=False).select_related('service', 'stock_item'))
+            quotation_items = list(quotation.items.filter(is_deleted=False).select_related('service', 'stock_item').order_by('auto_id'))
             jc = JobCard.objects.create(
                 company=quote_company,
                 branch=branch,
@@ -5632,7 +5632,7 @@ def api_job_card_from_quotation(request, quotation_id):
                         creator=user,
                     )
 
-            for extra in quotation.extras.filter(is_deleted=False):
+            for extra in quotation.extras.filter(is_deleted=False).order_by('auto_id'):
                 JobCardExtraItem.objects.create(
                     job_card=jc,
                     extra_details=extra.name,
@@ -7890,8 +7890,8 @@ def _job_quotation_data(quotation, include_lines=False, request=None):
                 'total': float(_job_quotation_item_total(i)),
                 'free_topup': i.free_topup or '',
                 'remarks': i.remarks or '',
-            } for i in quotation.items.filter(is_deleted=False).select_related('stock_item')],
-            'extras': [{'id': str(e.id), 'line_type': e.line_type, 'name': e.name, 'price': float(e.price), 'quantity': float(e.quantity), 'discount': float(e.discount), 'discount_type': e.discount_type, 'discount_percentage': float(e.discount_percentage), 'total': float(e.total), 'remarks': e.remarks or ''} for e in quotation.extras.filter(is_deleted=False)],
+            } for i in quotation.items.filter(is_deleted=False).select_related('stock_item').order_by('auto_id')],
+            'extras': [{'id': str(e.id), 'line_type': e.line_type, 'name': e.name, 'price': float(e.price), 'quantity': float(e.quantity), 'discount': float(e.discount), 'discount_type': e.discount_type, 'discount_percentage': float(e.discount_percentage), 'total': float(e.total), 'remarks': e.remarks or ''} for e in quotation.extras.filter(is_deleted=False).order_by('auto_id')],
             'reported_issues': [{
                 'id': str(item.id), 'category_id': str(item.category_id), 'category_name': item.category.name,
                 'service_id': str(item.service_id), 'service_name': item.service.name,

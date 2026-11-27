@@ -2924,7 +2924,7 @@ def generate_quotation_pdf_file(quotation, base_url, overwrite=True):
 
     # 2. Check quotation items (Accessories, standalone Services/Issues, or legacy items)
     if hasattr(quotation, 'items'):
-        for item in quotation.items.filter(is_deleted=False).select_related('stock_item', 'service'):
+        for item in quotation.items.filter(is_deleted=False).select_related('stock_item', 'service').order_by('auto_id'):
             if item.id in handled_priced_item_ids:
                 continue
             if getattr(item, 'reported_issue_id', None) or getattr(item, 'line_type', None) == 'issue':
@@ -2972,7 +2972,7 @@ def generate_quotation_pdf_file(quotation, base_url, overwrite=True):
 
     # 3. Check quotation extras (Labour Charges vs Custom Extras)
     if hasattr(quotation, 'extras'):
-        for extra in quotation.extras.filter(is_deleted=False):
+        for extra in quotation.extras.filter(is_deleted=False).order_by('auto_id'):
             line_type = getattr(extra, 'line_type', None)
             rate = float(extra.price or 0)
             qty = float(extra.quantity or 1)
