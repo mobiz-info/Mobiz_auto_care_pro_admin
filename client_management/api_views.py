@@ -886,7 +886,8 @@ def api_get_services(request):
             and whatsapp_setting.username
             and whatsapp_setting.password
         )
-        branch_customisation = getattr(customer.branch, 'invoice_customisation', None) if customer.branch else None
+        effective_branch = customer.branch if (customer and customer.branch) else branch
+        branch_customisation = getattr(effective_branch, 'invoice_customisation', None) if effective_branch else None
         oil_change_odometer_required = branch_customisation.oil_change_odometer_required if branch_customisation else True
         oil_change_reminder_required = branch_customisation.oil_change_reminder_required if branch_customisation else True
 
