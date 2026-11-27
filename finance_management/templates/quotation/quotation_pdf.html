@@ -310,91 +310,6 @@
         </tr>
     </table>
 
-    <!-- Vehicle Inspection Details -->
-    {% if has_inspection %}
-    <div class="inspection-box">
-        <table class="inspection-head-table">
-            <tr>
-                <td class="inspection-title">VEHICLE INSPECTION DETAILS</td>
-                {% if quotation.inspection_at %}
-                <td class="inspection-date">Inspection Date: {{ quotation.inspection_at|date:"d-m-Y H:i" }}</td>
-                {% endif %}
-            </tr>
-        </table>
-
-        {% if damage_marks %}
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 6px; font-size: 7.5pt; border: 0.5px solid #cbd5e1;">
-            <thead>
-                <tr style="background-color: #1e3a8a; color: #ffffff;">
-                    <th style="padding: 3.5px 6px; text-align: left; width: 35%;">Vehicle Part / View</th>
-                    <th style="padding: 3.5px 6px; text-align: left; width: 20%;">Damage Type</th>
-                    <th style="padding: 3.5px 6px; text-align: left; width: 15%;">Severity</th>
-                    <th style="padding: 3.5px 6px; text-align: left; width: 30%;">Remarks</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for dm in damage_marks %}
-                <tr style="border-bottom: 0.5px solid #e2e8f0;">
-                    <td style="padding: 3px 6px; color: #0f172a;">{{ dm.part|default:"Part" }} ({{ dm.view|default:"" }})</td>
-                    <td style="padding: 3px 6px; color: #334155;">{{ dm.damage_type|default:"Scratch" }}</td>
-                    <td style="padding: 3px 6px; font-weight: 700; {% if dm.severity|lower == 'severe' %}color: #991b1b;{% elif dm.severity|lower == 'moderate' %}color: #92400e;{% else %}color: #166534;{% endif %}">
-                        {{ dm.severity|default:"Minor" }}
-                    </td>
-                    <td style="padding: 3px 6px; color: #64748b;">{{ dm.remarks|default:"-" }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% endif %}
-
-        {% if checklist_items %}
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 6px; font-size: 7.5pt; border: 0.5px solid #cbd5e1;">
-            <thead>
-                <tr style="background-color: #e0e7ff; color: #1e3a8a;">
-                    <th style="padding: 3.5px 6px; text-align: left; width: 40%; color: #1e3a8a;">Item / Checkpoint</th>
-                    <th style="padding: 3.5px 6px; text-align: left; width: 15%; color: #1e3a8a;">Status</th>
-                    <th style="padding: 3.5px 6px; text-align: left; width: 20%; color: #1e3a8a;">Reading / Value</th>
-                    <th style="padding: 3.5px 6px; text-align: left; width: 25%; color: #1e3a8a;">Remarks</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in checklist_items %}
-                <tr style="border-bottom: 0.5px solid #e2e8f0;">
-                    <td style="padding: 3px 6px; font-weight: 700; color: #0f172a;">
-                        {% if item.category %}{{ item.category }} · {% endif %}{{ item.name }}
-                    </td>
-                    <td style="padding: 3px 6px;">
-                        {% if item.status|lower == 'good' or item.status|lower == 'pass' %}
-                        <span class="badge badge-good">{{ item.status_display }}</span>
-                        {% elif item.status|lower == 'attention' %}
-                        <span class="badge badge-attention">ATTENTION</span>
-                        {% elif item.status|lower == 'critical' or item.status|lower == 'fail' %}
-                        <span class="badge badge-critical">{{ item.status_display }}</span>
-                        {% else %}
-                        <span class="badge" style="background-color: #f1f5f9; color: #475569; border: 0.5px solid #cbd5e1;">{{ item.status_display|default:"-" }}</span>
-                        {% endif %}
-                    </td>
-                    <td style="padding: 3px 6px; color: #334155;">{{ item.value|default:"-" }}</td>
-                    <td style="padding: 3px 6px; color: #64748b;">{{ item.remarks|default:"-" }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% endif %}
-
-        <div style="margin-top: 4px;">
-            {% if tyre_inspection.pressure %}<span class="metric-tag"><strong>Tyre Pressure:</strong> {{ tyre_inspection.pressure }}</span>{% endif %}
-            {% if tyre_inspection.tread_depth %}<span class="metric-tag"><strong>Tread Depth:</strong> {{ tyre_inspection.tread_depth }}</span>{% endif %}
-            {% if oil_inspection.oil_type %}<span class="metric-tag"><strong>Oil Type:</strong> {{ oil_inspection.oil_type }}</span>{% endif %}
-            {% if oil_inspection.brand %}<span class="metric-tag"><strong>Oil Brand:</strong> {{ oil_inspection.brand }}</span>{% endif %}
-            {% if oil_inspection.grade %}<span class="metric-tag"><strong>Oil Grade:</strong> {{ oil_inspection.grade }}</span>{% endif %}
-            {% if brake_inspection.front %}<span class="metric-tag"><strong>Front Brake:</strong> {{ brake_inspection.front }}</span>{% endif %}
-            {% if brake_inspection.rear %}<span class="metric-tag"><strong>Rear Brake:</strong> {{ brake_inspection.rear }}</span>{% endif %}
-            {% if wheel_alignment_inspection.remarks %}<span class="metric-tag"><strong>Alignment:</strong> {{ wheel_alignment_inspection.remarks }}</span>{% endif %}
-        </div>
-    </div>
-    {% endif %}
-
     <!-- 1. Services Table -->
     {% if services %}
     <div class="section-header">SERVICES</div>
@@ -677,6 +592,111 @@
             Powered by Mobiz Technologies FZE &nbsp;|&nbsp; www.mobiztechnologies.com
         </div>
     </div>
+
+    <!-- Separate Page: Vehicle Inspection Details & Images -->
+    {% if has_inspection %}
+    <div style="page-break-before: always;">
+        <div class="inspection-box" style="margin-top: 0;">
+            <table class="inspection-head-table">
+                <tr>
+                    <td class="inspection-title">VEHICLE INSPECTION REPORT</td>
+                    {% if quotation.inspection_at %}
+                    <td class="inspection-date">Inspection Date: {{ quotation.inspection_at|date:"d-m-Y H:i" }}</td>
+                    {% endif %}
+                </tr>
+            </table>
+
+            {% if damage_marks %}
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 7.5pt; border: 0.5px solid #cbd5e1;">
+                <thead>
+                    <tr style="background-color: #1e3a8a; color: #ffffff;">
+                        <th style="padding: 4px 6px; text-align: left; width: 35%;">Vehicle Part / View</th>
+                        <th style="padding: 4px 6px; text-align: left; width: 20%;">Damage Type</th>
+                        <th style="padding: 4px 6px; text-align: left; width: 15%;">Severity</th>
+                        <th style="padding: 4px 6px; text-align: left; width: 30%;">Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for dm in damage_marks %}
+                    <tr style="border-bottom: 0.5px solid #e2e8f0;">
+                        <td style="padding: 4px 6px; color: #0f172a;">{{ dm.part|default:"Part" }} {% if dm.view %}({{ dm.view }}){% endif %}</td>
+                        <td style="padding: 4px 6px; color: #334155;">{{ dm.damage_type|default:"Scratch" }}</td>
+                        <td style="padding: 4px 6px; font-weight: 700; {% if dm.severity|lower == 'severe' %}color: #991b1b;{% elif dm.severity|lower == 'moderate' %}color: #92400e;{% else %}color: #166534;{% endif %}">
+                            {{ dm.severity|default:"Minor" }}
+                        </td>
+                        <td style="padding: 4px 6px; color: #64748b;">{{ dm.remarks|default:"-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+
+            {% if checklist_items %}
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 7.5pt; border: 0.5px solid #cbd5e1;">
+                <thead>
+                    <tr style="background-color: #e0e7ff; color: #1e3a8a;">
+                        <th style="padding: 4px 6px; text-align: left; width: 40%; color: #1e3a8a;">Item / Checkpoint</th>
+                        <th style="padding: 4px 6px; text-align: left; width: 15%; color: #1e3a8a;">Status</th>
+                        <th style="padding: 4px 6px; text-align: left; width: 20%; color: #1e3a8a;">Reading / Value</th>
+                        <th style="padding: 4px 6px; text-align: left; width: 25%; color: #1e3a8a;">Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in checklist_items %}
+                    <tr style="border-bottom: 0.5px solid #e2e8f0;">
+                        <td style="padding: 3.5px 6px; font-weight: 700; color: #0f172a;">
+                            {% if item.category %}{{ item.category }} · {% endif %}{{ item.name }}
+                        </td>
+                        <td style="padding: 3.5px 6px;">
+                            {% if item.status|lower == 'good' or item.status|lower == 'pass' %}
+                            <span class="badge badge-good">{{ item.status_display }}</span>
+                            {% elif item.status|lower == 'attention' %}
+                            <span class="badge badge-attention">ATTENTION</span>
+                            {% elif item.status|lower == 'critical' or item.status|lower == 'fail' %}
+                            <span class="badge badge-critical">{{ item.status_display }}</span>
+                            {% else %}
+                            <span class="badge" style="background-color: #f1f5f9; color: #475569; border: 0.5px solid #cbd5e1;">{{ item.status_display|default:"-" }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 3.5px 6px; color: #334155;">{{ item.value|default:"-" }}</td>
+                        <td style="padding: 3.5px 6px; color: #64748b;">{{ item.remarks|default:"-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+
+            <div style="margin-top: 4px; margin-bottom: 10px;">
+                {% if tyre_inspection.pressure %}<span class="metric-tag"><strong>Tyre Pressure:</strong> {{ tyre_inspection.pressure }}</span>{% endif %}
+                {% if tyre_inspection.tread_depth %}<span class="metric-tag"><strong>Tread Depth:</strong> {{ tyre_inspection.tread_depth }}</span>{% endif %}
+                {% if oil_inspection.oil_type %}<span class="metric-tag"><strong>Oil Type:</strong> {{ oil_inspection.oil_type }}</span>{% endif %}
+                {% if oil_inspection.brand %}<span class="metric-tag"><strong>Oil Brand:</strong> {{ oil_inspection.brand }}</span>{% endif %}
+                {% if oil_inspection.grade %}<span class="metric-tag"><strong>Oil Grade:</strong> {{ oil_inspection.grade }}</span>{% endif %}
+                {% if brake_inspection.front %}<span class="metric-tag"><strong>Front Brake:</strong> {{ brake_inspection.front }}</span>{% endif %}
+                {% if brake_inspection.rear %}<span class="metric-tag"><strong>Rear Brake:</strong> {{ brake_inspection.rear }}</span>{% endif %}
+                {% if wheel_alignment_inspection.remarks %}<span class="metric-tag"><strong>Alignment:</strong> {{ wheel_alignment_inspection.remarks }}</span>{% endif %}
+            </div>
+
+            {% if inspection_images %}
+            <div style="margin-top: 10px; border-top: 1px dashed #cbd5e1; padding-top: 8px;">
+                <div style="font-size: 8.5pt; font-weight: 700; color: #1e3a8a; text-transform: uppercase; margin-bottom: 8px;">
+                    Inspection Photos ({{ inspection_images|length }})
+                </div>
+                <table style="width: 100%; border-collapse: separate; border-spacing: 6px;">
+                    {% for img in inspection_images %}
+                    {% if forloop.counter0|divisibleby:3 %}<tr>{% endif %}
+                        <td style="width: 33.33%; vertical-align: top; border: 0.5px solid #cbd5e1; border-radius: 6px; padding: 5px; background: #ffffff; text-align: center;">
+                            <img src="{{ img.src }}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 4px; display: block; margin-bottom: 4px;" />
+                            <div style="font-size: 7pt; font-weight: 600; color: #334155;">{{ img.caption }}</div>
+                        </td>
+                    {% if forloop.counter|divisibleby:3 or forloop.last %}</tr>{% endif %}
+                    {% endfor %}
+                </table>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 </body>

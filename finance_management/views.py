@@ -3024,8 +3024,71 @@ def generate_quotation_pdf_file(quotation, base_url, overwrite=True):
     if not isinstance(raw_inspection, dict):
         raw_inspection = {}
 
+    def _resolve_pdf_image_src(raw_url):
+        if not raw_url:
+            return None
+        s = str(raw_url).strip()
+        if not s:
+            return None
+        if s.startswith('file://'):
+            return s
+        if '/media/' in s:
+            rel_media = s.split('/media/', 1)[1]
+            local_path = os.path.join(settings.BASE_DIR, 'media', rel_media)
+            if os.path.exists(local_path):
+                return 'file://' + os.path.abspath(local_path)
+        if s.startswith('/'):
+            return (base_url.rstrip('/') + s) if base_url else s
+        return s
+
     damage_marks = raw_inspection.get('damage_marks') or []
-    damage_marks_count = len(damage_marks) if isinstance(damage_marks, list) else 0
+    if not isinstance(damage_marks, list):
+        damage_marks = []
+    damage_marks_count = len(damage_marks)
+
+    inspection_images = []
+    for dm in damage_marks:
+        if isinstance(dm, dict):
+            img_src = _resolve_pdf_image_src(dm.get('photo_url') or dm.get('photo') or dm.get('image_url') or dm.get('url'))
+            if img_src:
+                part_lbl = dm.get('part') or dm.get('zone') or 'Vehicle Part'
+                view_lbl = dm.get('view') or ''
+                dmg_lbl = dm.get('damage_type') or ''
+                caption = f"{part_lbl}{' (' + view_lbl + ')' if view_lbl else ''}{' - ' + dmg_lbl if dmg_lbl else ''}"
+                inspection_images.append({'src': img_src, 'caption': caption})
+
+    for key in ('photos', 'inspection_photos', 'images'):
+        extra_imgs = raw_inspection.get(key)
+        if isinstance(extra_imgs, list):
+            for im in extra_imgs:
+                if isinstance(im, dict):
+                    img_src = _resolve_pdf_image_src(im.get('photo_url') or im.get('url') or im.get('image'))
+                    if img_src:
+                        inspection_images.append({'src': img_src, 'caption': im.get('caption') or im.get('label') or 'Inspection Photo'})
+                elif isinstance(im, str):
+                    img_src = _resolve_pdf_image_src(im)
+                    if img_src:
+                        inspection_images.append({'src': img_src, 'caption': 'Inspection Photo'})
+
+    if hasattr(quotation, 'reported_issues'):
+        try:
+            for issue in quotation.reported_issues.filter(is_deleted=False).prefetch_related('photos'):
+                for ph in issue.photos.filter(is_deleted=False):
+                    img_field = getattr(ph, 'image', None)
+                    if img_field:
+                        img_src = None
+                        try:
+                            if hasattr(img_field, 'path') and os.path.exists(img_field.path):
+                                img_src = 'file://' + os.path.abspath(img_field.path)
+                            elif hasattr(img_field, 'url'):
+                                img_src = _resolve_pdf_image_src(img_field.url)
+                        except Exception:
+                            pass
+                        if img_src:
+                            cap = issue.issue_text or (issue.service.name if issue.service else 'Reported Issue')
+                            inspection_images.append({'src': img_src, 'caption': cap})
+        except Exception:
+            pass
 
     checklist_raw = raw_inspection.get('checklist') or {}
     checklist_items = []
@@ -3075,7 +3138,7 @@ def generate_quotation_pdf_file(quotation, base_url, overwrite=True):
     wheel_alignment = raw_inspection.get('wheel_alignment') if isinstance(raw_inspection.get('wheel_alignment'), dict) else {}
 
     has_inspection = bool(
-        checklist_items or damage_marks_count > 0 or tyre or oil or brake or wheel_alignment or getattr(quotation, 'inspection_at', None)
+        checklist_items or damage_marks_count > 0 or inspection_images or tyre or oil or brake or wheel_alignment or getattr(quotation, 'inspection_at', None)
     )
 
     company_seal = None
@@ -3125,6 +3188,7 @@ def generate_quotation_pdf_file(quotation, base_url, overwrite=True):
         'has_inspection': has_inspection,
         'damage_marks': damage_marks,
         'damage_marks_count': damage_marks_count,
+        'inspection_images': inspection_images,
         'checklist_items': checklist_items,
         'tyre_inspection': tyre,
         'oil_inspection': oil,
