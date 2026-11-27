@@ -1003,7 +1003,7 @@
                 <a href="{% url 'invoice_customisation_redirect' %}">Invoice</a>
             </div>
 
-            {% else %}
+            {% elif request.user.profile.role.name == 'SUPER_ADMIN' or request.user.is_superuser %}
 
             <a href="{% url 'dashboard' %}" class="nav-item">
                 <div class="nav-item-left">
