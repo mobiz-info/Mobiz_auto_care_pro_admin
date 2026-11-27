@@ -14,3 +14,4 @@ def user_permissions_context(request):
         'user_perms': {},
         'user_designation_name': '',
     }
+

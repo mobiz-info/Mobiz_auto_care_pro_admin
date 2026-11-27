@@ -309,3 +309,4 @@ def user_has_permission(user, menu_key, action='view'):
     if info['is_full_access']:
         return True
     return bool(info['permissions'].get(menu_key, {}).get(action, False))
+
