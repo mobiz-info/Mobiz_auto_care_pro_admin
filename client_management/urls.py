@@ -37,6 +37,10 @@ urlpatterns = [
     path('staff/create/', views.staff_create, name='staff_create'),
     path('staff/edit/<uuid:id>/', views.staff_edit, name='staff_edit'),
     path('staff/delete/<uuid:id>/', views.staff_delete, name='staff_delete'),
+    path('master/designations/', views.designation_list, name='designation_list'),
+    path('master/designations/create/', views.designation_create, name='designation_create'),
+    path('master/designations/edit/<uuid:id>/', views.designation_edit, name='designation_edit'),
+    path('master/designations/delete/<uuid:id>/', views.designation_delete, name='designation_delete'),
     path('staff/salary/', views.staff_salary_list, name='staff_salary_list'),
     path('staff/salary/edit/<uuid:id>/', views.staff_salary_edit, name='staff_salary_edit'),
 
@@ -99,6 +103,7 @@ urlpatterns = [
     path('branch/vehicle-types/', views.branch_vehicle_type_manage, name='branch_vehicle_type_manage'),
 
     # Mobile API Endpoints
+    path('api/permissions/', api_views.api_get_my_permissions, name='api_get_my_permissions'),
     path('api/login/', api_views.api_login, name='api_login'),
     path('api/user/ping/', api_views.api_ping_app_open, name='api_ping_app_open'),
 

@@ -154,17 +154,21 @@
                                 title="View Receipt">
                                 <i class="ph ph-receipt"></i>
                             </a>
+                            {% if is_full_access or user_perms.bill.pdf %}
                             <a href="{% url 'invoice_pdf_view' invoice.id %}" target="_blank"
                                 style="background:#f1f5f9; color:#475569; text-decoration:none; padding:7px 10px; border-radius:7px; display:inline-flex; align-items:center; justify-content:center; font-size:0.95rem;"
                                 title="Download PDF">
                                 <i class="ph ph-file-pdf"></i>
                             </a>
+                            {% endif %}
+                            {% if is_full_access or user_perms.bill.delete %}
                             <button
                                 onclick="deleteInvoice('{{ invoice.id }}', '{{ invoice.invoice_number }}')"
                                 style="background:#fee2e2; color:#b91c1c; border:none; padding:7px 10px; border-radius:7px; cursor:pointer; font-size:0.95rem; display:inline-flex; align-items:center; justify-content:center;"
                                 title="Delete Invoice">
                                 <i class="ph ph-trash"></i>
                             </button>
+                            {% endif %}
                         </div>
                     </td>
                 </tr>

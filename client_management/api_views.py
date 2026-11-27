@@ -80,8 +80,9 @@ def api_login(request):
                 return JsonResponse({'success': False, 'message': 'User profile not found'}, status=403)
             
             role = user.profile.role.name if user.profile.role else None
-            allowed_roles = ['COMPANY_ADMIN', 'BRANCH_ADMIN', 'BRANCH_MANAGER', 'MARKETING', 'CLERICAL', 'SERVICE']
-            if role not in allowed_roles:
+            allowed_roles = ['COMPANY_ADMIN', 'BRANCH_ADMIN', 'BRANCH_MANAGER', 'MARKETING', 'CLERICAL', 'SERVICE', 'STAFF']
+            has_staff_profile = hasattr(user, 'staff_profile') and user.staff_profile is not None
+            if role not in allowed_roles and not has_staff_profile:
                 return JsonResponse({'success': False, 'message': 'Unauthorized role'}, status=403)
                 
             token_obj, created = APIToken.objects.get_or_create(user=user)
@@ -90,11 +91,11 @@ def api_login(request):
             branch_name = ''
             if role == 'BRANCH_ADMIN' and hasattr(user, 'managed_branch') and user.managed_branch:
                 branch_name = user.managed_branch.name
-            elif role in ['BRANCH_MANAGER', 'MARKETING', 'CLERICAL', 'SERVICE'] and hasattr(user, 'staff_profile') and user.staff_profile and user.staff_profile.branch:
+            elif has_staff_profile and user.staff_profile.branch:
                 branch_name = user.staff_profile.branch.name
 
             # Display name: staff name for staff, branch name for BRANCH_ADMIN, company name for COMPANY_ADMIN
-            if role in ['BRANCH_MANAGER', 'MARKETING', 'CLERICAL', 'SERVICE'] and hasattr(user, 'staff_profile') and user.staff_profile:
+            if has_staff_profile:
                 display_name = user.staff_profile.name
             else:
                 display_name = branch_name if role == 'BRANCH_ADMIN' else company_name
@@ -163,6 +164,9 @@ def api_login(request):
             except Exception:
                 has_insurance_module = False
 
+            from client_management.permissions import get_user_permissions
+            perm_info = get_user_permissions(user)
+
             return JsonResponse({
                 'success': True,
                 'token': token_obj.token,
@@ -179,11 +183,29 @@ def api_login(request):
                 'company_logo': company_logo,
                 'company_seal': company_seal,
                 'has_insurance_module': has_insurance_module,
+                'is_full_access': perm_info['is_full_access'],
+                'designation_name': perm_info['designation_name'],
+                'permissions': perm_info['permissions'],
             })
         else:
             return JsonResponse({'success': False, 'message': 'Invalid username or password'}, status=401)
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+@csrf_exempt
+def api_get_my_permissions(request):
+    user = get_user_from_token(request)
+    if not user:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+    from client_management.permissions import get_user_permissions
+    perm_info = get_user_permissions(user)
+    return JsonResponse({
+        'success': True,
+        'is_full_access': perm_info['is_full_access'],
+        'designation_name': perm_info['designation_name'],
+        'permissions': perm_info['permissions'],
+    })
 
 def get_user_from_token(request):
     if hasattr(request, 'user') and request.user and request.user.is_authenticated:
@@ -1965,6 +1987,9 @@ def api_update_invoice(request):
     user = get_user_from_token(request)
     if not user:
         return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+    from client_management.permissions import user_has_permission
+    if not user_has_permission(user, 'bill', 'edit'):
+        return JsonResponse({'success': False, 'message': 'Permission denied to edit invoice'}, status=403)
 
     try:
         data = json.loads(request.body)
@@ -5574,7 +5599,10 @@ def api_delete_expense_entry(request):
     user = get_user_from_token(request)
     if not user:
         return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
-        
+    from client_management.permissions import user_has_permission
+    if not user_has_permission(user, 'expense', 'delete'):
+        return JsonResponse({'success': False, 'message': 'Permission denied to delete expense'}, status=403)
+
     try:
         from master.models import ExpenseEntry
         data = json.loads(request.body)

@@ -593,6 +593,17 @@
 
             <div class="nav-item dropdown-toggle">
                 <div class="nav-item-left">
+                    <i class="ph ph-sliders-horizontal"></i>
+                    Master
+                </div>
+                <i class="ph-bold ph-caret-right nav-right-icon"></i>
+            </div>
+            <div class="nav-submenu">
+                <a href="{% url 'designation_list' %}">Designations</a>
+            </div>
+
+            <div class="nav-item dropdown-toggle">
+                <div class="nav-item-left">
                     <i class="ph ph-shopping-cart-simple"></i>
                     Purchase Management
                 </div>
@@ -1064,6 +1075,7 @@
                 <a href="{% url 'area_list' %}">Area</a>
                 <a href="{% url 'emission_standard_list' %}">Emission Standards</a>
                 <a href="{% url 'insurance_company_list' %}">Insurance Companies</a>
+                <a href="{% url 'designation_list' %}">Designations</a>
             </div>
 
             <!-- Service Management -->
@@ -1286,6 +1298,120 @@
                 <!-- <a href="#">Tariff</a> -->
                 <a href="{% url 'log_list' %}">Logs</a>
             </div>
+
+            {% else %}
+
+            <a href="{% url 'dashboard' %}" class="nav-item">
+                <div class="nav-item-left">
+                    <i class="ph ph-squares-four"></i>
+                    Dashboard
+                </div>
+            </a>
+
+            {% if user_perms.bill.view or user_perms.bill.create or user_perms.quick_sale.view or user_perms.outstanding.view or user_perms.receipt.view %}
+            <div class="nav-item dropdown-toggle">
+                <div class="nav-item-left">
+                    <i class="ph ph-trend-up"></i>
+                    Sales Management
+                </div>
+                <i class="ph-bold ph-caret-right nav-right-icon"></i>
+            </div>
+            <div class="nav-submenu">
+                {% if user_perms.bill.create or user_perms.new_job.create_invoice %}
+                <a href="{% url 'invoice_create' %}">Create Invoice</a>
+                {% endif %}
+                {% if user_perms.quick_sale.view %}
+                <a href="{% url 'invoice_create' %}?quick_sale=1">Quick Sale</a>
+                {% endif %}
+                {% if user_perms.bill.view %}
+                <a href="{% url 'invoice_list' %}">Invoices</a>
+                {% endif %}
+                {% if user_perms.outstanding.view %}
+                <a href="{% url 'outstanding_list' %}">Collection / Outstanding</a>
+                {% endif %}
+                {% if user_perms.receipt.view %}
+                <a href="{% url 'receipt_list' %}">Receipts</a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if user_perms.bookings.view %}
+            <div class="nav-item dropdown-toggle">
+                <div class="nav-item-left">
+                    <i class="ph ph-calendar-check"></i>
+                    Booking Management
+                </div>
+                <i class="ph-bold ph-caret-right nav-right-icon"></i>
+            </div>
+            <div class="nav-submenu">
+                <a href="{% url 'booking_list' %}">Bookings</a>
+            </div>
+            {% endif %}
+
+            {% if user_perms.customers.view %}
+            <div class="nav-item dropdown-toggle">
+                <div class="nav-item-left">
+                    <i class="ph ph-users"></i>
+                    Customer Management
+                </div>
+                <i class="ph-bold ph-caret-right nav-right-icon"></i>
+            </div>
+            <div class="nav-submenu">
+                <a href="{% url 'customer_list' %}">Customers</a>
+            </div>
+            {% endif %}
+
+            {% if user_perms.stock.view or user_perms.suppliers.view or user_perms.purchase.view %}
+            <div class="nav-item dropdown-toggle">
+                <div class="nav-item-left">
+                    <i class="ph ph-shopping-cart-simple"></i>
+                    Purchase & Stock
+                </div>
+                <i class="ph-bold ph-caret-right nav-right-icon"></i>
+            </div>
+            <div class="nav-submenu">
+                {% if user_perms.stock.view %}
+                <a href="{% url 'stock_list' %}">Stock Item</a>
+                <a href="{% url 'purchased_stock_list' %}">Stocks</a>
+                {% endif %}
+                {% if user_perms.suppliers.view %}
+                <a href="{% url 'supplier_list' %}">Suppliers</a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if user_perms.expense.view or user_perms.expense.create %}
+            <div class="nav-item dropdown-toggle">
+                <div class="nav-item-left">
+                    <i class="ph ph-currency-circle-dollar"></i>
+                    Expense
+                </div>
+                <i class="ph-bold ph-caret-right nav-right-icon"></i>
+            </div>
+            <div class="nav-submenu">
+                {% if user_perms.expense.create %}
+                <a href="{% url 'expense_create' %}">Add Expense</a>
+                {% endif %}
+                {% if user_perms.expense.view %}
+                <a href="{% url 'expense_list' %}">Expense List</a>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if user_perms.reports.view %}
+            <div class="nav-item dropdown-toggle">
+                <div class="nav-item-left">
+                    <i class="ph ph-chart-line-up"></i>
+                    Reports
+                </div>
+                <i class="ph-bold ph-caret-right nav-right-icon"></i>
+            </div>
+            <div class="nav-submenu">
+                <a href="{% url 'daily_summary_report' %}">Daily Summary Report</a>
+                <a href="{% url 'sales_report' %}">Sales Report</a>
+                <a href="{% url 'collection_report' %}">Collection Report</a>
+            </div>
+            {% endif %}
 
             {% endif %}
         </div>

@@ -158,6 +158,27 @@ class Branch(BaseModel):
     def __str__(self):
         return f"{self.name} - {self.company.company_name}"
 
+class Designation(BaseModel):
+    company = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        related_name='designations',
+        null=True,
+        blank=True,
+        help_text="Null for global default designations",
+    )
+    name = models.CharField(max_length=100)
+    code = models.CharField(max_length=50, blank=True, null=True)
+    permissions = models.JSONField(default=dict, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['name', 'auto_id']
+
+    def __str__(self):
+        return self.name
+
+
 class Staff(BaseModel):
     DESIGNATION_CHOICES = (
         ('BRANCH_MANAGER', 'Branch manager'),
@@ -176,7 +197,14 @@ class Staff(BaseModel):
 
     company = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='staffs')
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, related_name='staffs')
-    designation = models.CharField(max_length=50, choices=DESIGNATION_CHOICES)
+    designation = models.CharField(max_length=50, choices=DESIGNATION_CHOICES, blank=True, null=True)
+    designation_obj = models.ForeignKey(
+        Designation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='staffs',
+    )
     name = models.CharField(max_length=200)
     employee_id = models.CharField(max_length=50, blank=True, null=True, unique=True)
     phone = models.CharField(max_length=50, blank=True, null=True)
@@ -194,7 +222,8 @@ class Staff(BaseModel):
                                       help_text='Applicable when Salary Mode is Wage')
 
     def __str__(self):
-        return f"{self.name} ({self.employee_id}) - {self.get_designation_display()}"
+        desig_label = self.designation_obj.name if self.designation_obj else (self.get_designation_display() or self.designation or '')
+        return f"{self.name} ({self.employee_id}) - {desig_label}"
 
 
 class StaffCommission(BaseModel):

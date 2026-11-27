@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }} - Mobiz Autocare Pro{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block breadcrumb_active %}{{ title }}{% endblock %}
+
+{% block content %}
+<style>
+    .perm-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
+        transition: box-shadow 0.2s;
+    }
+    .perm-card:hover {
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+    }
+    .perm-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid #f1f5f9;
+        padding-bottom: 10px;
+        margin-bottom: 12px;
+    }
+    .perm-card-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        color: #1e293b;
+        font-size: 0.95rem;
+    }
+    .perm-card-title i {
+        color: #1e3a8a;
+        font-size: 1.15rem;
+    }
+    .perm-actions-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .perm-checkbox-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 7px 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #334155;
+        cursor: pointer;
+        user-select: none;
+        background: #f8fafc;
+        transition: all 0.15s;
+    }
+    .perm-checkbox-pill:has(input:checked) {
+        background: #eff6ff;
+        border-color: #2563eb;
+        color: #1e3a8a;
+        font-weight: 600;
+    }
+    .perm-checkbox-pill input {
+        accent-color: #1e3a8a;
+        width: 15px;
+        height: 15px;
+        cursor: pointer;
+    }
+</style>
+
+<div class="list-container" style="max-width: 1100px;">
+    <form method="POST">
+        {% csrf_token %}
+
+        <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #e2e8f0;">
+            <div style="flex: 1; min-width: 260px;">
+                <label style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 6px; font-size: 0.9rem;">
+                    Designation Name <span style="color: #ef4444;">*</span>
+                </label>
+                <input type="text" name="name" required class="form-control"
+                       value="{% if designation %}{{ designation.name }}{% endif %}"
+                       placeholder="e.g. Cashier, Technician, Supervisor"
+                       style="width: 100%; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem;">
+            </div>
+
+            <div style="padding-bottom: 8px;">
+                <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; color: #334155;">
+                    <input type="checkbox" name="is_active" {% if not is_edit or designation.is_active %}checked{% endif %}
+                           style="width: 18px; height: 18px; accent-color: #1e3a8a;">
+                    <span>Active</span>
+                </label>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button type="button" onclick="toggleAllPermissions(true)"
+                        style="padding: 9px 14px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #1e3a8a; font-weight: 600; cursor: pointer; font-size: 0.85rem;">
+                    <i class="ph-bold ph-checks"></i> Select All
+                </button>
+                <button type="button" onclick="toggleAllPermissions(false)"
+                        style="padding: 9px 14px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #64748b; font-weight: 600; cursor: pointer; font-size: 0.85rem;">
+                    Clear All
+                </button>
+            </div>
+        </div>
+
+        <h4 style="margin: 0 0 14px 0; color: #1e293b; font-weight: 700; font-size: 1rem;">
+            Menu & Sub-Menu Permissions
+        </h4>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; margin-bottom: 24px;">
+            {% for menu in schema %}
+            <div class="perm-card" data-menu="{{ menu.key }}">
+                <div class="perm-card-header">
+                    <div class="perm-card-title">
+                        <i class="ph-bold {{ menu.icon }}"></i>
+                        <span>{{ menu.label }}</span>
+                    </div>
+                    <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; color: #475569; cursor: pointer; font-weight: 600;">
+                        <input type="checkbox" class="menu-toggle-all" data-menu="{{ menu.key }}"
+                               {% if menu.all_checked %}checked{% endif %}
+                               onchange="toggleMenuPermissions('{{ menu.key }}', this.checked)"
+                               style="accent-color: #1e3a8a;">
+                        All
+                    </label>
+                </div>
+                <div class="perm-actions-grid">
+                    {% for act in menu.actions %}
+                    <label class="perm-checkbox-pill">
+                        <input type="checkbox"
+                               name="perm_{{ menu.key }}_{{ act.key }}"
+                               class="perm-cb perm-cb-{{ menu.key }}"
+                               {% if act.checked %}checked{% endif %}
+                               onchange="syncMenuToggle('{{ menu.key }}')">
+                        <span>{{ act.label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div style="display: flex; gap: 12px; justify-content: flex-end; padding-top: 16px; border-top: 1px solid #e2e8f0;">
+            <a href="{% url 'designation_list' %}"
+               style="padding: 10px 20px; border-radius: 8px; border: 1px solid #cbd5e1; color: #475569; text-decoration: none; font-weight: 600;">
+                Cancel
+            </a>
+            <button type="submit" class="btn-create" style="padding: 10px 26px; border: none; cursor: pointer;">
+                <i class="ph-bold ph-check"></i> Save Designation
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    function toggleMenuPermissions(menuKey, state) {
+        document.querySelectorAll('.perm-cb-' + menuKey).forEach(cb => {
+            cb.checked = state;
+        });
+    }
+
+    function syncMenuToggle(menuKey) {
+        const boxes = Array.from(document.querySelectorAll('.perm-cb-' + menuKey));
+        const allChecked = boxes.length > 0 && boxes.every(cb => cb.checked);
+        const master = document.querySelector('.menu-toggle-all[data-menu="' + menuKey + '"]');
+        if (master) master.checked = allChecked;
+    }
+
+    function toggleAllPermissions(state) {
+        document.querySelectorAll('.perm-cb, .menu-toggle-all').forEach(cb => {
+            cb.checked = state;
+        });
+    }
+</script>
+{% endblock %}

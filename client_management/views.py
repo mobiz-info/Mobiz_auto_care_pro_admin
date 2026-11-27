@@ -5548,3 +5548,189 @@ def stock_consumption_report(request):
 
 
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Designation & Permission Management (Master -> Designations)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _parse_permissions_from_post(post_data):
+    from client_management.permissions import PERMISSION_MENU_SCHEMA
+    perms = {}
+    for menu in PERMISSION_MENU_SCHEMA:
+        m_key = menu['key']
+        perms[m_key] = {}
+        for act in menu['actions']:
+            a_key = act['key']
+            perms[m_key][a_key] = (post_data.get(f'perm_{m_key}_{a_key}') == 'on')
+    return perms
+
+
+def _build_schema_with_values(perms_dict):
+    from client_management.permissions import PERMISSION_MENU_SCHEMA
+    schema = []
+    raw = perms_dict or {}
+    for menu in PERMISSION_MENU_SCHEMA:
+        m_key = menu['key']
+        m_raw = raw.get(m_key, {}) if isinstance(raw.get(m_key), dict) else {}
+        actions_with_state = []
+        all_checked = True
+        for act in menu['actions']:
+            checked = bool(m_raw.get(act['key'], False))
+            if not checked:
+                all_checked = False
+            actions_with_state.append({
+                'key': act['key'],
+                'label': act['label'],
+                'checked': checked,
+            })
+        schema.append({
+            'key': m_key,
+            'label': menu['label'],
+            'icon': menu['icon'],
+            'all_checked': all_checked,
+            'actions': actions_with_state,
+        })
+    return schema
+
+
+@login_required
+def designation_list(request):
+    from client_management.models import Designation
+    from django.db.models import Q, Count
+
+    search = request.GET.get('search', '').strip()
+    role_name = request.user.profile.role.name if (hasattr(request.user, 'profile') and request.user.profile.role) else ''
+    company = getattr(request.user.profile, 'company', None) if hasattr(request.user, 'profile') else None
+
+    if role_name == 'SUPER_ADMIN':
+        qs = Designation.objects.filter(is_deleted=False, company__isnull=True)
+    elif company:
+        qs = Designation.objects.filter(
+            Q(company=company) | Q(company__isnull=True),
+            is_deleted=False,
+        )
+    else:
+        messages.error(request, "You are not associated with any company.")
+        return redirect('dashboard')
+
+    if search:
+        qs = qs.filter(name__icontains=search)
+
+    qs = qs.annotate(staff_count=Count('staffs', filter=Q(staffs__is_deleted=False))).order_by('name', 'auto_id')
+
+    paginator = Paginator(qs, 15)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    return render(request, 'designation/list.html', {
+        'page_obj': page_obj,
+        'search': search,
+        'title': 'Designations & Permissions',
+    })
+
+
+@login_required
+def designation_create(request):
+    from client_management.models import Designation
+    from client_management.permissions import get_empty_permissions
+
+    role_name = request.user.profile.role.name if (hasattr(request.user, 'profile') and request.user.profile.role) else ''
+    company = getattr(request.user.profile, 'company', None) if hasattr(request.user, 'profile') else None
+    if role_name != 'SUPER_ADMIN' and not company:
+        messages.error(request, "You are not associated with any company.")
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        is_active = request.POST.get('is_active') == 'on'
+        if not name:
+            messages.error(request, "Designation name is required.")
+        else:
+            perms = _parse_permissions_from_post(request.POST)
+            Designation.objects.create(
+                company=None if role_name == 'SUPER_ADMIN' else company,
+                name=name,
+                permissions=perms,
+                is_active=is_active,
+                auto_id=get_auto_id(Designation),
+                creator=request.user,
+            )
+            messages.success(request, f"Designation '{name}' created successfully.")
+            return redirect('designation_list')
+
+    return render(request, 'designation/form.html', {
+        'title': 'Create Designation',
+        'schema': _build_schema_with_values(get_empty_permissions()),
+        'is_edit': False,
+    })
+
+
+@login_required
+def designation_edit(request, id):
+    from client_management.models import Designation, Staff
+    from django.db.models import Q
+
+    role_name = request.user.profile.role.name if (hasattr(request.user, 'profile') and request.user.profile.role) else ''
+    company = getattr(request.user.profile, 'company', None) if hasattr(request.user, 'profile') else None
+
+    if role_name == 'SUPER_ADMIN':
+        desig = get_object_or_404(Designation, id=id, is_deleted=False)
+    elif company:
+        desig = get_object_or_404(Designation, Q(company=company) | Q(company__isnull=True), id=id, is_deleted=False)
+    else:
+        messages.error(request, "You are not associated with any company.")
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        is_active = request.POST.get('is_active') == 'on'
+        if not name:
+            messages.error(request, "Designation name is required.")
+        else:
+            perms = _parse_permissions_from_post(request.POST)
+            if role_name != 'SUPER_ADMIN' and desig.company is None:
+                # Clone global designation as company-specific override so other companies aren't affected
+                new_desig = Designation.objects.create(
+                    company=company,
+                    name=name,
+                    code=desig.code,
+                    permissions=perms,
+                    is_active=is_active,
+                    auto_id=get_auto_id(Designation),
+                    creator=request.user,
+                )
+                Staff.objects.filter(company=company, designation_obj=desig, is_deleted=False).update(designation_obj=new_desig)
+                messages.success(request, f"Designation '{name}' customized for your company.")
+            else:
+                desig.name = name
+                desig.permissions = perms
+                desig.is_active = is_active
+                desig.updater = request.user
+                desig.save()
+                messages.success(request, f"Designation '{name}' updated successfully.")
+            return redirect('designation_list')
+
+    return render(request, 'designation/form.html', {
+        'title': 'Edit Designation',
+        'designation': desig,
+        'schema': _build_schema_with_values(desig.permissions),
+        'is_edit': True,
+    })
+
+
+@login_required
+def designation_delete(request, id):
+    from client_management.models import Designation
+    role_name = request.user.profile.role.name if (hasattr(request.user, 'profile') and request.user.profile.role) else ''
+    company = getattr(request.user.profile, 'company', None) if hasattr(request.user, 'profile') else None
+
+    if role_name == 'SUPER_ADMIN':
+        desig = get_object_or_404(Designation, id=id, is_deleted=False)
+    else:
+        desig = get_object_or_404(Designation, id=id, company=company, is_deleted=False)
+
+    desig.is_deleted = True
+    desig.updater = request.user
+    desig.save()
+    messages.success(request, f"Designation '{desig.name}' deleted successfully.")
+    return redirect('designation_list')

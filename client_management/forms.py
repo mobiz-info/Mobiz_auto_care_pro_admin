@@ -224,14 +224,16 @@ class StaffForm(forms.ModelForm):
 
     class Meta:
         model = Staff
-        fields = ['branch', 'designation', 'name', 'phone', 'salary_mode', 'monthly_salary', 'daily_wage']
+        fields = ['branch', 'designation_obj', 'name', 'phone', 'salary_mode', 'monthly_salary', 'daily_wage']
 
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         
-        # Restrict branches
+        from django.db.models import Q
+        company = None
         if self.request and hasattr(self.request.user, 'profile') and self.request.user.profile.company:
+            company = self.request.user.profile.company
             if self.request.user.profile.role.name == 'BRANCH_ADMIN' and hasattr(self.request.user, 'managed_branch'):
                 self.fields['branch'].queryset = Branch.objects.filter(
                     id=self.request.user.managed_branch.id,
@@ -241,9 +243,19 @@ class StaffForm(forms.ModelForm):
                 self.fields['branch'].widget = forms.HiddenInput()
             else:
                 self.fields['branch'].queryset = Branch.objects.filter(
-                    company=self.request.user.profile.company, 
+                    company=company, 
                     is_deleted=False
                 )
+
+        if 'designation_obj' in self.fields:
+            self.fields['designation_obj'].label = 'Designation'
+            self.fields['designation_obj'].required = True
+            self.fields['designation_obj'].empty_label = '-- Select Designation --'
+            self.fields['designation_obj'].queryset = Designation.objects.filter(
+                Q(company=company) | Q(company__isnull=True),
+                is_deleted=False,
+                is_active=True,
+            ).order_by('name')
             
         for field_name, field in self.fields.items():
             if field_name not in ['username', 'password']:
@@ -283,6 +295,11 @@ class StaffForm(forms.ModelForm):
         username = self.cleaned_data.get('username')
         password = self.cleaned_data.get('password')
 
+        if staff.designation_obj:
+            legacy_code = (staff.designation_obj.code or '').upper().strip()
+            staff.designation = legacy_code if legacy_code in ['BRANCH_MANAGER', 'MARKETING', 'CLERICAL', 'SERVICE'] else (staff.designation_obj.name or 'STAFF')[:50]
+        role_name = (staff.designation_obj.code if staff.designation_obj and staff.designation_obj.code in ['BRANCH_MANAGER', 'MARKETING', 'CLERICAL', 'SERVICE'] else 'STAFF')
+
         if staff._state.adding:
             # Generate employee_id
             import re
@@ -302,15 +319,6 @@ class StaffForm(forms.ModelForm):
 
             # Create User
             user = User.objects.create_user(username=username, password=password)
-            
-            # Map designation to a role name
-            designation_to_role = {
-                'BRANCH_MANAGER': 'BRANCH_MANAGER',
-                'MARKETING': 'MARKETING',
-                'CLERICAL': 'CLERICAL',
-                'SERVICE': 'SERVICE'
-            }
-            role_name = designation_to_role.get(staff.designation, staff.designation)
             role, _ = Role.objects.get_or_create(
                 name=role_name,
                 defaults={'auto_id': get_auto_id(Role)}
@@ -332,14 +340,6 @@ class StaffForm(forms.ModelForm):
                     user.set_password(password)
                 user.save()
                 
-                # Update role if designation changed
-                designation_to_role = {
-                    'BRANCH_MANAGER': 'BRANCH_MANAGER',
-                    'MARKETING': 'MARKETING',
-                    'CLERICAL': 'CLERICAL',
-                    'SERVICE': 'SERVICE'
-                }
-                role_name = designation_to_role.get(staff.designation, staff.designation)
                 role, _ = Role.objects.get_or_create(
                     name=role_name,
                     defaults={'auto_id': get_auto_id(Role)}

@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block title %}Designations & Permissions - Mobiz Autocare Pro{% endblock %}
+{% block page_title %}Designations & Permissions{% endblock %}
+{% block breadcrumb_active %}Designations{% endblock %}
+
+{% block content %}
+<div class="list-container">
+    <div class="list-header">
+        <form method="GET" class="search-wrapper">
+            <i class="ph ph-magnifying-glass search-icon"></i>
+            <input type="text" name="search" value="{% if search %}{{ search }}{% endif %}" placeholder="Search designations..." class="search-input">
+        </form>
+        <a href="{% url 'designation_create' %}" class="btn-create">
+            <i class="ph-bold ph-plus"></i> Add Designation
+        </a>
+    </div>
+
+    <div style="overflow-x: auto;">
+        <table class="premium-table">
+            <thead>
+                <tr>
+                    <th>SL No</th>
+                    <th>Designation Name</th>
+                    <th>Scope</th>
+                    <th>Staff Assigned</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for desig in page_obj %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        <div style="font-weight: 600; color: #1e293b;">{{ desig.name }}</div>
+                    </td>
+                    <td>
+                        {% if desig.company %}
+                            <span style="background: #eff6ff; color: #1d4ed8; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600;">Company</span>
+                        {% else %}
+                            <span style="background: #f1f5f9; color: #475569; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600;">Default</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ desig.staff_count }}</td>
+                    <td>
+                        {% if desig.is_active %}
+                            <span style="background: #f0fdf4; color: #166534; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600;">Active</span>
+                        {% else %}
+                            <span style="background: #fef2f2; color: #991b1b; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600;">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 6px;">
+                            <a href="{% url 'designation_edit' desig.id %}" class="action-btn edit" title="Edit Permissions">
+                                <i class="ph ph-pencil-simple"></i>
+                            </a>
+                            {% if desig.company or request.user.profile.role.name == 'SUPER_ADMIN' %}
+                            <a href="{% url 'designation_delete' desig.id %}" class="action-btn delete" title="Delete"
+                               onclick="return confirm('Delete designation {{ desig.name }}?');">
+                                <i class="ph ph-trash"></i>
+                            </a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 32px; color: #64748b;">
+                        No designations found. Click "Add Designation" to create one.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

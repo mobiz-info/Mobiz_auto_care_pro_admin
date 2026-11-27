@@ -64,7 +64,7 @@
 
                     <td>
                         <span class="badge" style="background:#f1f5f9;color:#475569;">
-                            {{ staff.get_designation_display }}
+                            {{ staff.designation_obj.name|default:staff.get_designation_display|default:staff.designation }}
                         </span>
                     </td>
 

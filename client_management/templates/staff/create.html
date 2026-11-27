@@ -206,9 +206,9 @@
                 {{ form.branch }}
             {% endif %}
             <div class="form-group">
-                <label for="{{ form.designation.id_for_label }}">Designation <span style="color:red">*</span></label>
-                {{ form.designation }}
-                {% if form.designation.errors %}<div class="error-text">{{ form.designation.errors.0 }}</div>{% endif %}
+                <label for="{{ form.designation_obj.id_for_label }}">Designation <span style="color:red">*</span></label>
+                {{ form.designation_obj }}
+                {% if form.designation_obj.errors %}<div class="error-text">{{ form.designation_obj.errors.0 }}</div>{% endif %}
             </div>
         </div>
 
