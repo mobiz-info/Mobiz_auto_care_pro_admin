@@ -559,6 +559,7 @@
             </div>
             <div class="nav-submenu">
                 <a href="{% url 'invoice_create' %}">Create Invoice</a>
+                <a href="{% url 'invoice_create' %}?quick_sale=1">Quick Sale</a>
                 <a href="{% url 'invoice_list' %}">Invoices</a>
                 <a href="{% url 'outstanding_list' %}">Collection / Outstanding</a>
                 <a href="{% url 'receipt_list' %}">Receipts</a>
@@ -811,6 +812,7 @@
             </div>
             <div class="nav-submenu">
                 <a href="{% url 'invoice_create' %}">Create Invoice</a>
+                <a href="{% url 'invoice_create' %}?quick_sale=1">Quick Sale</a>
                 <a href="{% url 'invoice_list' %}">Invoices</a>
                 <a href="{% url 'receipt_list' %}">Receipts</a>
                 <a href="{% url 'outstanding_list' %}">Collection / Outstanding</a>

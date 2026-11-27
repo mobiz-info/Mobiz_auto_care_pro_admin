@@ -3409,8 +3409,10 @@ def invoice_create(request):
         vehicle_id = data.get('vehicle_id')
         is_direct_sale = bool(data.get('is_direct_sale', False))
         
-        if not customer_id and not data.get('customer_phone') and not data.get('phone'):
+        if not is_direct_sale and not customer_id and not data.get('customer_phone') and not data.get('phone'):
             return JsonResponse({'success': False, 'message': 'Customer is required'}, status=400)
+        if is_direct_sale and not customer_id and not data.get('customer_phone') and not data.get('phone') and not data.get('customer_name') and not data.get('name'):
+            return JsonResponse({'success': False, 'message': 'Customer name or phone is required'}, status=400)
         if not is_direct_sale and not vehicle_id:
             return JsonResponse({'success': False, 'message': 'Vehicle is required'}, status=400)
 

@@ -705,34 +705,41 @@ def api_get_services(request):
         
     customer_id = request.GET.get('customer_id')
     vehicle_id = request.GET.get('vehicle_id')
+    is_direct_sale = request.GET.get('is_direct_sale') in ('1', 'true', 'True')
     
-    if not customer_id:
+    if not is_direct_sale and not customer_id:
         return JsonResponse({'success': False, 'message': 'customer_id is required'}, status=400)
         
     try:
-        customer = Customer.objects.get(id=customer_id, is_deleted=False)
+        customer = None
+        if customer_id:
+            customer = Customer.objects.filter(id=customer_id, is_deleted=False).first()
+            if not customer and not is_direct_sale:
+                return JsonResponse({'success': False, 'message': 'Customer not found'}, status=404)
+
         vehicle = None
-        if vehicle_id:
-            vehicle = CustomerVehicle.objects.filter(id=vehicle_id, customer=customer, is_deleted=False).first()
-        if not vehicle:
-            vehicle = CustomerVehicle.objects.filter(customer=customer, is_deleted=False).first()
-        if not vehicle:
-            from master.models import VehicleTypeModel
-            vm = VehicleTypeModel.objects.filter(is_deleted=False).first()
-            vehicle = CustomerVehicle.objects.create(
-                customer=customer,
-                vehicle_number='NON-MOTOR',
-                vehicle_type_model=vm,
-                creator=user,
-                auto_id=get_auto_id(CustomerVehicle),
-            )
+        if not is_direct_sale and customer:
+            if vehicle_id:
+                vehicle = CustomerVehicle.objects.filter(id=vehicle_id, customer=customer, is_deleted=False).first()
+            if not vehicle:
+                vehicle = CustomerVehicle.objects.filter(customer=customer, is_deleted=False).first()
+            if not vehicle:
+                from master.models import VehicleTypeModel
+                vm = VehicleTypeModel.objects.filter(is_deleted=False).first()
+                vehicle = CustomerVehicle.objects.create(
+                    customer=customer,
+                    vehicle_number='NON-MOTOR',
+                    vehicle_type_model=vm,
+                    creator=user,
+                    auto_id=get_auto_id(CustomerVehicle),
+                )
         
         branch_id = request.GET.get('branch_id')
         branch = None
         if branch_id:
             from client_management.models import Branch
             branch = Branch.objects.filter(id=branch_id, is_deleted=False).first()
-        if not branch:
+        if not branch and customer:
             branch = customer.branch
         if not branch:
             if hasattr(user, 'managed_branch') and user.managed_branch:
@@ -787,7 +794,16 @@ def api_get_services(request):
             is_smoke = (svc.service_type and svc.service_type.slug == 'smoke_test') or 'smoke' in svc.name.lower() or 'pollution' in svc.name.lower()
             rate = 0.0
 
-            if is_smoke:
+            if vehicle is None:
+                price_obj = ServiceVehicleTypePrice.objects.filter(
+                    branch=branch,
+                    service=svc,
+                    is_active=True,
+                    is_deleted=False,
+                ).order_by('price').first()
+                if price_obj:
+                    rate = float(price_obj.price)
+            elif is_smoke:
                 eff_emission = getattr(vehicle, 'emission_standard', None) or (vehicle.vehicle_type_model.emission_standard if vehicle.vehicle_type_model else None)
                 v_fuel = getattr(vehicle, 'fuel_type', None)
 
@@ -836,7 +852,7 @@ def api_get_services(request):
                     rate = float(price_obj.price)
 
             is_insurance = bool(svc.service_type and ('insurance' in (svc.service_type.slug or '').lower() or 'insurance' in (svc.service_type.name or '').lower())) or 'insurance' in svc.name.lower()
-            if rate > 0 or is_smoke or is_insurance:
+            if is_direct_sale or rate > 0 or is_smoke or is_insurance:
                 services_data.append({
                     'id': str(svc.id),
                     'name': svc.name,
@@ -848,7 +864,7 @@ def api_get_services(request):
             
         # Tax - get company-enabled taxes only
         from tax_management.models import CompanyTax
-        company = customer.company
+        company = customer.company if customer else (branch.company if branch else getattr(user.profile, 'company', None))
         taxes_data = []
         if company:
             enabled_company_taxes = CompanyTax.objects.filter(
@@ -1519,6 +1535,8 @@ def api_create_invoice(request):
         
         role = user.profile.role.name if user.profile.role else None
 
+        cust_trn = (data.get('customer_trn') or data.get('trn_number') or data.get('tax_number') or '').strip()
+
         customer = None
         if customer_id:
             customer_qs = Customer.objects.filter(id=customer_id, is_deleted=False)
@@ -1527,38 +1545,58 @@ def api_create_invoice(request):
             elif role == 'COMPANY_ADMIN' and user.profile.company:
                 customer_qs = customer_qs.filter(company=user.profile.company)
             customer = customer_qs.first()
+            if customer and cust_trn and customer.tax_number != cust_trn:
+                customer.tax_number = cust_trn
+                customer.save(update_fields=['tax_number'])
 
         if not customer:
             cust_phone = (data.get('customer_phone') or data.get('phone') or '').strip()
-            cust_name = (data.get('customer_name') or data.get('name') or 'Counter Customer').strip()
+            cust_name = (data.get('customer_name') or data.get('name') or 'Walk-in Customer').strip()
+
+            b_obj = None
+            c_obj = None
+            if role == 'BRANCH_ADMIN' and hasattr(user, 'managed_branch') and user.managed_branch:
+                b_obj = user.managed_branch
+                c_obj = user.managed_branch.company
+            elif role == 'COMPANY_ADMIN' and user.profile.company:
+                c_obj = user.profile.company
+                req_branch_id = data.get('branch_id')
+                if req_branch_id:
+                    b_obj = Branch.objects.filter(id=req_branch_id, company=c_obj, is_deleted=False).first()
+                if not b_obj:
+                    b_obj = c_obj.branches.filter(is_deleted=False).first()
+            elif hasattr(user, 'managed_branch') and user.managed_branch:
+                b_obj = user.managed_branch
+                c_obj = user.managed_branch.company
+            elif hasattr(user, 'profile') and user.profile.company:
+                c_obj = user.profile.company
+                b_obj = c_obj.branches.filter(is_deleted=False).first()
+
             if cust_phone:
                 cust_filter = Q(phone=cust_phone) | Q(whatsapp_number=cust_phone)
                 cust_qs = Customer.objects.filter(cust_filter, is_deleted=False)
-                if role == 'BRANCH_ADMIN' and hasattr(user, 'managed_branch'):
-                    cust_qs = cust_qs.filter(branch=user.managed_branch)
-                    b_obj = user.managed_branch
-                    c_obj = user.managed_branch.company
-                elif role == 'COMPANY_ADMIN' and user.profile.company:
-                    cust_qs = cust_qs.filter(company=user.profile.company)
-                    c_obj = user.profile.company
-                    b_obj = c_obj.branches.filter(is_deleted=False).first()
-                else:
-                    b_obj = None
-                    c_obj = None
-
+                if role == 'BRANCH_ADMIN' and b_obj:
+                    cust_qs = cust_qs.filter(branch=b_obj)
+                elif c_obj:
+                    cust_qs = cust_qs.filter(company=c_obj)
                 customer = cust_qs.first()
-                if not customer:
-                    customer = Customer.objects.create(
-                        name=cust_name or 'Counter Customer',
-                        phone=cust_phone,
-                        company=c_obj,
-                        branch=b_obj,
-                        creator=user,
-                        auto_id=get_auto_id(Customer),
-                    )
+                if customer and cust_trn and customer.tax_number != cust_trn:
+                    customer.tax_number = cust_trn
+                    customer.save(update_fields=['tax_number'])
+
+            if not customer and (cust_phone or is_direct_sale):
+                customer = Customer.objects.create(
+                    name=cust_name or 'Walk-in Customer',
+                    phone=cust_phone,
+                    tax_number=cust_trn or None,
+                    company=c_obj,
+                    branch=b_obj,
+                    creator=user,
+                    auto_id=get_auto_id(Customer),
+                )
 
         if not customer:
-            return JsonResponse({'success': False, 'message': 'customer_id or phone is required'}, status=400)
+            return JsonResponse({'success': False, 'message': 'Customer name or phone is required'}, status=400)
 
         vehicle = None
         if not is_direct_sale:
