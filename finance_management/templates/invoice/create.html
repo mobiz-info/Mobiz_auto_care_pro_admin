@@ -1207,9 +1207,9 @@
                     Create a quick invoice for services or stock items without registering a vehicle.
                 </p>
                 <div class="form-group" style="margin-bottom:12px;">
-                    <label>Customer Name</label>
-                    <input type="text" id="counter_name" class="form-control"
-                        placeholder="e.g. Walk-in Customer">
+                    <label>Customer Name <span style="color:#ef4444;">*</span></label>
+                    <input type="text" id="counter_name" class="form-control" required
+                        placeholder="Enter customer name">
                 </div>
                 <div class="form-group" style="margin-bottom:12px;">
                     <label>Phone Number <span style="color:#94a3b8; font-weight:400; font-size:0.8rem;">(Optional)</span></label>
@@ -1689,9 +1689,18 @@
     function submitQuickCounterSale(e) {
         e.preventDefault();
         const phone = document.getElementById('counter_phone').value.trim();
-        const name = document.getElementById('counter_name').value.trim() || 'Walk-in Customer';
+        const name = document.getElementById('counter_name').value.trim();
         const trn = document.getElementById('counter_trn')?.value.trim() || '';
         const branchId = document.getElementById('branch_select').value;
+        const err = document.getElementById('counter_error');
+
+        if (!name) {
+            if (err) {
+                err.innerText = 'Please enter customer name.';
+                err.style.display = 'block';
+            }
+            return;
+        }
 
         closeModal('quickCounterSaleModal');
 
